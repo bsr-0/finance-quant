@@ -1,0 +1,70 @@
+# Market Data Warehouse Configuration
+
+# Database settings
+database:
+  host: localhost
+  port: 5432
+  name: market_data
+  user: postgres
+  password: postgres
+
+# Raw data lake path
+raw_lake_path: data/raw
+
+# Source configurations
+fred:
+  api_key: null  # Set via FRED_API_KEY env var
+  base_url: https://api.stlouisfed.org/fred
+  series_codes:
+    - GDP
+    - UNRATE
+    - CPIAUCSL
+    - FEDFUNDS
+    - T10Y2Y
+    - VIXCLS
+    - DGS10
+    - DGS2
+    - TB3MS
+  enabled: true
+
+gdelt:
+  base_url: https://api.gdeltproject.org/api/v2
+  enabled: true
+  max_days_per_request: 30
+
+polymarket:
+  base_url: https://clob.polymarket.com
+  gamma_url: https://gamma-api.polymarket.com
+  enabled: true
+  rate_limit_per_sec: 5.0
+
+prices:
+  source: yahoo
+  api_key: null
+  enabled: true
+  universe:
+    - SPY
+    - QQQ
+    - IWM
+    - VTI
+    - VOO
+    - AAPL
+    - MSFT
+    - GOOGL
+    - AMZN
+    - META
+    - TSLA
+    - NVDA
+    - JPM
+    - JNJ
+    - V
+    - WMT
+    - PG
+    - UNH
+    - HD
+    - MA
+
+# Pipeline defaults
+default_start_date: "2024-01-01"
+default_end_date: "2024-12-31"
+batch_size: 1000
