@@ -6,7 +6,7 @@ from typing import Any, Callable, Generic, Iterator, List, Optional, TypeVar
 
 from sqlalchemy import text
 
-from pipeline.db import get_db_manager
+from pipeline.db import _validate_identifier, get_db_manager
 
 logger = logging.getLogger(__name__)
 
@@ -78,12 +78,14 @@ class BatchInserter(Generic[T]):
         """Insert batch of records."""
         if not records:
             return
-        
-        columns_str = ", ".join(self.columns)
-        placeholders = ", ".join([f":{col}" for col in self.columns])
-        
+
+        table = _validate_identifier(self.table_name)
+        validated_cols = [_validate_identifier(c) for c in self.columns]
+        columns_str = ", ".join(validated_cols)
+        placeholders = ", ".join([f":{col}" for col in validated_cols])
+
         sql = text(f"""
-            INSERT INTO {self.table_name} ({columns_str})
+            INSERT INTO {table} ({columns_str})
             VALUES ({placeholders})
             ON CONFLICT DO NOTHING
         """)

@@ -1,7 +1,7 @@
 """Build contract-centric snapshots for training data."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from uuid import UUID
 
@@ -232,9 +232,9 @@ class ContractSnapshotBuilder:
             contract_ids = [UUID(r["contract_id"]) for r in result]
         
         if not start_ts:
-            start_ts = datetime.utcnow() - timedelta(days=30)
+            start_ts = datetime.now(timezone.utc) - timedelta(days=30)
         if not end_ts:
-            end_ts = datetime.utcnow()
+            end_ts = datetime.now(timezone.utc)
         
         # Generate timestamp series
         freq_map = {"1h": "H", "1d": "D", "15min": "15min"}

@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -29,7 +29,7 @@ class CheckpointManager:
         """Save checkpoint state."""
         checkpoint = {
             "operation_id": operation_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "state": state,
             "metadata": metadata or {}
         }

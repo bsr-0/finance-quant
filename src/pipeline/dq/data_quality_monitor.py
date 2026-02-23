@@ -3,12 +3,12 @@
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pipeline.db import get_db_manager
+from pipeline.db import _validate_identifier, get_db_manager
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class DataQualityAlert:
     severity: Severity
     message: str
     details: Dict = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     resolved_at: Optional[datetime] = None
 
 
@@ -92,8 +92,10 @@ class DataQualityMonitor:
         max_age_hours: float = 24.0
     ) -> Optional[DataQualityAlert]:
         """Check if data is fresh."""
+        table_name = _validate_identifier(table_name)
+        timestamp_col = _validate_identifier(timestamp_col)
         result = self.db.run_query(f"""
-            SELECT 
+            SELECT
                 MAX({timestamp_col}) as latest_ts,
                 COUNT(*) as total_rows
             FROM {table_name}
@@ -101,7 +103,7 @@ class DataQualityMonitor:
         
         if not result or not result[0]["latest_ts"]:
             return DataQualityAlert(
-                alert_id=f"freshness_{table_name}_{datetime.utcnow().isoformat()}",
+                alert_id=f"freshness_{table_name}_{datetime.now(timezone.utc).isoformat()}",
                 table_name=table_name,
                 check_name="freshness",
                 severity=Severity.ERROR,
@@ -113,12 +115,12 @@ class DataQualityMonitor:
         if isinstance(latest_ts, str):
             latest_ts = datetime.fromisoformat(latest_ts.replace('Z', '+00:00'))
         
-        age_hours = (datetime.utcnow() - latest_ts.replace(tzinfo=None)).total_seconds() / 3600
+        age_hours = (datetime.now(timezone.utc) - latest_ts.replace(tzinfo=None)).total_seconds() / 3600
         
         if age_hours > max_age_hours:
             severity = Severity.CRITICAL if age_hours > max_age_hours * 2 else Severity.WARNING
             return DataQualityAlert(
-                alert_id=f"freshness_{table_name}_{datetime.utcnow().isoformat()}",
+                alert_id=f"freshness_{table_name}_{datetime.now(timezone.utc).isoformat()}",
                 table_name=table_name,
                 check_name="freshness",
                 severity=severity,
@@ -140,13 +142,14 @@ class DataQualityMonitor:
         min_completeness_pct: float = 95.0
     ) -> Optional[DataQualityAlert]:
         """Check data completeness."""
+        table_name = _validate_identifier(table_name)
         col_checks = ", ".join([
-            f"SUM(CASE WHEN {col} IS NULL THEN 1 ELSE 0 END) as {col}_nulls"
+            f"SUM(CASE WHEN {_validate_identifier(col)} IS NULL THEN 1 ELSE 0 END) as {_validate_identifier(col)}_nulls"
             for col in required_cols
         ])
-        
+
         result = self.db.run_query(f"""
-            SELECT 
+            SELECT
                 COUNT(*) as total_rows,
                 {col_checks}
             FROM {table_name}
@@ -171,7 +174,7 @@ class DataQualityMonitor:
         
         if incomplete_cols:
             return DataQualityAlert(
-                alert_id=f"completeness_{table_name}_{datetime.utcnow().isoformat()}",
+                alert_id=f"completeness_{table_name}_{datetime.now(timezone.utc).isoformat()}",
                 table_name=table_name,
                 check_name="completeness",
                 severity=Severity.WARNING,
@@ -187,6 +190,7 @@ class DataQualityMonitor:
         zscore_threshold: float = 4.0
     ) -> Optional[DataQualityAlert]:
         """Check for price anomalies."""
+        table_name = _validate_identifier(table_name)
         result = self.db.run_query(f"""
             WITH price_stats AS (
                 SELECT 
@@ -215,7 +219,7 @@ class DataQualityMonitor:
         
         if result:
             return DataQualityAlert(
-                alert_id=f"price_anomaly_{datetime.utcnow().isoformat()}",
+                alert_id=f"price_anomaly_{datetime.now(timezone.utc).isoformat()}",
                 table_name=table_name,
                 check_name="price_anomaly",
                 severity=Severity.WARNING,
@@ -247,7 +251,7 @@ class DataQualityMonitor:
         
         if delisted_pct < min_delisted_pct:
             return DataQualityAlert(
-                alert_id=f"survivor_bias_{datetime.utcnow().isoformat()}",
+                alert_id=f"survivor_bias_{datetime.now(timezone.utc).isoformat()}",
                 table_name="dim_symbol",
                 check_name="survivor_bias",
                 severity=Severity.WARNING,
@@ -267,6 +271,7 @@ class DataQualityMonitor:
         table_name: str = "snap_contract_features"
     ) -> Optional[DataQualityAlert]:
         """Check for look-ahead bias in snapshots."""
+        table_name = _validate_identifier(table_name)
         result = self.db.run_query(f"""
             SELECT 
                 s.contract_id,
@@ -282,7 +287,7 @@ class DataQualityMonitor:
         
         if result:
             return DataQualityAlert(
-                alert_id=f"look_ahead_{datetime.utcnow().isoformat()}",
+                alert_id=f"look_ahead_{datetime.now(timezone.utc).isoformat()}",
                 table_name=table_name,
                 check_name="look_ahead_bias",
                 severity=Severity.CRITICAL,
@@ -361,7 +366,7 @@ class DataQualityMonitor:
     def generate_quality_report(self, output_path: Optional[Path] = None) -> Dict:
         """Generate comprehensive quality report."""
         report = {
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "checks": {},
             "alerts": [],
             "recommendations": []
