@@ -3,8 +3,7 @@
 import json
 import logging
 import sys
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 
 class JSONFormatter(logging.Formatter):
@@ -12,7 +11,7 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -25,7 +24,7 @@ class JSONFormatter(logging.Formatter):
 def configure_logging(
     level: str = "INFO",
     json_output: bool = False,
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
 ) -> None:
     """Configure logging for the pipeline.
 
@@ -43,9 +42,7 @@ def configure_logging(
     if json_output:
         formatter = JSONFormatter()
     else:
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     console = logging.StreamHandler(sys.stderr)
     console.setFormatter(formatter)

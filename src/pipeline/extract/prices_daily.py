@@ -1,9 +1,8 @@
 """Daily OHLCV price data extractor."""
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import httpx
 import pandas as pd
@@ -25,9 +24,7 @@ class YahooFinanceExtractor:
     def __init__(self):
         self.client = httpx.Client(
             timeout=30.0,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            },
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
         )
         self._circuit = get_circuit_breaker(
             "yahoo_finance", failure_threshold=5, recovery_timeout=60.0
@@ -123,11 +120,11 @@ class YahooFinanceExtractor:
     def extract_to_raw(
         self,
         output_dir: Path,
-        tickers: List[str],
+        tickers: list[str],
         start_date: date,
         end_date: date,
-        run_id: Optional[str] = None,
-    ) -> List[Path]:
+        run_id: str | None = None,
+    ) -> list[Path]:
         """Extract price data to raw lake."""
         output_dir = Path(output_dir) / "prices"
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -143,7 +140,7 @@ class YahooFinanceExtractor:
                     continue
 
                 # Add metadata
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
                 # Save to parquet
@@ -161,7 +158,7 @@ class YahooFinanceExtractor:
         return saved_files
 
 
-def detect_delisted_symbols(prices_dir: Path) -> Dict[str, date]:
+def detect_delisted_symbols(prices_dir: Path) -> dict[str, date]:
     """Detect potentially delisted symbols from extracted price data.
 
     Scans parquet files in *prices_dir* and flags any ticker whose most recent
@@ -175,8 +172,8 @@ def detect_delisted_symbols(prices_dir: Path) -> Dict[str, date]:
     if not parquet_files:
         return {}
 
-    ticker_last_dates: Dict[str, date] = {}
-    global_max_date: Optional[date] = None
+    ticker_last_dates: dict[str, date] = {}
+    global_max_date: date | None = None
 
     for path in parquet_files:
         try:
@@ -198,9 +195,7 @@ def detect_delisted_symbols(prices_dir: Path) -> Dict[str, date]:
 
     cutoff = global_max_date - timedelta(days=_DELISTING_GAP_DAYS)
     return {
-        ticker: last_date
-        for ticker, last_date in ticker_last_dates.items()
-        if last_date < cutoff
+        ticker: last_date for ticker, last_date in ticker_last_dates.items() if last_date < cutoff
     }
 
 
@@ -220,11 +215,11 @@ class PriceExtractor:
     def extract_to_raw(
         self,
         output_dir: Path,
-        tickers: Optional[List[str]] = None,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
-        run_id: Optional[str] = None,
-    ) -> List[Path]:
+        tickers: list[str] | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        run_id: str | None = None,
+    ) -> list[Path]:
         """Extract price data to raw lake."""
         symbols = tickers or self.universe
         start = start_date or date.fromisoformat(get_settings().default_start_date)
@@ -252,11 +247,11 @@ class PriceExtractor:
 
 def extract_prices(
     output_dir: Path,
-    tickers: Optional[List[str]] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    run_id: Optional[str] = None,
-) -> List[Path]:
+    tickers: list[str] | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    run_id: str | None = None,
+) -> list[Path]:
     """CLI-friendly wrapper for price extraction."""
     extractor = PriceExtractor()
 

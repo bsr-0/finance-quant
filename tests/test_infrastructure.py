@@ -2,8 +2,6 @@
 
 import json
 import time
-from datetime import datetime, timezone
-from pathlib import Path
 
 import pytest
 
@@ -114,11 +112,14 @@ class TestCheckpointManager:
 
     def test_get_progress(self, tmp_path):
         mgr = CheckpointManager(tmp_path)
-        mgr.save_checkpoint("op1", {
-            "completed_items": 5,
-            "total_items": 10,
-            "last_processed": "item_5",
-        })
+        mgr.save_checkpoint(
+            "op1",
+            {
+                "completed_items": 5,
+                "total_items": 10,
+                "last_processed": "item_5",
+            },
+        )
 
         progress = mgr.get_progress("op1")
         assert progress["completed_items"] == 5
@@ -137,10 +138,9 @@ class TestCheckpointManager:
     def test_checkpoint_context_failure_saves(self, tmp_path):
         mgr = CheckpointManager(tmp_path)
 
-        with pytest.raises(ValueError):
-            with CheckpointContext(mgr, "op_fail") as ctx:
-                ctx.update(step=3)
-                raise ValueError("boom")
+        with pytest.raises(ValueError), CheckpointContext(mgr, "op_fail") as ctx:
+            ctx.update(step=3)
+            raise ValueError("boom")
 
         checkpoint = mgr.load_checkpoint("op_fail")
         assert checkpoint is not None

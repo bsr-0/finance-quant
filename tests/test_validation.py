@@ -1,6 +1,5 @@
 """Unit tests for data validation (no database required)."""
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -58,7 +57,7 @@ class TestPriceValidator:
         assert price.ticker == "SPY"
 
     def test_negative_price_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             PriceValidator(
                 ticker="SPY",
                 date="2024-01-01",
@@ -70,7 +69,7 @@ class TestPriceValidator:
             )
 
     def test_high_less_than_open_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             PriceValidator(
                 ticker="SPY",
                 date="2024-01-01",
@@ -82,7 +81,7 @@ class TestPriceValidator:
             )
 
     def test_low_greater_than_high_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             PriceValidator(
                 ticker="SPY",
                 date="2024-01-01",
@@ -114,7 +113,7 @@ class TestFredObservationValidator:
         assert obs.value is None
 
     def test_empty_series_code_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             FredObservationValidator(
                 series_code="",
                 date="2024-01-01",
@@ -136,7 +135,7 @@ class TestContractPriceValidator:
         assert price.price_normalized == 0.55
 
     def test_normalized_price_out_of_range(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             ContractPriceValidator(
                 contract_id="abc-123",
                 ts="2024-01-01T00:00:00",
@@ -192,11 +191,13 @@ class TestValidateFredObservations:
     """Tests for DataFrame-level FRED validation."""
 
     def test_valid_dataframe(self):
-        df = pd.DataFrame({
-            "series_code": ["GDP", "GDP"],
-            "date": ["2024-01-01", "2024-02-01"],
-            "value": [100.0, 101.0],
-        })
+        df = pd.DataFrame(
+            {
+                "series_code": ["GDP", "GDP"],
+                "date": ["2024-01-01", "2024-02-01"],
+                "value": [100.0, 101.0],
+            }
+        )
 
         result = validate_fred_observations(df)
         assert result.is_valid
@@ -209,11 +210,13 @@ class TestValidateFredObservations:
         assert "Missing columns" in result.errors[0]
 
     def test_null_series_code(self):
-        df = pd.DataFrame({
-            "series_code": [None],
-            "date": ["2024-01-01"],
-            "value": [100.0],
-        })
+        df = pd.DataFrame(
+            {
+                "series_code": [None],
+                "date": ["2024-01-01"],
+                "value": [100.0],
+            }
+        )
 
         result = validate_fred_observations(df)
         assert not result.is_valid
@@ -223,37 +226,43 @@ class TestValidatePricesOhlcv:
     """Tests for DataFrame-level OHLCV validation."""
 
     def test_valid_prices(self):
-        df = pd.DataFrame({
-            "open": [470.0],
-            "high": [475.0],
-            "low": [469.0],
-            "close": [473.0],
-            "volume": [1000000],
-        })
+        df = pd.DataFrame(
+            {
+                "open": [470.0],
+                "high": [475.0],
+                "low": [469.0],
+                "close": [473.0],
+                "volume": [1000000],
+            }
+        )
 
         result = validate_prices_ohlcv(df)
         assert result.is_valid
 
     def test_low_greater_than_high(self):
-        df = pd.DataFrame({
-            "open": [470.0],
-            "high": [475.0],
-            "low": [480.0],  # violation
-            "close": [473.0],
-            "volume": [1000000],
-        })
+        df = pd.DataFrame(
+            {
+                "open": [470.0],
+                "high": [475.0],
+                "low": [480.0],  # violation
+                "close": [473.0],
+                "volume": [1000000],
+            }
+        )
 
         result = validate_prices_ohlcv(df)
         assert not result.is_valid
 
     def test_negative_volume(self):
-        df = pd.DataFrame({
-            "open": [470.0],
-            "high": [475.0],
-            "low": [469.0],
-            "close": [473.0],
-            "volume": [-100],
-        })
+        df = pd.DataFrame(
+            {
+                "open": [470.0],
+                "high": [475.0],
+                "low": [469.0],
+                "close": [473.0],
+                "volume": [-100],
+            }
+        )
 
         result = validate_prices_ohlcv(df)
         assert not result.is_valid
