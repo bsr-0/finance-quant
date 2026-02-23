@@ -1,6 +1,7 @@
 """Database connection and utility functions."""
 
 import logging
+import re
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator, List, Optional
@@ -12,6 +13,16 @@ from sqlalchemy.orm import Session, sessionmaker
 from pipeline.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Allowlist pattern for SQL identifiers (table/column names)
+_SAFE_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
+def _validate_identifier(name: str) -> str:
+    """Validate and return a safe SQL identifier, or raise ValueError."""
+    if not _SAFE_IDENTIFIER.match(name):
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    return name
 
 
 class DatabaseManager:
@@ -48,9 +59,9 @@ class DatabaseManager:
         try:
             yield session
             session.commit()
-        except Exception as e:
+        except Exception:
             session.rollback()
-            raise e
+            raise
         finally:
             session.close()
     
@@ -80,6 +91,7 @@ class DatabaseManager:
     
     def get_table_count(self, table_name: str) -> int:
         """Get row count for a table."""
+        table_name = _validate_identifier(table_name)
         result = self.run_query(f"SELECT COUNT(*) as cnt FROM {table_name}")
         return result[0]["cnt"] if result else 0
     
@@ -98,8 +110,10 @@ class DatabaseManager:
     def get_min_max_dates(self, table_name: str, date_column: str) -> Optional[dict]:
         """Get min and max dates from a table."""
         try:
+            table_name = _validate_identifier(table_name)
+            date_column = _validate_identifier(date_column)
             query = f"""
-                SELECT 
+                SELECT
                     MIN({date_column}) as min_date,
                     MAX({date_column}) as max_date
                 FROM {table_name}

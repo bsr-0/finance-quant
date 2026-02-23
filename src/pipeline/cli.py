@@ -19,7 +19,6 @@ from pipeline.extract.polymarket import extract_polymarket
 from pipeline.extract.prices_daily import extract_prices
 from pipeline.load.raw_loader import RawLoader
 from pipeline.settings import get_settings
-from pipeline.snapshot.contract_snapshots import build_snapshots
 from pipeline.transform.curated import CuratedTransformer
 
 # Setup logging
