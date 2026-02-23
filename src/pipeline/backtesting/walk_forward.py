@@ -10,18 +10,13 @@ Reference: Marcos Lopez de Prado, *Advances in Financial Machine Learning*,
 Chapter 7 (Cross-Validation in Finance).
 """
 
+from __future__ import annotations
+
 import logging
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import (
     Any,
-    Callable,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Protocol,
-    Tuple,
 )
 
 import numpy as np
@@ -44,18 +39,18 @@ class FoldResult:
     test_end: Any
     train_size: int
     test_size: int
-    metrics: Dict[str, float] = field(default_factory=dict)
-    predictions: Optional[pd.Series] = None
+    metrics: dict[str, float] = field(default_factory=dict)
+    predictions: pd.Series | None = None
 
 
 @dataclass
 class ValidationResult:
     """Aggregate result across all folds."""
-    folds: List[FoldResult]
+    folds: list[FoldResult]
     strategy_name: str = ""
 
     @property
-    def mean_metrics(self) -> Dict[str, float]:
+    def mean_metrics(self) -> dict[str, float]:
         """Mean of each metric across folds."""
         if not self.folds:
             return {}
@@ -66,7 +61,7 @@ class ValidationResult:
         }
 
     @property
-    def std_metrics(self) -> Dict[str, float]:
+    def std_metrics(self) -> dict[str, float]:
         """Std of each metric across folds."""
         if not self.folds:
             return {}
@@ -101,9 +96,9 @@ def walk_forward_splits(
     index: pd.DatetimeIndex,
     train_size: int,
     test_size: int,
-    step_size: Optional[int] = None,
+    step_size: int | None = None,
     expanding: bool = True,
-) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+) -> Generator[tuple[np.ndarray, np.ndarray], None, None]:
     """Generate (train_indices, test_indices) for walk-forward validation.
 
     Args:
@@ -118,10 +113,7 @@ def walk_forward_splits(
 
     start = 0
     while True:
-        if expanding:
-            train_start = 0
-        else:
-            train_start = start
+        train_start = 0 if expanding else start
 
         train_end = start + train_size
         test_end = train_end + test_size
@@ -140,11 +132,11 @@ def walk_forward_validate(
     df: pd.DataFrame,
     train_fn: Callable[[pd.DataFrame], Any],
     predict_fn: Callable[[Any, pd.DataFrame], pd.Series],
-    eval_fn: Callable[[pd.Series, pd.Series], Dict[str, float]],
+    eval_fn: Callable[[pd.Series, pd.Series], dict[str, float]],
     target_col: str,
     train_size: int = 252,
     test_size: int = 63,
-    step_size: Optional[int] = None,
+    step_size: int | None = None,
     expanding: bool = True,
 ) -> ValidationResult:
     """Run walk-forward validation.
@@ -163,7 +155,7 @@ def walk_forward_validate(
     Returns:
         ValidationResult with per-fold and aggregate metrics.
     """
-    folds: List[FoldResult] = []
+    folds: list[FoldResult] = []
 
     for fold_i, (train_idx, test_idx) in enumerate(
         walk_forward_splits(df.index, train_size, test_size, step_size, expanding)
@@ -207,7 +199,7 @@ def purged_kfold_splits(
     index: pd.DatetimeIndex,
     n_folds: int = 5,
     embargo_pct: float = 0.01,
-) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+) -> Generator[tuple[np.ndarray, np.ndarray], None, None]:
     """Generate purged k-fold splits for time-series data.
 
     Each fold is a contiguous time block.  An *embargo* buffer after each
@@ -244,13 +236,13 @@ def purged_kfold_validate(
     df: pd.DataFrame,
     train_fn: Callable[[pd.DataFrame], Any],
     predict_fn: Callable[[Any, pd.DataFrame], pd.Series],
-    eval_fn: Callable[[pd.Series, pd.Series], Dict[str, float]],
+    eval_fn: Callable[[pd.Series, pd.Series], dict[str, float]],
     target_col: str,
     n_folds: int = 5,
     embargo_pct: float = 0.01,
 ) -> ValidationResult:
     """Run purged k-fold cross-validation."""
-    folds: List[FoldResult] = []
+    folds: list[FoldResult] = []
 
     for fold_i, (train_idx, test_idx) in enumerate(
         purged_kfold_splits(df.index, n_folds, embargo_pct)

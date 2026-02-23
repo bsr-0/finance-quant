@@ -6,7 +6,6 @@ statistics that are essential for processing noisy market data.
 """
 
 import logging
-from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -145,7 +144,7 @@ def detect_outliers_iqr(
 # Covariance Estimation
 # ---------------------------------------------------------------------------
 
-def ledoit_wolf_shrinkage(returns: pd.DataFrame) -> Tuple[pd.DataFrame, float]:
+def ledoit_wolf_shrinkage(returns: pd.DataFrame) -> tuple[pd.DataFrame, float]:
     """Ledoit-Wolf shrinkage estimator for the covariance matrix.
 
     Shrinks the sample covariance toward a structured target (scaled
@@ -155,31 +154,31 @@ def ledoit_wolf_shrinkage(returns: pd.DataFrame) -> Tuple[pd.DataFrame, float]:
     Returns:
         (shrunk_cov, shrinkage_intensity)
     """
-    X = returns.dropna().values
-    n, p = X.shape
+    x = returns.dropna().values
+    n, p = x.shape
     if n < 2 or p < 1:
         return pd.DataFrame(np.eye(p), index=returns.columns, columns=returns.columns), 1.0
 
     # Sample covariance
-    X_centered = X - X.mean(axis=0)
-    S = (X_centered.T @ X_centered) / n
+    x_centered = x - x.mean(axis=0)
+    s = (x_centered.T @ x_centered) / n
 
     # Target: scaled identity
-    mu = np.trace(S) / p
-    F = mu * np.eye(p)
+    mu = np.trace(s) / p
+    f = mu * np.eye(p)
 
     # Optimal shrinkage intensity (Ledoit & Wolf 2004)
-    delta = S - F
+    delta = s - f
     sum_sq = (delta ** 2).sum()
 
-    X2 = X_centered ** 2
-    phi_mat = (X2.T @ X2) / n - S ** 2
+    x2 = x_centered ** 2
+    phi_mat = (x2.T @ x2) / n - s ** 2
     phi = phi_mat.sum()
 
     kappa = (phi / sum_sq) if sum_sq > 0 else 1.0
     shrinkage = max(0.0, min(1.0, kappa / n))
 
-    sigma = (1 - shrinkage) * S + shrinkage * F
+    sigma = (1 - shrinkage) * s + shrinkage * f
     cov_df = pd.DataFrame(sigma, index=returns.columns, columns=returns.columns)
     return cov_df, float(shrinkage)
 
@@ -196,7 +195,7 @@ def ewm_correlation(returns: pd.DataFrame, span: int = 60) -> pd.DataFrame:
 def clean_returns(
     returns: pd.Series,
     window: int = 60,
-    winsor_pct: Tuple[float, float] = (0.01, 0.99),
+    winsor_pct: tuple[float, float] = (0.01, 0.99),
     outlier_threshold: float = 5.0,
 ) -> pd.Series:
     """Winsorize and replace extreme outliers with NaN.
@@ -204,7 +203,7 @@ def clean_returns(
     Use this before computing features to prevent a single fat-finger
     trade from contaminating rolling statistics.
     """
+    outliers = detect_outliers_mad(returns, window, outlier_threshold)
     cleaned = winsorize(returns.copy(), winsor_pct[0], winsor_pct[1])
-    outliers = detect_outliers_mad(cleaned, window, outlier_threshold)
     cleaned[outliers] = np.nan
     return cleaned

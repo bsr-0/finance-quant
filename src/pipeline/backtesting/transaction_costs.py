@@ -6,10 +6,11 @@ the same interface so they can be swapped without changing
 strategy code.
 """
 
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -143,8 +144,8 @@ class SquareRootImpactModel(CostModel):
 def apply_transaction_costs(
     positions: pd.DataFrame,
     prices: pd.DataFrame,
-    cost_model: Optional[CostModel] = None,
-    adv: Optional[pd.DataFrame] = None,
+    cost_model: CostModel | None = None,
+    adv: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Compute net-of-cost returns from a position matrix.
 

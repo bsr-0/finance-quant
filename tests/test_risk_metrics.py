@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from pipeline.features.risk_metrics import (
-    calmar_ratio,
+    calculate_risk_metrics,
     close_to_close_vol,
     drawdown_duration,
     drawdown_series,
@@ -21,7 +21,6 @@ from pipeline.features.risk_metrics import (
     sharpe_ratio,
     sortino_ratio,
     yang_zhang_vol,
-    calculate_risk_metrics,
 )
 
 

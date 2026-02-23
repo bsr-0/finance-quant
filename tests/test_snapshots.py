@@ -1,9 +1,10 @@
 """Tests for snapshot builder."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from pipeline.db import get_db_manager, reset_db_manager
 from pipeline.snapshot.contract_snapshots import ContractSnapshotBuilder
@@ -13,7 +14,13 @@ from pipeline.snapshot.contract_snapshots import ContractSnapshotBuilder
 def db():
     """Provide database manager for tests."""
     reset_db_manager()
-    return get_db_manager()
+    db_manager = get_db_manager()
+    try:
+        with db_manager.engine.connect():
+            pass
+    except OperationalError as exc:
+        pytest.skip(f"Database not available: {exc}")
+    return db_manager
 
 
 @pytest.fixture
@@ -80,7 +87,7 @@ class TestContractSnapshotBuilder:
 
         builder = ContractSnapshotBuilder()
         snapshot = builder.build_contract_snapshot(
-            contract_id=sample_contract, asof_ts=datetime.now(UTC)
+            contract_id=sample_contract, asof_ts=datetime.now(timezone.utc)
         )
 
         assert snapshot is not None
@@ -89,7 +96,7 @@ class TestContractSnapshotBuilder:
 
     def test_snapshot_no_lookahead(self, db, sample_contract):
         """Test that snapshots don't include future data."""
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
 
         # Insert price at now
         with db.engine.connect() as conn:
@@ -119,7 +126,7 @@ class TestContractSnapshotBuilder:
 
     def test_snapshot_uses_latest_available(self, db, sample_contract):
         """Test that snapshots use the latest available data."""
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
 
         # Insert multiple prices
         with db.engine.connect() as conn:
@@ -157,7 +164,7 @@ class TestContractSnapshotBuilder:
 
     def test_snapshot_trade_aggregation(self, db, sample_contract):
         """Test that trade statistics are correctly aggregated."""
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
 
         # Insert some trades
         with db.engine.connect() as conn:

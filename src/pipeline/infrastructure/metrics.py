@@ -1,12 +1,14 @@
 """Metrics collection and monitoring for the pipeline."""
 
+from __future__ import annotations
+
 import json
 import logging
 import time
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
@@ -29,7 +31,7 @@ class Metric:
     name: str
     value: float
     metric_type: MetricType
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     tags: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict:

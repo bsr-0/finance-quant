@@ -1,10 +1,25 @@
 """Configuration and settings management."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Optional
 
 import yaml
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
+from pydantic import validator as _v1_validator
+
+try:
+    from pydantic import field_validator
+except ImportError:  # pragma: no cover - pydantic v1 fallback
+    field_validator = _v1_validator
+
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+except ImportError:  # pragma: no cover - pydantic v1 fallback
+    from pydantic import BaseSettings  # type: ignore
+
+    SettingsConfigDict = dict  # type: ignore
 
 
 class DatabaseSettings(BaseSettings):
@@ -28,7 +43,7 @@ class FredSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="FRED_")
 
-    api_key: str | None = None
+    api_key: Optional[str] = None
     base_url: str = "https://api.stlouisfed.org/fred"
     series_codes: list[str] = Field(
         default_factory=lambda: ["GDP", "UNRATE", "CPIAUCSL", "FEDFUNDS", "T10Y2Y", "VIXCLS"]
@@ -63,7 +78,7 @@ class PriceSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="PRICES_")
 
     source: str = "yahoo"  # or "alphavantage", "polygon"
-    api_key: str | None = None
+    api_key: Optional[str] = None
     enabled: bool = True
     universe: list[str] = Field(
         default_factory=lambda: [
@@ -106,7 +121,7 @@ class InfrastructureSettings(BaseSettings):
 
     # Metrics
     metrics_enabled: bool = True
-    metrics_export_path: Path | None = None
+    metrics_export_path: Optional[Path] = None
 
     # Caching
     cache_enabled: bool = True
@@ -154,11 +169,12 @@ class PipelineSettings(BaseSettings):
     def to_yaml(self, path: Path) -> None:
         """Save settings to YAML file."""
         with open(path, "w") as f:
-            yaml.dump(self.model_dump(), f, default_flow_style=False)
+            data = self.model_dump() if hasattr(self, "model_dump") else self.dict()
+            yaml.dump(data, f, default_flow_style=False)
 
 
 # Global settings instance
-_settings: PipelineSettings | None = None
+_settings: Optional[PipelineSettings] = None
 
 
 def get_settings() -> PipelineSettings:

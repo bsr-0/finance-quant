@@ -1,7 +1,9 @@
 """Build contract-centric snapshots for training data."""
 
+from __future__ import annotations
+
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 
 import pandas as pd
@@ -212,9 +214,9 @@ class ContractSnapshotBuilder:
             contract_ids = [UUID(r["contract_id"]) for r in result]
 
         if not start_ts:
-            start_ts = datetime.now(UTC) - timedelta(days=30)
+            start_ts = datetime.now(timezone.utc) - timedelta(days=30)
         if not end_ts:
-            end_ts = datetime.now(UTC)
+            end_ts = datetime.now(timezone.utc)
 
         # Generate timestamp series
         freq_map = {"1h": "H", "1d": "D", "15min": "15min"}

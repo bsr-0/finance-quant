@@ -1,7 +1,9 @@
 """Daily OHLCV price data extractor."""
 
+from __future__ import annotations
+
 import logging
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -140,7 +142,7 @@ class YahooFinanceExtractor:
                     continue
 
                 # Add metadata
-                df["extracted_at"] = datetime.now(UTC)
+                df["extracted_at"] = datetime.now(timezone.utc)
                 df["run_id"] = run_id
 
                 # Save to parquet

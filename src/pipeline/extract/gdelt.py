@@ -1,8 +1,10 @@
 """GDELT (Global Database of Events, Language, and Tone) extractor."""
 
+from __future__ import annotations
+
 import logging
 import zipfile
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 
@@ -159,7 +161,7 @@ class GDELTExtractor:
                 df = self.download_day(current_date)
                 if df is not None and not df.empty:
                     # Add metadata
-                    df["extracted_at"] = datetime.now(UTC)
+                    df["extracted_at"] = datetime.now(timezone.utc)
                     df["run_id"] = run_id
 
                     # Save to parquet

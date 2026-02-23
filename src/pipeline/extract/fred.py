@@ -1,7 +1,9 @@
 """FRED (Federal Reserve Economic Data) extractor."""
 
+from __future__ import annotations
+
 import logging
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -99,7 +101,7 @@ class FredExtractor:
                     continue
 
                 # Add metadata
-                df["extracted_at"] = datetime.now(UTC)
+                df["extracted_at"] = datetime.now(timezone.utc)
                 df["run_id"] = run_id
 
                 # Save to parquet

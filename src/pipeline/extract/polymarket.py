@@ -1,8 +1,10 @@
 """Polymarket prediction market extractor."""
 
+from __future__ import annotations
+
 import logging
 import time
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -82,7 +84,7 @@ class PolymarketExtractor:
         if start_date or end_date:
             filtered_trades = []
             for trade in trades:
-                trade_time = datetime.fromtimestamp(trade.get("timestamp", 0), tz=UTC)
+                trade_time = datetime.fromtimestamp(trade.get("timestamp", 0), tz=timezone.utc)
                 if start_date and trade_time < start_date:
                     continue
                 if end_date and trade_time > end_date:
@@ -168,7 +170,7 @@ class PolymarketExtractor:
             try:
                 # Save market metadata
                 market_df = pd.DataFrame([market])
-                market_df["extracted_at"] = datetime.now(UTC)
+                market_df["extracted_at"] = datetime.now(timezone.utc)
                 market_df["run_id"] = run_id
 
                 market_path = markets_dir / f"{market_id}.parquet"
@@ -180,7 +182,7 @@ class PolymarketExtractor:
                 if trades:
                     trades_df = pd.DataFrame(trades)
                     trades_df["market_id"] = market_id
-                    trades_df["extracted_at"] = datetime.now(UTC)
+                    trades_df["extracted_at"] = datetime.now(timezone.utc)
                     trades_df["run_id"] = run_id
 
                     trades_path = trades_dir / f"{market_id}_trades.parquet"
@@ -192,7 +194,7 @@ class PolymarketExtractor:
                 prices_df = self.get_price_history(market_id, start_dt, end_dt)
                 if not prices_df.empty:
                     prices_df["market_id"] = market_id
-                    prices_df["extracted_at"] = datetime.now(UTC)
+                    prices_df["extracted_at"] = datetime.now(timezone.utc)
                     prices_df["run_id"] = run_id
 
                     prices_path = prices_dir / f"{market_id}_prices.parquet"

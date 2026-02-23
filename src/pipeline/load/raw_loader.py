@@ -17,11 +17,11 @@ class RawLoader:
 
     def __init__(self):
         self.db = get_db_manager()
-    
+
     def load_fred_observations(
         self,
         file_path: Path,
-        run_id: Optional[UUID] = None,
+        run_id: UUID | None = None,
     ) -> int:
         """Load FRED observations from parquet file.
 
@@ -212,11 +212,11 @@ class RawLoader:
 
         logger.info(f"Loaded {rows_loaded} Polymarket trades")
         return rows_loaded
-      
+
     def load_prices_ohlcv(
         self,
         file_path: Path,
-        run_id: Optional[UUID] = None,
+        run_id: UUID | None = None,
     ) -> int:
         """Load OHLCV price data from parquet file.
 

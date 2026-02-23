@@ -4,21 +4,19 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pipeline.backtesting.walk_forward import (
-    FoldResult,
-    ValidationResult,
-    purged_kfold_splits,
-    purged_kfold_validate,
-    walk_forward_splits,
-    walk_forward_validate,
-)
 from pipeline.backtesting.transaction_costs import (
     FixedPlusSpreadModel,
     SquareRootImpactModel,
     Trade,
     apply_transaction_costs,
 )
-
+from pipeline.backtesting.walk_forward import (
+    ValidationResult,
+    purged_kfold_splits,
+    purged_kfold_validate,
+    walk_forward_splits,
+    walk_forward_validate,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -1,6 +1,7 @@
 """Data quality tests."""
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from pipeline.db import get_db_manager, reset_db_manager
 from pipeline.dq.tests_sql import DataQualityTests
@@ -10,7 +11,13 @@ from pipeline.dq.tests_sql import DataQualityTests
 def db():
     """Provide database manager for tests."""
     reset_db_manager()
-    return get_db_manager()
+    db_manager = get_db_manager()
+    try:
+        with db_manager.engine.connect():
+            pass
+    except OperationalError as exc:
+        pytest.skip(f"Database not available: {exc}")
+    return db_manager
 
 
 class TestTimeMonotonicity:

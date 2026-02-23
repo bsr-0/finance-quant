@@ -1,11 +1,21 @@
 """Data validation framework for ingestion pipeline."""
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, Optional, TypeVar
 
 import pandas as pd
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError
+from pydantic import validator as _v1_validator
+
+try:
+    from pydantic import field_validator
+except ImportError:  # pragma: no cover - pydantic v1 fallback
+    field_validator = _v1_validator
+
+PYDANTIC_V2 = field_validator is not _v1_validator
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +59,7 @@ class FredObservationValidator(BaseModel):
 
     series_code: str = Field(..., min_length=1)
     date: str
-    value: float | None = None
+    value: Optional[float] = None
 
     @field_validator("value")
     @classmethod
@@ -70,29 +80,54 @@ class PriceValidator(BaseModel):
     close: float = Field(..., ge=0)
     volume: float = Field(..., ge=0)
 
-    @field_validator("high")
-    @classmethod
-    def high_gte_open(cls, v, info):
-        values = info.data
-        if "open" in values and v < values["open"]:
-            raise ValueError("high must be >= open")
-        return v
+    if PYDANTIC_V2:
+        @field_validator("high")
+        @classmethod
+        def high_gte_open(cls, v, info):
+            values = info.data
+            if "open" in values and v < values["open"]:
+                raise ValueError("high must be >= open")
+            return v
 
-    @field_validator("low")
-    @classmethod
-    def low_lte_high(cls, v, info):
-        values = info.data
-        if "high" in values and v > values["high"]:
-            raise ValueError("low must be <= high")
-        return v
+        @field_validator("low")
+        @classmethod
+        def low_lte_high(cls, v, info):
+            values = info.data
+            if "high" in values and v > values["high"]:
+                raise ValueError("low must be <= high")
+            return v
 
-    @field_validator("close")
-    @classmethod
-    def close_in_range(cls, v, info):
-        values = info.data
-        if "low" in values and "high" in values and (v < values["low"] or v > values["high"]):
-            raise ValueError("close must be between low and high")
-        return v
+        @field_validator("close")
+        @classmethod
+        def close_in_range(cls, v, info):
+            values = info.data
+            if "low" in values and "high" in values and (v < values["low"] or v > values["high"]):
+                raise ValueError("close must be between low and high")
+            return v
+    else:
+        @field_validator("high")
+        @classmethod
+        def high_gte_open(cls, v, values=None):
+            values = values or {}
+            if "open" in values and v < values["open"]:
+                raise ValueError("high must be >= open")
+            return v
+
+        @field_validator("low")
+        @classmethod
+        def low_lte_high(cls, v, values=None):
+            values = values or {}
+            if "high" in values and v > values["high"]:
+                raise ValueError("low must be <= high")
+            return v
+
+        @field_validator("close")
+        @classmethod
+        def close_in_range(cls, v, values=None):
+            values = values or {}
+            if "low" in values and "high" in values and (v < values["low"] or v > values["high"]):
+                raise ValueError("close must be between low and high")
+            return v
 
 
 class ContractPriceValidator(BaseModel):
@@ -150,7 +185,10 @@ class BatchValidator:
         for i, record in enumerate(records):
             try:
                 validated = self.validator_class(**record)
-                valid_records.append(validated.model_dump())
+                if hasattr(validated, "model_dump"):
+                    valid_records.append(validated.model_dump())
+                else:
+                    valid_records.append(validated.dict())
             except ValidationError as e:
                 error_msg = f"Record {i}: {e.errors()[0]['msg']}"
                 result.add_error(error_msg)

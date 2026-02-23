@@ -3,7 +3,7 @@
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -30,7 +30,7 @@ class DataLineage:
     target_hash: str = ""
     record_count_source: int = 0
     record_count_target: int = 0
-    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:

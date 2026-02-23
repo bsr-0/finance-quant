@@ -5,7 +5,6 @@ Value-at-Risk, drawdown analysis, and risk-adjusted performance ratios.
 """
 
 import logging
-from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -227,7 +226,7 @@ def rolling_kurtosis(returns: pd.Series, window: int = 60) -> pd.Series:
 # ---------------------------------------------------------------------------
 
 def hurst_exponent(prices: pd.Series, max_lag: int = 100) -> float:
-    """Estimate the Hurst exponent via rescaled-range (R/S) analysis.
+    """Estimate the Hurst exponent via the aggregated variance method.
 
     H < 0.5  → mean-reverting
     H ≈ 0.5  → random walk
@@ -238,25 +237,17 @@ def hurst_exponent(prices: pd.Series, max_lag: int = 100) -> float:
         return np.nan
 
     lags = range(2, max_lag + 1)
-    rs_values = []
+    tau = []
     for lag in lags:
-        sub = ts[:lag]
-        mean = sub.mean()
-        deviations = np.cumsum(sub - mean)
-        r = deviations.max() - deviations.min()
-        s = sub.std(ddof=1)
-        if s > 0:
-            rs_values.append(r / s)
-        else:
-            rs_values.append(np.nan)
+        diff = ts[lag:] - ts[:-lag]
+        tau.append(np.std(diff))
 
-    valid = [(np.log(lag), np.log(rs))
-             for lag, rs in zip(lags, rs_values) if np.isfinite(rs)]
-    if len(valid) < 5:
+    tau = np.asarray(tau, dtype=float)
+    valid = np.isfinite(tau) & (tau > 0)
+    if valid.sum() < 5:
         return np.nan
 
-    x, y = zip(*valid)
-    slope, _ = np.polyfit(x, y, 1)
+    slope, _ = np.polyfit(np.log(np.asarray(list(lags))[valid]), np.log(tau[valid]), 1)
     return float(slope)
 
 

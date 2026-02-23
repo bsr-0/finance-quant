@@ -1,8 +1,6 @@
 """Transform raw data into curated tables."""
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import text
@@ -22,7 +20,7 @@ class CuratedTransformer:
     def __init__(self):
         self.db = get_db_manager()
 
-    def _get_source_id(self, source_name: str) -> Optional[UUID]:
+    def _get_source_id(self, source_name: str) -> UUID | None:
         """Get or create source ID."""
         result = self.db.run_query(
             "SELECT source_id FROM dim_source WHERE name = :name",
