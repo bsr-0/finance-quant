@@ -25,13 +25,15 @@ def sample_ohlcv():
     np.random.seed(42)
     n = 100
     close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-    return pd.DataFrame({
-        "open": close + np.random.randn(n) * 0.2,
-        "high": close + np.abs(np.random.randn(n) * 0.5),
-        "low": close - np.abs(np.random.randn(n) * 0.5),
-        "close": close,
-        "volume": np.random.randint(100000, 1000000, n).astype(float),
-    })
+    return pd.DataFrame(
+        {
+            "open": close + np.random.randn(n) * 0.2,
+            "high": close + np.abs(np.random.randn(n) * 0.5),
+            "low": close - np.abs(np.random.randn(n) * 0.5),
+            "close": close,
+            "volume": np.random.randint(100000, 1000000, n).astype(float),
+        }
+    )
 
 
 class TestSMA:
@@ -113,13 +115,28 @@ class TestCalculateAll:
         result = TechnicalIndicators.calculate_all(sample_ohlcv)
 
         expected_cols = [
-            "sma_10", "sma_20", "sma_50",
-            "ema_12", "ema_26",
-            "rsi_14", "momentum_10", "roc_10",
-            "macd", "macd_signal", "macd_hist",
-            "bb_upper", "bb_middle", "bb_lower", "bb_width", "bb_position",
-            "atr_14", "stoch_k", "stoch_d", "williams_r",
-            "obv", "volume_sma_20",
+            "sma_10",
+            "sma_20",
+            "sma_50",
+            "ema_12",
+            "ema_26",
+            "rsi_14",
+            "momentum_10",
+            "roc_10",
+            "macd",
+            "macd_signal",
+            "macd_hist",
+            "bb_upper",
+            "bb_middle",
+            "bb_lower",
+            "bb_width",
+            "bb_position",
+            "atr_14",
+            "stoch_k",
+            "stoch_d",
+            "williams_r",
+            "obv",
+            "volume_sma_20",
         ]
 
         for col in expected_cols:
