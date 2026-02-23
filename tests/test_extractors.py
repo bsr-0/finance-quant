@@ -1,12 +1,9 @@
 """Unit tests for data extractors (no database required)."""
 
-import json
-from datetime import date, datetime, timezone
-from pathlib import Path
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
 
 
 class TestFredExtractor:

@@ -90,7 +90,9 @@ class CuratedTransformer:
                 LEFT JOIN dim_macro_series d
                     ON r.series_code = d.provider_series_code
                 WHERE d.series_id IS NULL
-            """), {"source_id": source_id})
+            """),
+                {"source_id": source_id},
+            )
             conn.commit()
 
         # Transform observations.
@@ -170,7 +172,9 @@ class CuratedTransformer:
                     ON (r.raw_data::json->>'GLOBALEVENTID')::bigint = c.gdelt_event_id
                 WHERE c.event_id IS NULL
                 ON CONFLICT DO NOTHING
-            """), {"source_id": source_id})
+            """),
+                {"source_id": source_id},
+            )
             conn.commit()
             rows = result.rowcount
 
@@ -217,7 +221,9 @@ class CuratedTransformer:
                 ON CONFLICT (venue, venue_market_id) DO UPDATE SET
                     status     = EXCLUDED.status,
                     updated_at = NOW()
-            """), {"source_id": source_id})
+            """),
+                {"source_id": source_id},
+            )
             conn.commit()
             rows = result.rowcount
 
@@ -277,7 +283,8 @@ class CuratedTransformer:
                 FROM raw_polymarket_trades r
                 JOIN dim_contract c ON r.venue_market_id = c.venue_market_id
                 ON CONFLICT (contract_id, trade_id) DO NOTHING
-            """))
+            """)
+            )
             conn.commit()
             rows = result.rowcount
 
@@ -313,7 +320,8 @@ class CuratedTransformer:
                 LEFT JOIN dim_symbol s ON r.ticker = s.ticker
                 WHERE s.symbol_id IS NULL
                 GROUP BY r.ticker
-            """))
+            """)
+            )
             conn.commit()
 
         # ------ 2. Detect delistings ------
