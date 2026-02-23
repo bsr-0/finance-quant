@@ -4,14 +4,14 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
 
-from pipeline.db import get_db_manager
+from pipeline.db import _validate_identifier, get_db_manager
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class DataLineage:
     target_hash: str = ""
     record_count_source: int = 0
     record_count_target: int = 0
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> dict:
@@ -91,6 +91,7 @@ class LineageTracker:
     def compute_table_hash(self, table_name: str, query_filter: str = "") -> str:
         """Compute hash of table contents for versioning."""
         try:
+            table_name = _validate_identifier(table_name)
             query = f"""
                 SELECT md5(string_agg(row_hash, ',' ORDER BY row_hash)) as table_hash
                 FROM (
@@ -107,6 +108,7 @@ class LineageTracker:
     
     def get_table_count(self, table_name: str, query_filter: str = "") -> int:
         """Get row count for a table."""
+        table_name = _validate_identifier(table_name)
         query = f"SELECT COUNT(*) as cnt FROM {table_name} {query_filter}"
         result = self.db.run_query(query)
         return result[0]["cnt"] if result else 0
@@ -169,8 +171,10 @@ class LineageTracker:
         direction: str = "target"
     ) -> List[DataLineage]:
         """Get lineage records for a table."""
-        column = "target_table" if direction == "target" else "source_table"
-        
+        column = _validate_identifier(
+            "target_table" if direction == "target" else "source_table"
+        )
+
         query = f"""
             SELECT * FROM meta_data_lineage
             WHERE {column} = :table_name

@@ -1,6 +1,7 @@
 """Command-line interface for the data pipeline."""
 
 import logging
+import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -18,14 +19,14 @@ from pipeline.extract.gdelt import extract_gdelt
 from pipeline.extract.polymarket import extract_polymarket
 from pipeline.extract.prices_daily import extract_prices
 from pipeline.load.raw_loader import RawLoader
+from pipeline.logging_config import configure_logging
 from pipeline.settings import get_settings
-from pipeline.snapshot.contract_snapshots import build_snapshots
 from pipeline.transform.curated import CuratedTransformer
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+# Setup logging (respect LOG_FORMAT=json and LOG_LEVEL env vars)
+configure_logging(
+    level=os.environ.get("LOG_LEVEL", "INFO"),
+    json_output=os.environ.get("LOG_FORMAT", "").lower() == "json",
 )
 logger = logging.getLogger(__name__)
 

@@ -2,7 +2,7 @@
 
 import logging
 import zipfile
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import List, Optional
@@ -116,7 +116,7 @@ class GDELTExtractor:
                 df = self.download_day(current_date)
                 if df is not None and not df.empty:
                     # Add metadata
-                    df["extracted_at"] = datetime.utcnow()
+                    df["extracted_at"] = datetime.now(timezone.utc)
                     df["run_id"] = run_id
                     
                     # Save to parquet

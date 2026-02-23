@@ -3,6 +3,7 @@
 import logging
 from typing import Any, Callable, List, Optional, TypeVar
 
+import pandas as pd
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 logger = logging.getLogger(__name__)
@@ -244,7 +245,3 @@ def validate_prices_ohlcv(df) -> ValidationResult:
     result.add_stat("price_range", df["high"].max() - df["low"].min())
     
     return result
-
-
-# Import pandas here to avoid circular import issues
-import pandas as pd

@@ -62,7 +62,7 @@ class CircuitBreaker:
             return result
         except self.expected_exception as e:
             self._on_failure()
-            raise e
+            raise
     
     async def call_async(self, func: Callable, *args, **kwargs) -> Any:
         """Call async function with circuit breaker protection."""
@@ -77,7 +77,7 @@ class CircuitBreaker:
             return result
         except self.expected_exception as e:
             self._on_failure()
-            raise e
+            raise
     
     def _on_success(self):
         """Handle successful call."""

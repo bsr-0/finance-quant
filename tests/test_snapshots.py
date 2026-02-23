@@ -1,6 +1,6 @@
 """Tests for snapshot builder."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -67,7 +67,7 @@ class TestContractSnapshotBuilder:
         builder = ContractSnapshotBuilder()
         snapshot = builder.build_contract_snapshot(
             contract_id=sample_contract,
-            asof_ts=datetime.utcnow()
+            asof_ts=datetime.now(timezone.utc)
         )
         
         assert snapshot is not None
@@ -76,7 +76,7 @@ class TestContractSnapshotBuilder:
     
     def test_snapshot_no_lookahead(self, db, sample_contract):
         """Test that snapshots don't include future data."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # Insert price at now
         with db.engine.connect() as conn:
@@ -104,7 +104,7 @@ class TestContractSnapshotBuilder:
     
     def test_snapshot_uses_latest_available(self, db, sample_contract):
         """Test that snapshots use the latest available data."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # Insert multiple prices
         with db.engine.connect() as conn:
@@ -140,7 +140,7 @@ class TestContractSnapshotBuilder:
     
     def test_snapshot_trade_aggregation(self, db, sample_contract):
         """Test that trade statistics are correctly aggregated."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # Insert some trades
         with db.engine.connect() as conn:

@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, List, Tuple
 
-from pipeline.db import get_db_manager
+from pipeline.db import _validate_identifier, get_db_manager
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,10 @@ class DataQualityTests:
         for table, event_col, avail_col in tables:
             if not self.db.table_exists(table):
                 continue
-                
+
+            table = _validate_identifier(table)
+            event_col = _validate_identifier(event_col)
+            avail_col = _validate_identifier(avail_col)
             query = f"""
                 SELECT COUNT(*) as cnt
                 FROM {table}
@@ -77,8 +80,9 @@ class DataQualityTests:
         for table, pk_cols in pk_tests:
             if not self.db.table_exists(table):
                 continue
-            
-            pk_str = ", ".join(pk_cols)
+
+            table = _validate_identifier(table)
+            pk_str = ", ".join(_validate_identifier(c) for c in pk_cols)
             query = f"""
                 SELECT {pk_str}, COUNT(*) as cnt
                 FROM {table}
@@ -111,7 +115,11 @@ class DataQualityTests:
         for child_table, fk_col, parent_table, pk_col in fk_tests:
             if not self.db.table_exists(child_table) or not self.db.table_exists(parent_table):
                 continue
-            
+
+            child_table = _validate_identifier(child_table)
+            fk_col = _validate_identifier(fk_col)
+            parent_table = _validate_identifier(parent_table)
+            pk_col = _validate_identifier(pk_col)
             query = f"""
                 SELECT COUNT(DISTINCT c.{fk_col}) as orphan_count
                 FROM {child_table} c
@@ -184,13 +192,13 @@ class DataQualityTests:
             return True
         
         # Sample random snapshots
-        query = f"""
+        query = """
             SELECT contract_id, asof_ts
             FROM snap_contract_features
             ORDER BY RANDOM()
-            LIMIT {sample_size}
+            LIMIT :sample_size
         """
-        samples = self.db.run_query(query)
+        samples = self.db.run_query(query, {"sample_size": sample_size})
         
         if not samples:
             self.results["snapshot_anti_lookahead"] = (True, "No snapshots to test")
