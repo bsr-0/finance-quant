@@ -218,6 +218,9 @@ class TestMetricsCollector:
         assert len(mc._gauges) == 0
 
     def test_pipeline_metrics_record_extracted(self):
+        import pipeline.infrastructure.metrics as metrics_mod
+
+        metrics_mod._metrics = None
         pm = PipelineMetrics("test_pipeline")
         pm.record_extracted("fred", 100)
 
@@ -225,6 +228,9 @@ class TestMetricsCollector:
         assert summary["counters"]["mdw.records_extracted"] == 100
 
     def test_pipeline_metrics_record_error(self):
+        import pipeline.infrastructure.metrics as metrics_mod
+
+        metrics_mod._metrics = None
         pm = PipelineMetrics("test_pipeline")
         pm.record_error("ConnectionError")
 

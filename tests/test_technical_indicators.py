@@ -80,8 +80,10 @@ class TestMACD:
 class TestBollingerBands:
     def test_bands_relationship(self, sample_prices):
         upper, middle, lower = TechnicalIndicators.bollinger_bands(sample_prices, 20)
-        assert (upper >= middle).all()
-        assert (middle >= lower).all()
+        # Drop NaN values from rolling window warmup before comparing
+        mask = upper.notna() & middle.notna() & lower.notna()
+        assert (upper[mask] >= middle[mask]).all()
+        assert (middle[mask] >= lower[mask]).all()
 
 
 class TestATR:
