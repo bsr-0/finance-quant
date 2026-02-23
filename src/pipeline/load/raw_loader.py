@@ -17,9 +17,19 @@ class RawLoader:
 
     def __init__(self):
         self.db = get_db_manager()
+    
+    def load_fred_observations(
+        self,
+        file_path: Path,
+        run_id: Optional[UUID] = None,
+    ) -> int:
+        """Load FRED observations from parquet file.
 
-    def load_fred_observations(self, file_path: Path, run_id: UUID | None = None) -> int:
-        """Load FRED observations from parquet file."""
+        Persists ``realtime_start`` / ``realtime_end`` from the FRED API so
+        that the curated layer can derive correct ``available_time`` (the date
+        FRED first published the data point) rather than using the pipeline's
+        ``extracted_at`` timestamp.
+        """
         logger.info(f"Loading FRED data from {file_path}")
 
         df = pd.read_parquet(file_path)
@@ -27,31 +37,32 @@ class RawLoader:
             logger.warning(f"Empty file: {file_path}")
             return 0
 
-        # Ensure required columns
         df["run_id"] = run_id
+
+        insert_sql = text("""
+            INSERT INTO raw_fred_observations
+            (series_code, observation_date, value, realtime_start, realtime_end,
+             raw_data, extracted_at, run_id)
+            VALUES (:series_code, :date, :value, :realtime_start, :realtime_end,
+                    :raw_data, :extracted_at, :run_id)
+            ON CONFLICT DO NOTHING
+        """)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             for _, row in df.iterrows():
-                insert_sql = text("""
-                    INSERT INTO raw_fred_observations
-                    (series_code, observation_date, value, raw_data, extracted_at, run_id)
-                    VALUES (:series_code, :date, :value, :raw_data, :extracted_at, :run_id)
-                    ON CONFLICT DO NOTHING
-                """)
-
                 params = {
                     "series_code": row["series_code"],
                     "date": row["date"],
                     "value": row["value"],
-                    "raw_data": pd.io.json.build_table_schema(pd.DataFrame([row])).__str__(),
+                    "realtime_start": row.get("realtime_start"),
+                    "realtime_end": row.get("realtime_end"),
+                    "raw_data": row.to_json(),
                     "extracted_at": row.get("extracted_at", pd.Timestamp.now()),
                     "run_id": run_id,
                 }
-
                 conn.execute(insert_sql, params)
                 rows_loaded += 1
-
             conn.commit()
 
         logger.info(f"Loaded {rows_loaded} FRED observations")
@@ -201,28 +212,35 @@ class RawLoader:
 
         logger.info(f"Loaded {rows_loaded} Polymarket trades")
         return rows_loaded
+      
+    def load_prices_ohlcv(
+        self,
+        file_path: Path,
+        run_id: Optional[UUID] = None,
+    ) -> int:
+        """Load OHLCV price data from parquet file.
 
-    def load_prices_ohlcv(self, file_path: Path, run_id: UUID | None = None) -> int:
-        """Load OHLCV price data from parquet file."""
+        Also persists ``split_ratio`` and ``dividend`` columns so that the
+        curated transform can populate ``cur_corporate_actions``.
+        """
         logger.info(f"Loading OHLCV data from {file_path}")
 
         df = pd.read_parquet(file_path)
         if df.empty:
             return 0
 
+        insert_sql = text("""
+            INSERT INTO raw_prices_ohlcv
+            (ticker, date, open, high, low, close, adj_close, volume,
+             split_ratio, dividend, raw_data, extracted_at, run_id)
+            VALUES (:ticker, :date, :open, :high, :low, :close, :adj_close, :volume,
+                    :split_ratio, :dividend, :raw_data, :extracted_at, :run_id)
+            ON CONFLICT DO NOTHING
+        """)
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             for _, row in df.iterrows():
-                insert_sql = text("""
-                    INSERT INTO raw_prices_ohlcv
-                    (ticker, date, open, high, low, close,
-                     adj_close, volume, raw_data, extracted_at, run_id)
-                    VALUES (:ticker, :date, :open, :high, :low,
-                     :close, :adj_close, :volume, :raw_data,
-                     :extracted_at, :run_id)
-                    ON CONFLICT DO NOTHING
-                """)
-
                 params = {
                     "ticker": row.get("ticker"),
                     "date": row.get("date"),
@@ -232,14 +250,14 @@ class RawLoader:
                     "close": row.get("close"),
                     "adj_close": row.get("adj_close"),
                     "volume": row.get("volume"),
+                    "split_ratio": row.get("split_ratio"),
+                    "dividend": row.get("dividend", 0),
                     "raw_data": row.to_json(),
                     "extracted_at": row.get("extracted_at", pd.Timestamp.now()),
                     "run_id": run_id,
                 }
-
                 conn.execute(insert_sql, params)
                 rows_loaded += 1
-
             conn.commit()
 
         logger.info(f"Loaded {rows_loaded} OHLCV records")
