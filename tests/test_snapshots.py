@@ -196,3 +196,145 @@ class TestContractSnapshotBuilder:
 
         assert snapshot["trade_count_24h"] == 5
         assert snapshot["volume_24h"] == 500.0
+
+    def test_snapshot_includes_staleness_metrics(self, db, sample_contract):
+        """Test that snapshots include price and macro staleness fields."""
+        now = datetime.now(timezone.utc)
+
+        with db.engine.connect() as conn:
+            from sqlalchemy import text
+
+            conn.execute(
+                text("""
+                INSERT INTO cur_contract_prices
+                (contract_id, ts, outcome, price_raw,
+                 price_normalized, event_time, available_time)
+                VALUES (:contract_id, :ts, 'YES', 55.0, 0.55, :ts, :ts)
+            """),
+                {"contract_id": str(sample_contract), "ts": now - timedelta(hours=2)},
+            )
+            conn.commit()
+
+        builder = ContractSnapshotBuilder()
+        snapshot = builder.build_contract_snapshot(contract_id=sample_contract, asof_ts=now)
+
+        assert "price_staleness_hours" in snapshot
+        assert "macro_staleness_days" in snapshot
+        assert "data_quality_score" in snapshot
+        # Price was inserted 2 hours ago; staleness should be ~2 hours
+        assert snapshot["price_staleness_hours"] is not None
+        assert snapshot["price_staleness_hours"] >= 1.9
+
+    def test_snapshot_quality_score_deducted_for_staleness(self, db, sample_contract):
+        """Test that data_quality_score is reduced for stale price data."""
+        now = datetime.now(timezone.utc)
+
+        with db.engine.connect() as conn:
+            from sqlalchemy import text
+
+            # Insert price that is 12 hours stale
+            conn.execute(
+                text("""
+                INSERT INTO cur_contract_prices
+                (contract_id, ts, outcome, price_raw,
+                 price_normalized, event_time, available_time)
+                VALUES (:contract_id, :ts, 'YES', 55.0, 0.55, :ts, :ts)
+            """),
+                {"contract_id": str(sample_contract), "ts": now - timedelta(hours=12)},
+            )
+            conn.commit()
+
+        builder = ContractSnapshotBuilder()
+        snapshot = builder.build_contract_snapshot(contract_id=sample_contract, asof_ts=now)
+
+        # Price was inserted 12 hours ago → price_staleness deduction capped at 30 points.
+        # No microstructure data → additional -10 points. Score should be below 100.
+        assert snapshot["data_quality_score"] < 100.0
+
+    def test_snapshot_microstructure_features(self, db, sample_contract):
+        """Test microstructure features are computed from buy/sell trades."""
+        now = datetime.now(timezone.utc)
+
+        with db.engine.connect() as conn:
+            from sqlalchemy import text
+
+            # Insert price data so implied_p_yes is populated
+            conn.execute(
+                text("""
+                INSERT INTO cur_contract_prices
+                (contract_id, ts, outcome, price_raw,
+                 price_normalized, event_time, available_time)
+                VALUES (:contract_id, :ts, 'YES', 55.0, 0.55, :ts, :ts)
+            """),
+                {"contract_id": str(sample_contract), "ts": now},
+            )
+
+            # 6 buy trades (size=100) and 4 sell trades (size=100)
+            for i in range(6):
+                conn.execute(
+                    text("""
+                    INSERT INTO cur_contract_trades
+                    (contract_id, trade_id, ts, price, size,
+                     side, event_time, available_time)
+                    VALUES (:contract_id, :trade_id, :ts, 0.55, 100.0, 'buy', :ts, :ts)
+                """),
+                    {
+                        "contract_id": str(sample_contract),
+                        "trade_id": f"buy_{i}",
+                        "ts": now - timedelta(minutes=i),
+                    },
+                )
+            for i in range(4):
+                conn.execute(
+                    text("""
+                    INSERT INTO cur_contract_trades
+                    (contract_id, trade_id, ts, price, size,
+                     side, event_time, available_time)
+                    VALUES (:contract_id, :trade_id, :ts, 0.45, 100.0, 'sell', :ts, :ts)
+                """),
+                    {
+                        "contract_id": str(sample_contract),
+                        "trade_id": f"sell_{i}",
+                        "ts": now - timedelta(minutes=i + 10),
+                    },
+                )
+            conn.commit()
+
+        builder = ContractSnapshotBuilder()
+        snapshot = builder.build_contract_snapshot(contract_id=sample_contract, asof_ts=now)
+
+        # buy_vol=600, sell_vol=400, total=1000
+        # trade_imbalance = (600-400)/1000 = 0.2
+        assert snapshot["micro_trade_imbalance"] is not None
+        assert abs(snapshot["micro_trade_imbalance"] - 0.2) < 0.01
+        assert snapshot["micro_buy_sell_ratio"] is not None
+        assert abs(snapshot["micro_buy_sell_ratio"] - 1.5) < 0.01
+
+    def test_snapshot_outlier_detection(self, db, sample_contract):
+        """Test that price outlier detection is included in snapshots."""
+        now = datetime.now(timezone.utc)
+
+        with db.engine.connect() as conn:
+            from sqlalchemy import text
+
+            # Insert 15 normal prices around 0.5 and one extreme outlier
+            for i in range(15):
+                ts = now - timedelta(days=30 - i)
+                price = 0.50 + (i % 3) * 0.01  # prices between 0.50 and 0.52
+                conn.execute(
+                    text("""
+                    INSERT INTO cur_contract_prices
+                    (contract_id, ts, outcome, price_raw,
+                     price_normalized, event_time, available_time)
+                    VALUES (:contract_id, :ts, 'YES', :p, :p, :ts, :ts)
+                """),
+                    {"contract_id": str(sample_contract), "ts": ts, "p": price},
+                )
+            conn.commit()
+
+        builder = ContractSnapshotBuilder()
+        snapshot = builder.build_contract_snapshot(contract_id=sample_contract, asof_ts=now)
+
+        assert "has_price_outliers" in snapshot
+        assert "outlier_score" in snapshot
+
