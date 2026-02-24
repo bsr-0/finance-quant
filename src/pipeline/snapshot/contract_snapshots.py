@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+import numpy as np
 import pandas as pd
 from sqlalchemy import text
 
@@ -94,6 +96,40 @@ class ContractSnapshotBuilder:
             news_count = self._get_news_count(window_start, asof_ts)
             news_counts[window_name] = news_count
         snapshot["news_counts"] = news_counts
+
+        # 6. Staleness metrics
+        staleness = self._get_staleness_metrics(contract_id, asof_ts)
+        snapshot["price_staleness_hours"] = staleness["price_staleness_hours"]
+        snapshot["macro_staleness_days"] = staleness["macro_staleness_days"]
+        snapshot["last_price_ts"] = staleness["last_price_ts"]
+        if staleness["price_staleness_hours"] is not None and staleness["price_staleness_hours"] > 24:
+            logger.warning(
+                f"Price data for {contract_id} is "
+                f"{staleness['price_staleness_hours']:.1f} hours stale"
+            )
+
+        # 7. Outlier detection
+        outliers = self._detect_price_outliers(contract_id, asof_ts)
+        snapshot["has_price_outliers"] = outliers["has_price_outliers"]
+        snapshot["outlier_score"] = outliers["outlier_score"]
+
+        # 8. Microstructure features (24h window)
+        micro = self._calculate_microstructure_features(
+            contract_id,
+            asof_ts - lookback_windows["24h"],
+            asof_ts,
+        )
+        snapshot["micro_trade_imbalance"] = micro["trade_imbalance"]
+        snapshot["micro_buy_sell_ratio"] = micro["buy_sell_ratio"]
+        snapshot["micro_avg_trade_size"] = micro["avg_trade_size"]
+
+        # 9. Data quality score
+        snapshot["data_quality_score"] = self._calculate_data_quality_score(
+            price_staleness_hours=staleness["price_staleness_hours"],
+            macro_staleness_days=staleness["macro_staleness_days"],
+            has_price_outliers=outliers["has_price_outliers"],
+            microstructure=micro,
+        )
 
         return snapshot
 
@@ -188,6 +224,180 @@ class ContractSnapshotBuilder:
         result = self.db.run_query(query, {"start_ts": start_ts, "end_ts": end_ts})
         return result[0]["cnt"] if result else 0
 
+    def _get_staleness_metrics(self, contract_id: UUID, asof_ts: datetime) -> dict:
+        """Return staleness information for price and macro data."""
+        # Price staleness
+        price_result = self.db.run_query(
+            """
+            SELECT ts
+            FROM cur_contract_prices
+            WHERE contract_id = :contract_id
+              AND available_time <= :asof_ts
+            ORDER BY ts DESC
+            LIMIT 1
+            """,
+            {"contract_id": str(contract_id), "asof_ts": asof_ts},
+        )
+
+        price_staleness_hours: float | None = None
+        last_price_ts: datetime | None = None
+        if price_result:
+            last_price_ts = price_result[0]["ts"]
+            if isinstance(last_price_ts, str):
+                last_price_ts = datetime.fromisoformat(last_price_ts.replace("Z", "+00:00"))
+            asof_aware = (
+                asof_ts.replace(tzinfo=timezone.utc) if asof_ts.tzinfo is None else asof_ts
+            )
+            lp_aware = (
+                last_price_ts.replace(tzinfo=timezone.utc)
+                if last_price_ts.tzinfo is None
+                else last_price_ts
+            )
+            price_staleness_hours = (asof_aware - lp_aware).total_seconds() / 3600
+
+        # Macro staleness
+        macro_result = self.db.run_query(
+            """
+            SELECT MAX(period_end) as latest_period
+            FROM cur_macro_observations
+            WHERE available_time <= :asof_ts
+            """,
+            {"asof_ts": asof_ts},
+        )
+
+        macro_staleness_days: float | None = None
+        if macro_result and macro_result[0]["latest_period"]:
+            latest_period = macro_result[0]["latest_period"]
+            if hasattr(latest_period, "date"):
+                latest_period = latest_period.date()
+            asof_date = asof_ts.date() if hasattr(asof_ts, "date") else asof_ts
+            macro_staleness_days = float((asof_date - latest_period).days)
+
+        return {
+            "price_staleness_hours": price_staleness_hours,
+            "macro_staleness_days": macro_staleness_days,
+            "last_price_ts": last_price_ts,
+        }
+
+    def _detect_price_outliers(
+        self, contract_id: UUID, asof_ts: datetime, window_days: int = 30
+    ) -> dict:
+        """Detect whether the latest price is an outlier using the MAD method.
+
+        Uses the Modified Z-score (Iglewicz & Hoaglin, 1993).  A score above
+        3.5 is considered an outlier.
+        """
+        window_start = asof_ts - timedelta(days=window_days)
+        result = self.db.run_query(
+            """
+            SELECT price_normalized
+            FROM cur_contract_prices
+            WHERE contract_id = :contract_id
+              AND available_time <= :asof_ts
+              AND ts >= :window_start
+            ORDER BY ts
+            """,
+            {
+                "contract_id": str(contract_id),
+                "asof_ts": asof_ts,
+                "window_start": window_start,
+            },
+        )
+
+        if not result or len(result) < 10:
+            return {"has_price_outliers": False, "outlier_score": 0.0}
+
+        prices = [r["price_normalized"] for r in result if r["price_normalized"] is not None]
+        if not prices:
+            return {"has_price_outliers": False, "outlier_score": 0.0}
+
+        prices_arr = np.array(prices, dtype=float)
+        median = float(np.median(prices_arr))
+        mad = float(np.median(np.abs(prices_arr - median)))
+
+        if mad == 0:
+            return {"has_price_outliers": False, "outlier_score": 0.0}
+
+        modified_z_scores = 0.6745 * np.abs(prices_arr - median) / mad
+        latest_score = float(modified_z_scores[-1])
+        has_outliers = latest_score > 3.5
+
+        return {"has_price_outliers": has_outliers, "outlier_score": latest_score}
+
+    def _calculate_microstructure_features(
+        self, contract_id: UUID, start_ts: datetime, end_ts: datetime
+    ) -> dict:
+        """Calculate microstructure features from trade data.
+
+        Returns trade imbalance, buy/sell ratio, and average trade size.
+        """
+        result = self.db.run_query(
+            """
+            SELECT
+                SUM(CASE WHEN side = 'buy'  THEN size ELSE 0 END) AS buy_volume,
+                SUM(CASE WHEN side = 'sell' THEN size ELSE 0 END) AS sell_volume,
+                AVG(size)                                          AS avg_trade_size,
+                COUNT(*)                                           AS trade_count
+            FROM cur_contract_trades
+            WHERE contract_id = :contract_id
+              AND available_time <= :end_ts
+              AND ts BETWEEN :start_ts AND :end_ts
+            """,
+            {
+                "contract_id": str(contract_id),
+                "start_ts": start_ts,
+                "end_ts": end_ts,
+            },
+        )
+
+        if not result or not result[0]["trade_count"]:
+            return {"trade_imbalance": None, "buy_sell_ratio": None, "avg_trade_size": None}
+
+        row = result[0]
+        buy_vol = float(row["buy_volume"] or 0)
+        sell_vol = float(row["sell_volume"] or 0)
+        total_vol = buy_vol + sell_vol
+
+        trade_imbalance = (buy_vol - sell_vol) / total_vol if total_vol > 0 else None
+        buy_sell_ratio = buy_vol / sell_vol if sell_vol > 0 else None
+
+        return {
+            "trade_imbalance": trade_imbalance,
+            "buy_sell_ratio": buy_sell_ratio,
+            "avg_trade_size": float(row["avg_trade_size"]) if row["avg_trade_size"] else None,
+        }
+
+    def _calculate_data_quality_score(
+        self,
+        price_staleness_hours: float | None,
+        macro_staleness_days: float | None,
+        has_price_outliers: bool,
+        microstructure: dict,
+    ) -> float:
+        """Calculate a composite data quality score (0–100).
+
+        Deductions:
+        - Up to -30 for price staleness > 1 hour
+        - Up to -20 for macro staleness > 1 day
+        - -20 if price outliers detected
+        - -10 if microstructure features are unavailable
+        """
+        score = 100.0
+
+        if price_staleness_hours is not None and price_staleness_hours > 1:
+            score -= min(30.0, (price_staleness_hours - 1) * 5)
+
+        if macro_staleness_days is not None and macro_staleness_days > 1:
+            score -= min(20.0, (macro_staleness_days - 1) * 2)
+
+        if has_price_outliers:
+            score -= 20.0
+
+        if microstructure.get("trade_imbalance") is None:
+            score -= 10.0
+
+        return max(0.0, score)
+
     def build_snapshots_for_range(
         self,
         contract_ids: list[UUID] | None = None,
@@ -245,19 +455,30 @@ class ContractSnapshotBuilder:
                 INSERT INTO snap_contract_features
                 (contract_id, asof_ts, implied_p_yes, spread, depth_best_bid, depth_best_ask,
                  volume_24h, trade_count_24h, price_volatility_24h, macro_panel, news_counts,
-                 event_counts_24h, event_tone_avg, event_time, available_time)
+                 event_counts_24h, event_tone_avg, event_time, available_time,
+                 price_staleness_hours, macro_staleness_days, last_price_ts,
+                 has_price_outliers, outlier_score, data_quality_score,
+                 micro_trade_imbalance, micro_buy_sell_ratio)
                 VALUES (:contract_id, :asof_ts, :implied_p_yes, :spread, :depth_best_bid,
                         :depth_best_ask, :volume_24h, :trade_count_24h, :price_volatility_24h,
                         :macro_panel, :news_counts, :event_counts_24h, :event_tone_avg,
-                        :event_time, :available_time)
+                        :event_time, :available_time,
+                        :price_staleness_hours, :macro_staleness_days, :last_price_ts,
+                        :has_price_outliers, :outlier_score, :data_quality_score,
+                        :micro_trade_imbalance, :micro_buy_sell_ratio)
                 ON CONFLICT (contract_id, asof_ts) DO UPDATE SET
-                    implied_p_yes = EXCLUDED.implied_p_yes,
-                    spread = EXCLUDED.spread,
-                    volume_24h = EXCLUDED.volume_24h,
-                    updated_at = NOW()
+                    implied_p_yes          = EXCLUDED.implied_p_yes,
+                    spread                 = EXCLUDED.spread,
+                    volume_24h             = EXCLUDED.volume_24h,
+                    price_staleness_hours  = EXCLUDED.price_staleness_hours,
+                    macro_staleness_days   = EXCLUDED.macro_staleness_days,
+                    has_price_outliers     = EXCLUDED.has_price_outliers,
+                    outlier_score          = EXCLUDED.outlier_score,
+                    data_quality_score     = EXCLUDED.data_quality_score,
+                    micro_trade_imbalance  = EXCLUDED.micro_trade_imbalance,
+                    micro_buy_sell_ratio   = EXCLUDED.micro_buy_sell_ratio,
+                    updated_at             = NOW()
             """)
-
-            import json
 
             conn.execute(
                 insert,
@@ -277,6 +498,14 @@ class ContractSnapshotBuilder:
                     "event_tone_avg": snapshot["event_tone_avg"],
                     "event_time": snapshot["event_time"],
                     "available_time": snapshot["available_time"],
+                    "price_staleness_hours": snapshot.get("price_staleness_hours"),
+                    "macro_staleness_days": snapshot.get("macro_staleness_days"),
+                    "last_price_ts": snapshot.get("last_price_ts"),
+                    "has_price_outliers": snapshot.get("has_price_outliers", False),
+                    "outlier_score": snapshot.get("outlier_score"),
+                    "data_quality_score": snapshot.get("data_quality_score", 100.0),
+                    "micro_trade_imbalance": snapshot.get("micro_trade_imbalance"),
+                    "micro_buy_sell_ratio": snapshot.get("micro_buy_sell_ratio"),
                 },
             )
             conn.commit()
