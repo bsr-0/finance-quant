@@ -289,6 +289,49 @@ class CuratedTransformer:
         logger.info(f"Transformed {rows} contract trades")
         return rows
 
+    def transform_factor_returns(self) -> int:
+        """Transform raw factor returns to curated factor table."""
+        logger.info("Transforming factor returns...")
+
+        if not self.db.table_exists("raw_factor_returns"):
+            logger.info("raw_factor_returns does not exist; skipping")
+            return 0
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                INSERT INTO cur_factor_returns
+                (date, mkt_rf, smb, hml, rmw, cma, mom, rf,
+                 event_time, available_time, time_quality)
+                SELECT
+                    r.date,
+                    r.mkt_rf,
+                    r.smb,
+                    r.hml,
+                    r.rmw,
+                    r.cma,
+                    r.mom,
+                    r.rf,
+                    r.date::timestamptz AS event_time,
+                    r.extracted_at       AS available_time,
+                    'assumed'            AS time_quality
+                FROM raw_factor_returns r
+                ON CONFLICT (date) DO UPDATE SET
+                    mkt_rf = EXCLUDED.mkt_rf,
+                    smb = EXCLUDED.smb,
+                    hml = EXCLUDED.hml,
+                    rmw = EXCLUDED.rmw,
+                    cma = EXCLUDED.cma,
+                    mom = EXCLUDED.mom,
+                    rf = EXCLUDED.rf,
+                    available_time = EXCLUDED.available_time,
+                    updated_at = NOW()
+            """))
+            conn.commit()
+            rows = result.rowcount
+
+        logger.info(f"Transformed {rows} factor rows")
+        return rows
+
     # ------------------------------------------------------------------
     # P0-1: Survivor bias – detect delisted symbols + mark dim_symbol
     # P0-2: Corporate actions – populate cur_corporate_actions
@@ -447,4 +490,5 @@ class CuratedTransformer:
         results["contract_prices"] = self.transform_contract_prices()
         results["contract_trades"] = self.transform_contract_trades()
         results["prices_ohlcv"] = self.transform_prices_ohlcv()
+        results["factor_returns"] = self.transform_factor_returns()
         return results

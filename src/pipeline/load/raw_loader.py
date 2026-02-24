@@ -263,6 +263,45 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} OHLCV records")
         return rows_loaded
 
+    def load_factor_returns(self, file_path: Path, run_id: UUID | None = None) -> int:
+        """Load factor returns from parquet file."""
+        logger.info(f"Loading factor data from {file_path}")
+
+        df = pd.read_parquet(file_path)
+        if df.empty:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_factor_returns
+            (date, mkt_rf, smb, hml, rmw, cma, mom, rf, raw_data, extracted_at, run_id)
+            VALUES (:date, :mkt_rf, :smb, :hml, :rmw, :cma, :mom, :rf,
+                    :raw_data, :extracted_at, :run_id)
+            ON CONFLICT DO NOTHING
+        """)
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            for _, row in df.iterrows():
+                params = {
+                    "date": row.get("date"),
+                    "mkt_rf": row.get("mkt_rf"),
+                    "smb": row.get("smb"),
+                    "hml": row.get("hml"),
+                    "rmw": row.get("rmw"),
+                    "cma": row.get("cma"),
+                    "mom": row.get("mom"),
+                    "rf": row.get("rf"),
+                    "raw_data": row.to_json(),
+                    "extracted_at": row.get("extracted_at", pd.Timestamp.now()),
+                    "run_id": run_id,
+                }
+                conn.execute(insert_sql, params)
+                rows_loaded += 1
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} factor rows")
+        return rows_loaded
+
     def load_all_raw_files(self, raw_dir: Path, source: str, run_id: UUID | None = None) -> int:
         """Load all raw files for a source."""
         source_dir = raw_dir / source
@@ -288,6 +327,8 @@ class RawLoader:
                         total_rows += self.load_polymarket_trades(file_path, run_id)
                 elif source == "prices":
                     total_rows += self.load_prices_ohlcv(file_path, run_id)
+                elif source == "factors":
+                    total_rows += self.load_factor_returns(file_path, run_id)
             except Exception as e:
                 logger.error(f"Error loading {file_path}: {e}")
                 continue

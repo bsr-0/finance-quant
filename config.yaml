@@ -64,6 +64,19 @@ prices:
     - HD
     - MA
 
+# Factor data settings
+factors:
+  source: ken_french
+  min_history_days: 252
+  enabled: true
+
+# Evaluation settings
+evaluation:
+  cost_bps: 20.0
+  edge_threshold: 0.02
+  rebalance_freq: "1d"
+  benchmark_symbol: "SPY"
+
 # Pipeline defaults
 default_start_date: "2024-01-01"
 default_end_date: "2024-12-31"

@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
+import pandas as pd
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -14,6 +15,7 @@ from rich.table import Table
 from pipeline.db import get_db_manager
 from pipeline.dq.tests_sql import run_dq_tests
 from pipeline.extract.fred import extract_fred
+from pipeline.extract.factors_ff import extract_factors_ff
 from pipeline.extract.gdelt import extract_gdelt
 from pipeline.extract.polymarket import extract_polymarket
 from pipeline.extract.prices_daily import extract_prices
@@ -100,7 +102,7 @@ def update_pipeline_run(
 
 @app.command()
 def extract(
-    source: str = typer.Argument(..., help="Source to extract (fred, gdelt, polymarket, prices)"),
+    source: str = typer.Argument(..., help="Source to extract (fred, gdelt, polymarket, prices, factors)"),
     start: str | None = typer.Option(None, "--start", "-s", help="Start date (YYYY-MM-DD)"),  # noqa: B008
     end: str | None = typer.Option(None, "--end", "-e", help="End date (YYYY-MM-DD)"),  # noqa: B008
     output_dir: Path | None = typer.Option(  # noqa: B008
@@ -127,6 +129,8 @@ def extract(
             files = extract_polymarket(raw_path, start_date=start, end_date=end, run_id=run_id)
         elif source == "prices":
             files = extract_prices(raw_path, start_date=start, end_date=end, run_id=run_id)
+        elif source == "factors":
+            files = extract_factors_ff(raw_path, run_id=run_id)
         else:
             raise typer.BadParameter(f"Unknown source: {source}")
 
@@ -143,7 +147,7 @@ def extract(
 
 @app.command()
 def load_raw(
-    source: str = typer.Argument(..., help="Source to load (fred, gdelt, polymarket, prices)"),
+    source: str = typer.Argument(..., help="Source to load (fred, gdelt, polymarket, prices, factors)"),
     raw_dir: Path | None = typer.Option(  # noqa: B008
         None, "--raw-dir", "-r", help="Raw data directory"
     ),
@@ -236,6 +240,100 @@ def dq():
         raise typer.Exit(1) from e
 
 
+def _read_data(path: Path) -> pd.DataFrame:
+    if path.suffix.lower() in {".parquet", ".pq"}:
+        return pd.read_parquet(path)
+    if path.suffix.lower() in {".csv", ".txt"}:
+        return pd.read_csv(path)
+    raise typer.BadParameter(f"Unsupported file type: {path}")
+
+
+@app.command()
+def evaluate(
+    scope: str = typer.Option("equity", "--scope", "-s", help="equity or prediction"),
+    signals_path: Path | None = typer.Option(None, "--signals", help="Signals file path"),
+    probs_path: Path | None = typer.Option(None, "--probs", help="Prediction market probs file path"),
+    prices_path: Path | None = typer.Option(None, "--prices", help="Prices file path"),
+    outcomes_path: Path | None = typer.Option(None, "--outcomes", help="Outcomes file path"),
+    factors_from_db: bool = typer.Option(True, "--factors-from-db", help="Load factors from DB"),
+    model_name: str = typer.Option("model", "--model-name"),
+    dataset_id: str | None = typer.Option(None, "--dataset-id"),
+):
+    """Evaluate a model using institutional-grade rubric metrics."""
+    settings = get_settings()
+    run_id = str(uuid4())
+
+    from pipeline.eval.evaluator import DatabaseResultStore, Evaluator
+    from pipeline.eval.portfolio import ProbPortfolioConfig, SignalPortfolioConfig
+
+    evaluator = Evaluator(cost_bps=settings.evaluation.cost_bps)
+    store = DatabaseResultStore()
+
+    factors_df = None
+    if factors_from_db:
+        db = get_db_manager()
+        if db.table_exists("cur_factor_returns"):
+            factors_df = pd.DataFrame(db.run_query("SELECT * FROM cur_factor_returns ORDER BY date"))
+            if not factors_df.empty:
+                factors_df["date"] = pd.to_datetime(factors_df["date"])
+                factors_df = factors_df.set_index("date")[
+                    ["mkt_rf", "smb", "hml", "rmw", "cma", "mom", "rf"]
+                ]
+
+    if scope == "equity":
+        if not signals_path or not prices_path:
+            raise typer.BadParameter("Equity scope requires --signals and --prices")
+        signals = _read_data(signals_path)
+        prices = _read_data(prices_path)
+        config = SignalPortfolioConfig()
+
+        benchmark_prices = None
+        if "symbol" in prices.columns and settings.evaluation.benchmark_symbol:
+            bench = prices[prices["symbol"] == settings.evaluation.benchmark_symbol].copy()
+            if not bench.empty:
+                bench["date"] = pd.to_datetime(bench["date"])
+                benchmark_prices = bench.set_index("date")["price"].sort_index()
+
+        result = evaluator.evaluate_equity(
+            signals=signals,
+            prices=prices,
+            factor_returns=factors_df,
+            benchmark_prices=benchmark_prices,
+            config=config,
+        )
+        eval_cfg = (
+            settings.evaluation.model_dump()
+            if hasattr(settings.evaluation, "model_dump")
+            else settings.evaluation.dict()
+        )
+        store.write_results(run_id, model_name, scope, dataset_id, eval_cfg, result)
+        console.print(f"[green]✓ Evaluation complete (run_id={run_id})[/green]")
+    elif scope == "prediction":
+        if not probs_path or not prices_path:
+            raise typer.BadParameter("Prediction scope requires --probs and --prices")
+        probs = _read_data(probs_path)
+        prices = _read_data(prices_path)
+        outcomes = _read_data(outcomes_path) if outcomes_path else None
+        config = ProbPortfolioConfig(edge_threshold=settings.evaluation.edge_threshold)
+
+        result = evaluator.evaluate_prediction_markets(
+            probs=probs,
+            prices=prices,
+            outcomes=outcomes,
+            factor_returns=factors_df,
+            config=config,
+        )
+        eval_cfg = (
+            settings.evaluation.model_dump()
+            if hasattr(settings.evaluation, "model_dump")
+            else settings.evaluation.dict()
+        )
+        store.write_results(run_id, model_name, scope, dataset_id, eval_cfg, result)
+        console.print(f"[green]✓ Evaluation complete (run_id={run_id})[/green]")
+    else:
+        raise typer.BadParameter(f"Unknown scope: {scope}")
+
+
 @app.command()
 def inventory():
     """Print data inventory report."""
@@ -252,6 +350,7 @@ def inventory():
         ("cur_world_events", "date", "event_time"),
         ("cur_contract_prices", "timestamp", "ts"),
         ("cur_contract_trades", "timestamp", "ts"),
+        ("cur_factor_returns", "date", "date"),
         ("snap_contract_features", "timestamp", "asof_ts"),
     ]
 

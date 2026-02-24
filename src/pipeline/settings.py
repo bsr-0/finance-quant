@@ -128,6 +128,27 @@ class InfrastructureSettings(BaseSettings):
     cache_ttl_seconds: int = 300
 
 
+class FactorSettings(BaseSettings):
+    """Factor data settings."""
+
+    model_config = SettingsConfigDict(env_prefix="FACTORS_")
+
+    source: str = "ken_french"
+    min_history_days: int = 252
+    enabled: bool = True
+
+
+class EvaluationSettings(BaseSettings):
+    """Evaluation settings."""
+
+    model_config = SettingsConfigDict(env_prefix="EVAL_")
+
+    cost_bps: float = 20.0
+    edge_threshold: float = 0.02
+    rebalance_freq: str = "1d"
+    benchmark_symbol: str = "SPY"
+
+
 class PipelineSettings(BaseSettings):
     """Main pipeline configuration."""
 
@@ -147,6 +168,10 @@ class PipelineSettings(BaseSettings):
 
     # Infrastructure
     infrastructure: InfrastructureSettings = Field(default_factory=InfrastructureSettings)
+
+    # Factors & evaluation
+    factors: FactorSettings = Field(default_factory=FactorSettings)
+    evaluation: EvaluationSettings = Field(default_factory=EvaluationSettings)
 
     # Pipeline behavior
     default_start_date: str = "2020-01-01"
