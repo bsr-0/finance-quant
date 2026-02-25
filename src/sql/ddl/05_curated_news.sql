@@ -9,8 +9,10 @@ CREATE TABLE IF NOT EXISTS cur_news_items (
     language VARCHAR(10),
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed',
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
     entities JSONB, -- array of entity_ids or extracted strings
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -25,13 +27,15 @@ CREATE TABLE IF NOT EXISTS cur_world_events (
     event_type VARCHAR(50),
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed',
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
     location JSONB,
     actors JSONB,
     themes JSONB,
     tone_score NUMERIC,
     sentiment_positive NUMERIC,
     sentiment_negative NUMERIC,
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

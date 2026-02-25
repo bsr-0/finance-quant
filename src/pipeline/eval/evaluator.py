@@ -8,7 +8,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from pipeline.backtesting.transaction_costs import FixedPlusSpreadModel, SquareRootImpactModel, apply_transaction_costs
+from pipeline.backtesting.simulator import PortfolioSimulator, SimulatorConfig
+from pipeline.backtesting.transaction_costs import FixedPlusSpreadModel, SquareRootImpactModel
 from pipeline.eval.factor_neutrality import compute_factor_exposures, factor_correlation_gate
 from pipeline.eval.metrics import (
     brier_score,
@@ -23,8 +24,10 @@ from pipeline.eval.metrics import (
 )
 from pipeline.eval.portfolio import ProbPortfolioConfig, SignalPortfolioConfig, generate_positions_from_probs, generate_positions_from_signals
 from pipeline.eval.regime import classify_regimes, regime_performance
+from pipeline.eval.robustness import bootstrap_ci, deflated_sharpe_ratio
 from pipeline.eval.stress import DEFAULT_SCENARIOS, evt_tail_risk, scenario_metrics
 from pipeline.db import get_db_manager
+from pipeline.settings import get_settings
 
 
 @dataclass
@@ -162,8 +165,16 @@ def json_dump(obj: Any) -> str:
 class Evaluator:
     """Unified evaluator for equity and prediction market strategies."""
 
-    def __init__(self, cost_bps: float = 20.0):
+    def __init__(self, cost_bps: float = 20.0, sim_config: SimulatorConfig | None = None):
         self.cost_bps = cost_bps
+        settings = get_settings()
+        self._sim_base_config = sim_config or SimulatorConfig(
+            max_leverage=settings.evaluation.max_leverage,
+            max_adv_pct=settings.evaluation.max_adv_pct,
+            borrow_cost_bps=settings.evaluation.borrow_cost_bps,
+            slippage_bps=settings.evaluation.slippage_bps,
+            fee_bps=settings.evaluation.pm_fee_bps,
+        )
 
     def _cost_model(self) -> FixedPlusSpreadModel:
         # FixedPlusSpreadModel uses half-spread internally, so double to match total bps.
@@ -186,8 +197,16 @@ class Evaluator:
             adv_panel = prices.pivot(index="date", columns="symbol", values="adv")
             cost_model = SquareRootImpactModel(spread_bps=self.cost_bps * 2)
 
-        net = apply_transaction_costs(positions, price_panel, cost_model=cost_model, adv=adv_panel)
-        returns = net["net_return"]
+        sim_cfg = SimulatorConfig(
+            capital=(config.capital if config else self._sim_base_config.capital),
+            max_leverage=self._sim_base_config.max_leverage,
+            max_adv_pct=self._sim_base_config.max_adv_pct,
+            borrow_cost_bps=self._sim_base_config.borrow_cost_bps,
+            slippage_bps=self._sim_base_config.slippage_bps,
+        )
+        simulator = PortfolioSimulator(sim_cfg, cost_model=cost_model)
+        sim = simulator.simulate_equity(positions, price_panel, adv=adv_panel)
+        returns = sim["net_return"] if not sim.empty else pd.Series(dtype=float)
 
         metrics = self._compute_core_metrics(returns, positions)
 
@@ -237,8 +256,17 @@ class Evaluator:
         positions = generate_positions_from_probs(probs, config)
         price_panel = prices.pivot(index="date", columns="contract_id", values="market_price")
 
-        net = apply_transaction_costs(positions, price_panel, cost_model=self._cost_model())
-        returns = net["net_return"]
+        sim_cfg = SimulatorConfig(
+            capital=self._sim_base_config.capital,
+            max_leverage=self._sim_base_config.max_leverage,
+            max_adv_pct=self._sim_base_config.max_adv_pct,
+            borrow_cost_bps=self._sim_base_config.borrow_cost_bps,
+            slippage_bps=self._sim_base_config.slippage_bps,
+            fee_bps=self._sim_base_config.fee_bps,
+        )
+        simulator = PortfolioSimulator(sim_cfg, cost_model=self._cost_model())
+        sim = simulator.simulate_prediction_market(positions, price_panel, fee_bps=sim_cfg.fee_bps)
+        returns = sim["net_return"] if not sim.empty else pd.Series(dtype=float)
 
         metrics = self._compute_core_metrics(returns, positions)
 
@@ -283,6 +311,14 @@ class Evaluator:
             "recovery_time": float(drawdown_recovery_time(returns)),
             "turnover_avg": float(turnover_series.mean()) if not turnover_series.empty else float("nan"),
         }
+        if returns is not None and len(returns.dropna()) > 5:
+            r = returns.dropna()
+            skew = float(r.skew())
+            kurt = float(r.kurtosis()) + 3.0  # convert excess -> raw
+            metrics["deflated_sharpe_prob"] = deflated_sharpe_ratio(sharpe, len(r), skew, kurt, 0.0)
+            ci_low, ci_high = bootstrap_ci(r, lambda s: sharpe_sortino(s)[0])
+            metrics["sharpe_ci_low"] = ci_low
+            metrics["sharpe_ci_high"] = ci_high
         return metrics
 
     def _compute_stress(self, returns: pd.Series) -> dict[str, dict[str, float]]:

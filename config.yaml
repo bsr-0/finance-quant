@@ -31,17 +31,27 @@ gdelt:
   base_url: https://api.gdeltproject.org/api/v2
   enabled: true
   max_days_per_request: 30
+  available_time_source: DATEADDED
 
 polymarket:
   base_url: https://clob.polymarket.com
   gamma_url: https://gamma-api.polymarket.com
   enabled: true
   rate_limit_per_sec: 5.0
+  universe_mode: top_volume
+  top_volume_limit: 50
+  explicit_markets: []
+  orderbook_snapshot_freq: "5m"
+  trades_page_size: 100
+  trades_max_pages: 200
 
 prices:
   source: yahoo
   api_key: null
   enabled: true
+  market_close_time: "16:00:00"
+  exchange_timezone: "America/New_York"
+  vendor_delay_minutes: 15
   universe:
     - SPY
     - QQQ
@@ -69,6 +79,25 @@ factors:
   source: ken_french
   min_history_days: 252
   enabled: true
+  available_time_lag_days: 1
+  available_time_release_time: "09:30"
+  exchange_timezone: "America/New_York"
+
+# Historical fixes (conservative availability + latency stats)
+historical_fixes:
+  max_backfill_days: 5
+  min_latency_samples: 500
+  latency_percentile: 0.95
+  latency_stats_max_age_hours: 24
+  macro_release_time: "12:00:00"
+  macro_release_timezone: "America/New_York"
+  macro_release_jitter_minutes: 60
+  price_outlier_mad_threshold: 3.5
+  trade_outlier_mad_threshold: 4.0
+  gdelt_fallback_lag_minutes: 180
+  polymarket_fallback_lag_minutes: 2
+  polymarket_universe_audit: true
+  selection_weight_mode: "count"
 
 # Evaluation settings
 evaluation:
@@ -76,6 +105,11 @@ evaluation:
   edge_threshold: 0.02
   rebalance_freq: "1d"
   benchmark_symbol: "SPY"
+  max_leverage: 2.0
+  max_adv_pct: 0.1
+  borrow_cost_bps: 30.0
+  slippage_bps: 2.0
+  pm_fee_bps: 10.0
 
 # Pipeline defaults
 default_start_date: "2024-01-01"

@@ -10,6 +10,8 @@ import pandas as pd
 from sqlalchemy import text
 
 from pipeline.db import get_db_manager
+from pipeline.features import robust_stats
+from pipeline.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,7 @@ class ContractSnapshotBuilder:
 
     def __init__(self):
         self.db = get_db_manager()
+        self.settings = get_settings()
 
     def build_contract_snapshot(
         self,
@@ -48,14 +51,29 @@ class ContractSnapshotBuilder:
             "asof_ts": asof_ts,
             "event_time": asof_ts,
             "available_time": asof_ts,
+            "volume_24h": None,
+            "trade_count_24h": None,
+            "price_volatility_24h": None,
+            "price_volatility_24h_robust": None,
+            "trade_outlier_pct": None,
+            "trade_imbalance": None,
+            "avg_trade_size": None,
+            "trade_size_std": None,
+            "price_staleness_hours": None,
+            "macro_staleness_days": None,
+            "data_quality_score": None,
         }
 
         # 1. Get latest price at or before asof_ts
         price_data = self._get_latest_price(contract_id, asof_ts)
         if price_data:
             snapshot["implied_p_yes"] = price_data.get("price_normalized")
+            snapshot["price_staleness_hours"] = self._staleness_hours(
+                asof_ts, price_data.get("ts")
+            )
         else:
             snapshot["implied_p_yes"] = None
+            snapshot["price_staleness_hours"] = None
 
         # 2. Get orderbook snapshot
         ob_data = self._get_orderbook_snapshot(contract_id, asof_ts)
@@ -77,10 +95,16 @@ class ContractSnapshotBuilder:
                 snapshot["volume_24h"] = trade_stats.get("total_volume")
                 snapshot["trade_count_24h"] = trade_stats.get("trade_count")
                 snapshot["price_volatility_24h"] = trade_stats.get("price_std")
+                snapshot["price_volatility_24h_robust"] = trade_stats.get("price_std_robust")
+                snapshot["trade_outlier_pct"] = trade_stats.get("outlier_pct")
+                snapshot["trade_imbalance"] = trade_stats.get("trade_imbalance")
+                snapshot["avg_trade_size"] = trade_stats.get("avg_trade_size")
+                snapshot["trade_size_std"] = trade_stats.get("trade_size_std")
 
         # 4. Get macro panel (most recent values at asof_ts)
-        macro_panel = self._get_macro_panel(asof_ts)
+        macro_panel, macro_staleness_days = self._get_macro_panel(asof_ts)
         snapshot["macro_panel"] = macro_panel
+        snapshot["macro_staleness_days"] = macro_staleness_days
 
         # 5. Aggregate world events/news in lookback windows
         event_stats = self._get_event_stats(asof_ts - lookback_windows["24h"], asof_ts)
@@ -94,6 +118,9 @@ class ContractSnapshotBuilder:
             news_count = self._get_news_count(window_start, asof_ts)
             news_counts[window_name] = news_count
         snapshot["news_counts"] = news_counts
+
+        # Data quality score (conservative)
+        snapshot["data_quality_score"] = self._compute_quality_score(snapshot)
 
         return snapshot
 
@@ -135,21 +162,68 @@ class ContractSnapshotBuilder:
     def _get_trade_stats(self, contract_id: UUID, start_ts: datetime, end_ts: datetime) -> dict:
         """Get trade statistics for a time window."""
         query = """
-            SELECT
-                COUNT(*) as trade_count,
-                COALESCE(SUM(size), 0) as total_volume,
-                COALESCE(STDDEV(price), 0) as price_std
+            SELECT price, size, side
             FROM cur_contract_trades
             WHERE contract_id = :contract_id
               AND available_time <= :end_ts
               AND ts BETWEEN :start_ts AND :end_ts
         """
-        result = self.db.run_query(
+        rows = self.db.run_query(
             query, {"contract_id": str(contract_id), "start_ts": start_ts, "end_ts": end_ts}
         )
-        return result[0] if result else {"trade_count": 0, "total_volume": 0, "price_std": 0}
+        if not rows:
+            return {
+                "trade_count": 0,
+                "total_volume": 0,
+                "price_std": 0,
+                "price_std_robust": 0,
+                "outlier_pct": 0,
+                "trade_imbalance": None,
+                "avg_trade_size": None,
+                "trade_size_std": None,
+            }
 
-    def _get_macro_panel(self, asof_ts: datetime) -> dict:
+        df = pd.DataFrame(rows)
+        prices = pd.to_numeric(df.get("price", pd.Series(dtype=float)), errors="coerce")
+        sizes = pd.to_numeric(df.get("size", pd.Series(dtype=float)), errors="coerce").fillna(0.0)
+
+        trade_count = int(prices.notna().sum())
+        total_volume = float(sizes.sum())
+        price_std = float(prices.std()) if trade_count > 1 else 0.0
+
+        robust_mad = robust_stats.mad(prices.dropna()) if trade_count > 0 else 0.0
+        price_std_robust = float(1.4826 * robust_mad) if robust_mad else 0.0
+
+        outlier_pct = 0.0
+        if robust_mad and trade_count > 0:
+            z = 0.6745 * (prices - prices.median()) / robust_mad
+            threshold = self.settings.historical_fixes.trade_outlier_mad_threshold
+            outlier_pct = float((z.abs() > threshold).mean())
+
+        trade_imbalance = None
+        if "side" in df.columns:
+            side = df["side"].astype(str).str.lower()
+            buy_volume = float(sizes[side == "buy"].sum())
+            sell_volume = float(sizes[side == "sell"].sum())
+            denom = buy_volume + sell_volume
+            if denom > 0:
+                trade_imbalance = (buy_volume - sell_volume) / denom
+
+        avg_trade_size = float(total_volume / trade_count) if trade_count > 0 else None
+        trade_size_std = float(sizes.std()) if trade_count > 1 else None
+
+        return {
+            "trade_count": trade_count,
+            "total_volume": total_volume,
+            "price_std": price_std,
+            "price_std_robust": price_std_robust,
+            "outlier_pct": outlier_pct,
+            "trade_imbalance": trade_imbalance,
+            "avg_trade_size": avg_trade_size,
+            "trade_size_std": trade_size_std,
+        }
+
+    def _get_macro_panel(self, asof_ts: datetime) -> tuple[dict, float | None]:
         """Get most recent macro observations at asof_ts."""
         query = """
             SELECT DISTINCT ON (s.provider_series_code)
@@ -162,7 +236,17 @@ class ContractSnapshotBuilder:
             ORDER BY s.provider_series_code, o.period_end DESC
         """
         results = self.db.run_query(query, {"asof_ts": asof_ts})
-        return {r["series_code"]: r["value"] for r in results}
+        panel: dict[str, float] = {}
+        staleness_days: float | None = None
+        for row in results:
+            panel[row["series_code"]] = row["value"]
+            period_end = row.get("period_end")
+            if period_end:
+                period_dt = pd.to_datetime(period_end).date()
+                delta_days = (asof_ts.date() - period_dt).days
+                if staleness_days is None or delta_days > staleness_days:
+                    staleness_days = float(delta_days)
+        return panel, staleness_days
 
     def _get_event_stats(self, start_ts: datetime, end_ts: datetime) -> dict:
         """Get event statistics for a time window."""
@@ -187,6 +271,59 @@ class ContractSnapshotBuilder:
         """
         result = self.db.run_query(query, {"start_ts": start_ts, "end_ts": end_ts})
         return result[0]["cnt"] if result else 0
+
+    def _to_datetime(self, value: object) -> datetime | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        try:
+            parsed = pd.to_datetime(value)
+            if pd.isna(parsed):
+                return None
+            return parsed.to_pydatetime()
+        except Exception:
+            return None
+
+    def _staleness_hours(self, asof_ts: datetime, value: object) -> float | None:
+        dt = self._to_datetime(value)
+        if dt is None:
+            return None
+        return max(0.0, (asof_ts - dt).total_seconds() / 3600.0)
+
+    def _compute_quality_score(self, snapshot: dict) -> float:
+        score = 100.0
+
+        price_staleness = snapshot.get("price_staleness_hours")
+        if price_staleness is None:
+            score -= 25
+        elif price_staleness > 72:
+            score -= 40
+        elif price_staleness > 24:
+            score -= 25
+
+        macro_staleness = snapshot.get("macro_staleness_days")
+        if macro_staleness is None:
+            score -= 10
+        elif macro_staleness > 90:
+            score -= 25
+        elif macro_staleness > 45:
+            score -= 15
+
+        outlier_pct = snapshot.get("trade_outlier_pct")
+        if outlier_pct is not None:
+            if outlier_pct > 0.05:
+                score -= 20
+            elif outlier_pct > 0.01:
+                score -= 10
+
+        if snapshot.get("implied_p_yes") is None:
+            score -= 30
+
+        if snapshot.get("volume_24h") in (None, 0):
+            score -= 5
+
+        return max(0.0, min(100.0, score))
 
     def build_snapshots_for_range(
         self,
@@ -244,16 +381,29 @@ class ContractSnapshotBuilder:
             insert = text("""
                 INSERT INTO snap_contract_features
                 (contract_id, asof_ts, implied_p_yes, spread, depth_best_bid, depth_best_ask,
-                 volume_24h, trade_count_24h, price_volatility_24h, macro_panel, news_counts,
-                 event_counts_24h, event_tone_avg, event_time, available_time)
+                 volume_24h, trade_count_24h, price_volatility_24h, price_volatility_24h_robust,
+                 trade_outlier_pct, trade_imbalance, avg_trade_size, trade_size_std,
+                 price_staleness_hours, macro_staleness_days, data_quality_score,
+                 macro_panel, news_counts, event_counts_24h, event_tone_avg, event_time, available_time)
                 VALUES (:contract_id, :asof_ts, :implied_p_yes, :spread, :depth_best_bid,
                         :depth_best_ask, :volume_24h, :trade_count_24h, :price_volatility_24h,
-                        :macro_panel, :news_counts, :event_counts_24h, :event_tone_avg,
-                        :event_time, :available_time)
+                        :price_volatility_24h_robust, :trade_outlier_pct, :trade_imbalance,
+                        :avg_trade_size, :trade_size_std, :price_staleness_hours,
+                        :macro_staleness_days, :data_quality_score, :macro_panel, :news_counts,
+                        :event_counts_24h, :event_tone_avg, :event_time, :available_time)
                 ON CONFLICT (contract_id, asof_ts) DO UPDATE SET
                     implied_p_yes = EXCLUDED.implied_p_yes,
                     spread = EXCLUDED.spread,
                     volume_24h = EXCLUDED.volume_24h,
+                    price_volatility_24h = EXCLUDED.price_volatility_24h,
+                    price_volatility_24h_robust = EXCLUDED.price_volatility_24h_robust,
+                    trade_outlier_pct = EXCLUDED.trade_outlier_pct,
+                    trade_imbalance = EXCLUDED.trade_imbalance,
+                    avg_trade_size = EXCLUDED.avg_trade_size,
+                    trade_size_std = EXCLUDED.trade_size_std,
+                    price_staleness_hours = EXCLUDED.price_staleness_hours,
+                    macro_staleness_days = EXCLUDED.macro_staleness_days,
+                    data_quality_score = EXCLUDED.data_quality_score,
                     updated_at = NOW()
             """)
 
@@ -271,6 +421,14 @@ class ContractSnapshotBuilder:
                     "volume_24h": snapshot["volume_24h"],
                     "trade_count_24h": snapshot["trade_count_24h"],
                     "price_volatility_24h": snapshot["price_volatility_24h"],
+                    "price_volatility_24h_robust": snapshot.get("price_volatility_24h_robust"),
+                    "trade_outlier_pct": snapshot.get("trade_outlier_pct"),
+                    "trade_imbalance": snapshot.get("trade_imbalance"),
+                    "avg_trade_size": snapshot.get("avg_trade_size"),
+                    "trade_size_std": snapshot.get("trade_size_std"),
+                    "price_staleness_hours": snapshot.get("price_staleness_hours"),
+                    "macro_staleness_days": snapshot.get("macro_staleness_days"),
+                    "data_quality_score": snapshot.get("data_quality_score"),
                     "macro_panel": json.dumps(snapshot["macro_panel"]),
                     "news_counts": json.dumps(snapshot["news_counts"]),
                     "event_counts_24h": snapshot["event_counts_24h"],

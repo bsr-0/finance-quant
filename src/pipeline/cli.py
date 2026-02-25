@@ -1,5 +1,7 @@
 """Command-line interface for the data pipeline."""
 
+import hashlib
+import json
 import logging
 import os
 import subprocess
@@ -13,6 +15,7 @@ from rich.console import Console
 from rich.table import Table
 
 from pipeline.db import get_db_manager
+from pipeline.dq.data_quality_monitor import DataQualityMonitor, Severity
 from pipeline.dq.tests_sql import run_dq_tests
 from pipeline.extract.fred import extract_fred
 from pipeline.extract.factors_ff import extract_factors_ff
@@ -22,7 +25,9 @@ from pipeline.extract.prices_daily import extract_prices
 from pipeline.load.raw_loader import RawLoader
 from pipeline.logging_config import configure_logging
 from pipeline.settings import get_settings
+from pipeline.snapshot.orderbook_runner import OrderbookSnapshotRunner
 from pipeline.transform.curated import CuratedTransformer
+from pipeline.historical.latency import refresh_latency_stats
 
 # Setup logging (respect LOG_FORMAT=json and LOG_LEVEL env vars)
 configure_logging(
@@ -50,6 +55,13 @@ def record_pipeline_run(pipeline_name: str, params: dict, status: str = "running
     """Record pipeline run in meta table."""
     db = get_db_manager()
     run_id = str(uuid4())
+    settings = get_settings()
+    config = settings.model_dump() if hasattr(settings, "model_dump") else settings.dict()
+    config_json = json.dumps(config, sort_keys=True, default=str)
+    config_hash = hashlib.sha256(config_json.encode("utf-8")).hexdigest()
+    params = params or {}
+    params["config_hash"] = config_hash
+    params["config"] = json.loads(config_json)
 
     with db.engine.connect() as conn:
         from sqlalchemy import text
@@ -62,7 +74,7 @@ def record_pipeline_run(pipeline_name: str, params: dict, status: str = "running
             {
                 "run_id": run_id,
                 "pipeline_name": pipeline_name,
-                "params": str(params),
+                "params": params,
                 "status": status,
                 "git_sha": get_git_sha(),
             },
@@ -177,7 +189,7 @@ def transform_curated():
     run_id = record_pipeline_run("transform_curated", {})
 
     try:
-        transformer = CuratedTransformer()
+        transformer = CuratedTransformer(run_id=run_id)
         results = transformer.transform_all()
 
         update_pipeline_run(run_id, "success", results)
@@ -185,6 +197,15 @@ def transform_curated():
         console.print("[green]✓ Transformed data into curated tables:[/green]")
         for table, count in results.items():
             console.print(f"  - {table}: {count} rows")
+
+        # DQ gating: fail on any CRITICAL alert
+        monitor = DataQualityMonitor()
+        report = monitor.generate_quality_report()
+        critical = [a for a in report.get("alerts", []) if a.get("severity") == Severity.CRITICAL.value]
+        if critical:
+            update_pipeline_run(run_id, "failed", errors="Critical data quality alerts")
+            console.print(f"[red]✗ {len(critical)} CRITICAL data quality alerts detected[/red]")
+            raise typer.Exit(1)
 
     except Exception as e:
         update_pipeline_run(run_id, "failed", errors=str(e))
@@ -229,6 +250,49 @@ def build_snapshots(
 
 
 @app.command()
+def orderbook_snapshots(
+    interval: str | None = typer.Option(None, "--interval", "-i", help="Snapshot interval (e.g., 1m, 5m, 1h, off)"),  # noqa: B008
+    iterations: int = typer.Option(1, "--iterations", "-n", help="Number of iterations (0 = forever)"),  # noqa: B008
+    retention_days: int = typer.Option(30, "--retention-days", help="Retention window in days"),  # noqa: B008
+    transform: bool = typer.Option(True, "--transform/--no-transform", help="Transform snapshots to curated"),  # noqa: B008
+    max_markets: int | None = typer.Option(None, "--max-markets", help="Override market count"),  # noqa: B008
+):
+    """Capture Polymarket orderbook snapshots on a schedule."""
+    settings = get_settings()
+    interval = interval or settings.polymarket.orderbook_snapshot_freq
+    if interval.lower() in {"off", "none", "0"}:
+        console.print("[yellow]Orderbook snapshot interval is off; skipping.[/yellow]")
+        return
+
+    run_id = record_pipeline_run(
+        "orderbook_snapshots",
+        {
+            "interval": interval,
+            "iterations": iterations,
+            "retention_days": retention_days,
+            "transform": transform,
+            "max_markets": max_markets,
+        },
+    )
+
+    try:
+        runner = OrderbookSnapshotRunner(run_id=run_id)
+        count = runner.run(
+            interval=interval,
+            iterations=iterations,
+            retention_days=retention_days,
+            transform=transform,
+            max_markets=max_markets,
+        )
+        update_pipeline_run(run_id, "success", {"snapshots_captured": count})
+        console.print(f"[green]✓ Captured {count} orderbook snapshots[/green]")
+    except Exception as e:
+        update_pipeline_run(run_id, "failed", errors=str(e))
+        console.print(f"[red]✗ Orderbook snapshots failed: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@app.command()
 def dq():
     """Run data quality tests."""
     try:
@@ -237,6 +301,42 @@ def dq():
             raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]✗ DQ tests failed: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@app.command()
+def latency_stats(
+    window_days: int | None = typer.Option(None, "--days", "-d", help="Lookback window in days"),
+):
+    """Compute and store latency stats for conservative availability."""
+    run_id = record_pipeline_run("latency_stats", {"window_days": window_days})
+    try:
+        results = refresh_latency_stats(window_days)
+        update_pipeline_run(run_id, "success", {"sources": list(results.keys())})
+
+        table = Table(title="Latency Stats (minutes)")
+        table.add_column("Source", style="cyan")
+        table.add_column("p50", style="green")
+        table.add_column("p90", style="green")
+        table.add_column("p95", style="yellow")
+        table.add_column("mean", style="magenta")
+        table.add_column("samples", style="blue")
+
+        for source, metrics in results.items():
+            table.add_row(
+                source,
+                f"{metrics.get('p50', 'n/a'):.2f}" if metrics.get("p50") is not None else "n/a",
+                f"{metrics.get('p90', 'n/a'):.2f}" if metrics.get("p90") is not None else "n/a",
+                f"{metrics.get('p95', 'n/a'):.2f}" if metrics.get("p95") is not None else "n/a",
+                f"{metrics.get('mean', 'n/a'):.2f}" if metrics.get("mean") is not None else "n/a",
+                f"{metrics.get('sample_size', 0)}",
+            )
+
+        console.print(table)
+
+    except Exception as e:
+        update_pipeline_run(run_id, "failed", errors=str(e))
+        console.print(f"[red]✗ Latency stats failed: {e}[/red]")
         raise typer.Exit(1) from e
 
 

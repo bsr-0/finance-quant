@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS cur_contract_state_daily (
     resolution_time TIMESTAMPTZ,
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed',
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (contract_id, date)
@@ -23,7 +25,9 @@ CREATE TABLE IF NOT EXISTS cur_contract_prices (
     price_normalized NUMERIC NOT NULL, -- 0..1 for binary
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed',
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (contract_id, ts, outcome)
 );
@@ -41,7 +45,9 @@ CREATE TABLE IF NOT EXISTS cur_contract_orderbook_snapshots (
     asks JSONB, -- array of [price, size]
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed',
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (contract_id, ts)
 );
@@ -58,7 +64,9 @@ CREATE TABLE IF NOT EXISTS cur_contract_trades (
     side VARCHAR(10) CHECK (side IN ('buy', 'sell')),
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed',
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (contract_id, trade_id)
 );
@@ -73,7 +81,9 @@ CREATE TABLE IF NOT EXISTS cur_contract_resolution (
     resolution_source_url VARCHAR(1000),
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed',
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

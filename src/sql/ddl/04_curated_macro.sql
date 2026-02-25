@@ -8,7 +8,9 @@ CREATE TABLE IF NOT EXISTS cur_macro_observations (
     revision_id INTEGER, -- NULL for initial release
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed',
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (series_id, period_end, revision_id)
@@ -26,6 +28,9 @@ CREATE TABLE IF NOT EXISTS cur_macro_releases (
     previous_value NUMERIC,
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

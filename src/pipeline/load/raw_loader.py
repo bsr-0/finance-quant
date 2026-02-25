@@ -1,5 +1,6 @@
 """Load raw data files into raw tables."""
 
+import json
 import logging
 from pathlib import Path
 from uuid import UUID
@@ -8,6 +9,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from pipeline.db import get_db_manager
+from pipeline.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,17 @@ class RawLoader:
 
     def __init__(self):
         self.db = get_db_manager()
+        self._batch_size = get_settings().infrastructure.batch_size
+
+    def _batch_insert(self, conn, insert_sql, records: list[dict]) -> int:
+        if not records:
+            return 0
+        total = 0
+        for i in range(0, len(records), self._batch_size):
+            batch = records[i : i + self._batch_size]
+            conn.execute(insert_sql, batch)
+            total += len(batch)
+        return total
 
     def load_fred_observations(
         self,
@@ -45,24 +58,35 @@ class RawLoader:
              raw_data, extracted_at, run_id)
             VALUES (:series_code, :date, :value, :realtime_start, :realtime_end,
                     :raw_data, :extracted_at, :run_id)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (series_code, observation_date, realtime_start) DO UPDATE SET
+                value = EXCLUDED.value,
+                realtime_end = EXCLUDED.realtime_end,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
         """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append(
+                {
+                    "series_code": row.get("series_code"),
+                    "date": row.get("date"),
+                    "value": row.get("value"),
+                    "realtime_start": row.get("realtime_start"),
+                    "realtime_end": row.get("realtime_end"),
+                    "raw_data": row.get("raw_data"),
+                    "extracted_at": row.get("extracted_at"),
+                    "run_id": row.get("run_id"),
+                }
+            )
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
-            for _, row in df.iterrows():
-                params = {
-                    "series_code": row["series_code"],
-                    "date": row["date"],
-                    "value": row["value"],
-                    "realtime_start": row.get("realtime_start"),
-                    "realtime_end": row.get("realtime_end"),
-                    "raw_data": row.to_json(),
-                    "extracted_at": row.get("extracted_at", pd.Timestamp.now()),
-                    "run_id": run_id,
-                }
-                conn.execute(insert_sql, params)
-                rows_loaded += 1
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
             conn.commit()
 
         logger.info(f"Loaded {rows_loaded} FRED observations")
@@ -77,27 +101,34 @@ class RawLoader:
             logger.warning(f"Empty file: {file_path}")
             return 0
 
-        rows_loaded = 0
-        with self.db.engine.connect() as conn:
-            for _, row in df.iterrows():
-                insert_sql = text("""
-                    INSERT INTO raw_gdelt_events
-                    (gdelt_event_id, event_date, raw_data, extracted_at, run_id)
-                    VALUES (:event_id, :event_date, :raw_data, :extracted_at, :run_id)
-                    ON CONFLICT DO NOTHING
-                """)
+        insert_sql = text("""
+            INSERT INTO raw_gdelt_events
+            (gdelt_event_id, event_date, raw_data, extracted_at, run_id)
+            VALUES (:event_id, :event_date, :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (gdelt_event_id) DO UPDATE SET
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
 
-                params = {
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append(
+                {
                     "event_id": row.get("GLOBALEVENTID"),
                     "event_date": row.get("SQLDATE"),
-                    "raw_data": row.to_json(),
-                    "extracted_at": row.get("extracted_at", pd.Timestamp.now()),
-                    "run_id": run_id,
+                    "raw_data": row.get("raw_data"),
+                    "extracted_at": row.get("extracted_at"),
+                    "run_id": row.get("run_id"),
                 }
+            )
 
-                conn.execute(insert_sql, params)
-                rows_loaded += 1
-
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
             conn.commit()
 
         logger.info(f"Loaded {rows_loaded} GDELT events")
@@ -111,27 +142,34 @@ class RawLoader:
         if df.empty:
             return 0
 
+        insert_sql = text("""
+            INSERT INTO raw_polymarket_markets
+            (venue_market_id, raw_data, extracted_at, run_id)
+            VALUES (:market_id, :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (venue_market_id) DO UPDATE SET
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            market_id = row.get("id") or row.get("marketId")
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append(
+                {
+                    "market_id": market_id,
+                    "raw_data": row.get("raw_data"),
+                    "extracted_at": row.get("extracted_at"),
+                    "run_id": row.get("run_id"),
+                }
+            )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
-            for _, row in df.iterrows():
-                insert_sql = text("""
-                    INSERT INTO raw_polymarket_markets
-                    (venue_market_id, raw_data, extracted_at, run_id)
-                    VALUES (:market_id, :raw_data, :extracted_at, :run_id)
-                    ON CONFLICT DO NOTHING
-                """)
-
-                market_id = row.get("id") or row.get("marketId")
-                params = {
-                    "market_id": market_id,
-                    "raw_data": row.to_json(),
-                    "extracted_at": row.get("extracted_at", pd.Timestamp.now()),
-                    "run_id": run_id,
-                }
-
-                conn.execute(insert_sql, params)
-                rows_loaded += 1
-
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
             conn.commit()
 
         logger.info(f"Loaded {rows_loaded} Polymarket markets")
@@ -145,29 +183,37 @@ class RawLoader:
         if df.empty:
             return 0
 
-        rows_loaded = 0
-        with self.db.engine.connect() as conn:
-            for _, row in df.iterrows():
-                insert_sql = text("""
-                    INSERT INTO raw_polymarket_prices
-                    (venue_market_id, ts, outcome, price, raw_data, extracted_at, run_id)
-                    VALUES (:market_id, :ts, :outcome, :price, :raw_data, :extracted_at, :run_id)
-                    ON CONFLICT DO NOTHING
-                """)
+        insert_sql = text("""
+            INSERT INTO raw_polymarket_prices
+            (venue_market_id, ts, outcome, price, raw_data, extracted_at, run_id)
+            VALUES (:market_id, :ts, :outcome, :price, :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (venue_market_id, ts, outcome) DO UPDATE SET
+                price = EXCLUDED.price,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
 
-                params = {
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append(
+                {
                     "market_id": row.get("market_id"),
                     "ts": row.get("timestamp"),
-                    "outcome": row.get("outcome"),
+                    "outcome": row.get("outcome") or "YES",
                     "price": row.get("price"),
-                    "raw_data": row.to_json(),
-                    "extracted_at": row.get("extracted_at", pd.Timestamp.now()),
-                    "run_id": run_id,
+                    "raw_data": row.get("raw_data"),
+                    "extracted_at": row.get("extracted_at"),
+                    "run_id": row.get("run_id"),
                 }
+            )
 
-                conn.execute(insert_sql, params)
-                rows_loaded += 1
-
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
             conn.commit()
 
         logger.info(f"Loaded {rows_loaded} Polymarket prices")
@@ -181,36 +227,99 @@ class RawLoader:
         if df.empty:
             return 0
 
-        rows_loaded = 0
-        with self.db.engine.connect() as conn:
-            for _, row in df.iterrows():
-                insert_sql = text("""
-                    INSERT INTO raw_polymarket_trades
-                    (venue_market_id, trade_id, ts, price, size,
-                     side, raw_data, extracted_at, run_id)
-                    VALUES (:market_id, :trade_id, :ts, :price,
-                     :size, :side, :raw_data, :extracted_at, :run_id)
-                    ON CONFLICT DO NOTHING
-                """)
+        insert_sql = text("""
+            INSERT INTO raw_polymarket_trades
+            (venue_market_id, trade_id, ts, price, size,
+             side, raw_data, extracted_at, run_id)
+            VALUES (:market_id, :trade_id, :ts, :price,
+             :size, :side, :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (trade_id) DO UPDATE SET
+                price = EXCLUDED.price,
+                size = EXCLUDED.size,
+                side = EXCLUDED.side,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
 
-                params = {
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append(
+                {
                     "market_id": row.get("market_id"),
                     "trade_id": row.get("id") or row.get("trade_id"),
                     "ts": row.get("timestamp"),
                     "price": row.get("price"),
                     "size": row.get("size"),
                     "side": row.get("side"),
-                    "raw_data": row.to_json(),
-                    "extracted_at": row.get("extracted_at", pd.Timestamp.now()),
-                    "run_id": run_id,
+                    "raw_data": row.get("raw_data"),
+                    "extracted_at": row.get("extracted_at"),
+                    "run_id": row.get("run_id"),
                 }
+            )
 
-                conn.execute(insert_sql, params)
-                rows_loaded += 1
-
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
             conn.commit()
 
         logger.info(f"Loaded {rows_loaded} Polymarket trades")
+        return rows_loaded
+
+    def load_polymarket_orderbooks(self, file_path: Path, run_id: UUID | None = None) -> int:
+        """Load Polymarket orderbook snapshots from parquet file."""
+        logger.info(f"Loading Polymarket orderbooks from {file_path}")
+
+        df = pd.read_parquet(file_path)
+        if df.empty:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_polymarket_orderbook_snapshots
+            (venue_market_id, ts, best_bid, best_ask, spread, bids, asks,
+             raw_data, extracted_at, run_id)
+            VALUES (:market_id, :ts, :best_bid, :best_ask, :spread, :bids, :asks,
+                    :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (venue_market_id, ts) DO UPDATE SET
+                best_bid = EXCLUDED.best_bid,
+                best_ask = EXCLUDED.best_ask,
+                spread = EXCLUDED.spread,
+                bids = EXCLUDED.bids,
+                asks = EXCLUDED.asks,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append(
+                {
+                    "market_id": row.get("market_id"),
+                    "ts": row.get("ts"),
+                    "best_bid": row.get("best_bid"),
+                    "best_ask": row.get("best_ask"),
+                    "spread": row.get("spread"),
+                    "bids": row.get("bids"),
+                    "asks": row.get("asks"),
+                    "raw_data": row.get("raw_data"),
+                    "extracted_at": row.get("extracted_at"),
+                    "run_id": row.get("run_id"),
+                }
+            )
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} Polymarket orderbook snapshots")
         return rows_loaded
 
     def load_prices_ohlcv(
@@ -235,13 +344,27 @@ class RawLoader:
              split_ratio, dividend, raw_data, extracted_at, run_id)
             VALUES (:ticker, :date, :open, :high, :low, :close, :adj_close, :volume,
                     :split_ratio, :dividend, :raw_data, :extracted_at, :run_id)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (ticker, date) DO UPDATE SET
+                open = EXCLUDED.open,
+                high = EXCLUDED.high,
+                low = EXCLUDED.low,
+                close = EXCLUDED.close,
+                adj_close = EXCLUDED.adj_close,
+                volume = EXCLUDED.volume,
+                split_ratio = EXCLUDED.split_ratio,
+                dividend = EXCLUDED.dividend,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
         """)
 
-        rows_loaded = 0
-        with self.db.engine.connect() as conn:
-            for _, row in df.iterrows():
-                params = {
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append(
+                {
                     "ticker": row.get("ticker"),
                     "date": row.get("date"),
                     "open": row.get("open"),
@@ -252,12 +375,15 @@ class RawLoader:
                     "volume": row.get("volume"),
                     "split_ratio": row.get("split_ratio"),
                     "dividend": row.get("dividend", 0),
-                    "raw_data": row.to_json(),
-                    "extracted_at": row.get("extracted_at", pd.Timestamp.now()),
-                    "run_id": run_id,
+                    "raw_data": row.get("raw_data"),
+                    "extracted_at": row.get("extracted_at"),
+                    "run_id": row.get("run_id"),
                 }
-                conn.execute(insert_sql, params)
-                rows_loaded += 1
+            )
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
             conn.commit()
 
         logger.info(f"Loaded {rows_loaded} OHLCV records")
@@ -276,13 +402,26 @@ class RawLoader:
             (date, mkt_rf, smb, hml, rmw, cma, mom, rf, raw_data, extracted_at, run_id)
             VALUES (:date, :mkt_rf, :smb, :hml, :rmw, :cma, :mom, :rf,
                     :raw_data, :extracted_at, :run_id)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (date) DO UPDATE SET
+                mkt_rf = EXCLUDED.mkt_rf,
+                smb = EXCLUDED.smb,
+                hml = EXCLUDED.hml,
+                rmw = EXCLUDED.rmw,
+                cma = EXCLUDED.cma,
+                mom = EXCLUDED.mom,
+                rf = EXCLUDED.rf,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
         """)
 
-        rows_loaded = 0
-        with self.db.engine.connect() as conn:
-            for _, row in df.iterrows():
-                params = {
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append(
+                {
                     "date": row.get("date"),
                     "mkt_rf": row.get("mkt_rf"),
                     "smb": row.get("smb"),
@@ -291,12 +430,15 @@ class RawLoader:
                     "cma": row.get("cma"),
                     "mom": row.get("mom"),
                     "rf": row.get("rf"),
-                    "raw_data": row.to_json(),
-                    "extracted_at": row.get("extracted_at", pd.Timestamp.now()),
-                    "run_id": run_id,
+                    "raw_data": row.get("raw_data"),
+                    "extracted_at": row.get("extracted_at"),
+                    "run_id": row.get("run_id"),
                 }
-                conn.execute(insert_sql, params)
-                rows_loaded += 1
+            )
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
             conn.commit()
 
         logger.info(f"Loaded {rows_loaded} factor rows")
@@ -325,6 +467,8 @@ class RawLoader:
                         total_rows += self.load_polymarket_prices(file_path, run_id)
                     elif "trades" in str(file_path):
                         total_rows += self.load_polymarket_trades(file_path, run_id)
+                    elif "orderbooks" in str(file_path):
+                        total_rows += self.load_polymarket_orderbooks(file_path, run_id)
                 elif source == "prices":
                     total_rows += self.load_prices_ohlcv(file_path, run_id)
                 elif source == "factors":

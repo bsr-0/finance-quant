@@ -398,9 +398,11 @@ class DataQualityMonitor:
         # Table-level metrics
         tables = [
             "cur_prices_ohlcv_daily",
+            "cur_prices_adjusted_daily",
             "cur_contract_prices",
             "cur_macro_observations",
             "snap_contract_features",
+            "snap_universe_membership",
         ]
 
         for table in tables:

@@ -11,7 +11,9 @@ CREATE TABLE IF NOT EXISTS cur_prices_ohlcv_daily (
     volume BIGINT NOT NULL,
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed')),
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (symbol_id, date)
@@ -28,7 +30,9 @@ CREATE TABLE IF NOT EXISTS cur_corporate_actions (
     amount NUMERIC,
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed',
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (symbol_id, action_type, action_date)
 );
@@ -44,7 +48,9 @@ CREATE TABLE IF NOT EXISTS cur_fundamentals_quarterly (
     units VARCHAR(50),
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
-    time_quality VARCHAR(20) DEFAULT 'assumed',
+    time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (entity_id, fiscal_period_end, metric_name)

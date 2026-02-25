@@ -59,6 +59,7 @@ class GDELTSettings(BaseSettings):
     base_url: str = "https://api.gdeltproject.org/api/v2"
     enabled: bool = True
     max_days_per_request: int = 30
+    available_time_source: str = "DATEADDED"
 
 
 class PolymarketSettings(BaseSettings):
@@ -70,6 +71,12 @@ class PolymarketSettings(BaseSettings):
     gamma_url: str = "https://gamma-api.polymarket.com"
     enabled: bool = True
     rate_limit_per_sec: float = 5.0
+    universe_mode: str = "top_volume"  # top_volume | all_active | explicit_list
+    top_volume_limit: int = 50
+    explicit_markets: list[str] = Field(default_factory=list)
+    orderbook_snapshot_freq: str = "5m"
+    trades_page_size: int = 100
+    trades_max_pages: int = 200
 
 
 class PriceSettings(BaseSettings):
@@ -80,6 +87,9 @@ class PriceSettings(BaseSettings):
     source: str = "yahoo"  # or "alphavantage", "polygon"
     api_key: Optional[str] = None
     enabled: bool = True
+    market_close_time: str = "16:00:00"
+    exchange_timezone: str = "America/New_York"
+    vendor_delay_minutes: int = 15
     universe: list[str] = Field(
         default_factory=lambda: [
             "SPY",
@@ -126,6 +136,7 @@ class InfrastructureSettings(BaseSettings):
     # Caching
     cache_enabled: bool = True
     cache_ttl_seconds: int = 300
+    lineage_enabled: bool = True
 
 
 class FactorSettings(BaseSettings):
@@ -136,6 +147,9 @@ class FactorSettings(BaseSettings):
     source: str = "ken_french"
     min_history_days: int = 252
     enabled: bool = True
+    available_time_lag_days: int = 1
+    available_time_release_time: str = "09:30"
+    exchange_timezone: str = "America/New_York"
 
 
 class EvaluationSettings(BaseSettings):
@@ -147,6 +161,40 @@ class EvaluationSettings(BaseSettings):
     edge_threshold: float = 0.02
     rebalance_freq: str = "1d"
     benchmark_symbol: str = "SPY"
+    max_leverage: float = 2.0
+    max_adv_pct: float = 0.1
+    borrow_cost_bps: float = 30.0
+    slippage_bps: float = 2.0
+    pm_fee_bps: float = 10.0
+
+
+class HistoricalFixesSettings(BaseSettings):
+    """Statistical corrections for historical data limitations."""
+
+    model_config = SettingsConfigDict(env_prefix="HIST_")
+
+    # Latency estimation
+    max_backfill_days: int = 5
+    min_latency_samples: int = 500
+    latency_percentile: float = 0.95
+    latency_stats_max_age_hours: int = 24
+
+    # Conservative release timing for macro vintages
+    macro_release_time: str = "12:00:00"
+    macro_release_timezone: str = "America/New_York"
+    macro_release_jitter_minutes: int = 60
+
+    # Outlier detection
+    price_outlier_mad_threshold: float = 3.5
+    trade_outlier_mad_threshold: float = 4.0
+
+    # Fallback lags (minutes) if latency stats are unavailable
+    gdelt_fallback_lag_minutes: int = 180
+    polymarket_fallback_lag_minutes: int = 2
+
+    # Universe audit + selection weighting
+    polymarket_universe_audit: bool = True
+    selection_weight_mode: str = "count"  # count | volume
 
 
 class PipelineSettings(BaseSettings):
@@ -172,6 +220,7 @@ class PipelineSettings(BaseSettings):
     # Factors & evaluation
     factors: FactorSettings = Field(default_factory=FactorSettings)
     evaluation: EvaluationSettings = Field(default_factory=EvaluationSettings)
+    historical_fixes: HistoricalFixesSettings = Field(default_factory=HistoricalFixesSettings)
 
     # Pipeline behavior
     default_start_date: str = "2020-01-01"
