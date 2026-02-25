@@ -832,6 +832,7 @@ class CuratedTransformer:
             rows = result.rowcount
 
         logger.info(f"Transformed {rows} OHLCV records")
+<<<<<<< HEAD
         self._record_lineage("raw_prices_ohlcv", "cur_prices_ohlcv_daily", "transform_prices_ohlcv")
         return rows
 
@@ -982,6 +983,48 @@ class CuratedTransformer:
 
         logger.info(f"Transformed {rows} universe membership records")
         self._record_lineage("dim_symbol", "snap_universe_membership", "transform_universe_membership")
+=======
+
+        # ------ 6. Flag data quality issues ------
+        # Priority: invalid_price > ohlc_error > zero_volume (price_spike handled separately)
+        with self.db.engine.connect() as conn:
+            conn.execute(text("""
+                UPDATE cur_prices_ohlcv_daily
+                SET data_quality_flag = CASE
+                    WHEN close <= 0 OR close IS NULL          THEN 'invalid_price'
+                    WHEN high < low                            THEN 'ohlc_error'
+                    WHEN volume = 0 OR volume IS NULL          THEN 'zero_volume'
+                    ELSE 'ok'
+                END
+                WHERE data_quality_flag IS NULL OR data_quality_flag = 'ok'
+            """))
+            conn.commit()
+
+        # Flag price spikes (>50% daily change) – requires LAG, separate pass
+        with self.db.engine.connect() as conn:
+            conn.execute(text("""
+                WITH price_changes AS (
+                    SELECT
+                        symbol_id,
+                        date,
+                        ABS(close / NULLIF(
+                            LAG(close) OVER (PARTITION BY symbol_id ORDER BY date), 0
+                        ) - 1) AS pct_change
+                    FROM cur_prices_ohlcv_daily
+                )
+                UPDATE cur_prices_ohlcv_daily p
+                SET data_quality_flag = 'price_spike'
+                FROM price_changes pc
+                WHERE p.symbol_id = pc.symbol_id
+                  AND p.date = pc.date
+                  AND pc.pct_change IS NOT NULL
+                  AND pc.pct_change > 0.50
+                  AND p.data_quality_flag = 'ok'
+            """))
+            conn.commit()
+            logger.info("Applied data quality flags to OHLCV records")
+
+>>>>>>> ec7e5441d04f1d4503133005fe8166129a0bec0e
         return rows
 
     # ------------------------------------------------------------------
