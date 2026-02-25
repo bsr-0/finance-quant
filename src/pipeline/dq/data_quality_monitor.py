@@ -199,27 +199,35 @@ class DataQualityMonitor:
         table_name = _validate_identifier(table_name)
         result = self.db.run_query(
             f"""
-            WITH price_stats AS (
+            WITH med AS (
                 SELECT
                     symbol_id,
-                    AVG(close) as avg_price,
-                    STDDEV(close) as std_price
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY close) AS median_price
                 FROM {table_name}
                 GROUP BY symbol_id
                 HAVING COUNT(*) >= 20
+            ),
+            mad AS (
+                SELECT
+                    p.symbol_id,
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ABS(p.close - m.median_price)) AS mad_price
+                FROM {table_name} p
+                JOIN med m ON p.symbol_id = m.symbol_id
+                GROUP BY p.symbol_id
             )
             SELECT
                 p.symbol_id,
                 s.ticker,
                 p.date,
                 p.close,
-                ps.avg_price,
-                ps.std_price,
-                ABS(p.close - ps.avg_price) / NULLIF(ps.std_price, 0) as zscore
+                m.median_price,
+                d.mad_price,
+                ABS(0.6745 * (p.close - m.median_price) / NULLIF(d.mad_price, 0)) as zscore
             FROM {table_name} p
-            JOIN price_stats ps ON p.symbol_id = ps.symbol_id
+            JOIN med m ON p.symbol_id = m.symbol_id
+            JOIN mad d ON p.symbol_id = d.symbol_id
             JOIN dim_symbol s ON p.symbol_id = s.symbol_id
-            WHERE ABS(p.close - ps.avg_price) / NULLIF(ps.std_price, 0) > :threshold
+            WHERE ABS(0.6745 * (p.close - m.median_price) / NULLIF(d.mad_price, 0)) > :threshold
             ORDER BY zscore DESC
             LIMIT 10
         """,

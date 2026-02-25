@@ -134,6 +134,27 @@ class CuratedTransformer:
             )
             conn.commit()
 
+        # Ensure legacy series have conservative release metadata
+        with self.db.engine.connect() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE dim_macro_series
+                    SET release_time = :release_time::time,
+                        release_timezone = :release_tz,
+                        release_day_offset = COALESCE(release_day_offset, 0),
+                        release_jitter_minutes = :release_jitter
+                    WHERE release_time IS NULL
+                """
+                ),
+                {
+                    "release_time": self.settings.historical_fixes.macro_release_time,
+                    "release_tz": self.settings.historical_fixes.macro_release_timezone,
+                    "release_jitter": self.settings.historical_fixes.macro_release_jitter_minutes,
+                },
+            )
+            conn.commit()
+
         # Transform observations.
         # available_time = realtime_start (when FRED first published the value)
         # event_time     = observation_date (period the value refers to)
@@ -204,7 +225,10 @@ class CuratedTransformer:
                         :source_id AS source_id,
                         (r.raw_data::json->>'GLOBALEVENTID')::bigint AS gdelt_event_id,
                         r.raw_data::json->>'EventCode'               AS event_type,
-                        (r.raw_data::json->>'SQLDATE')::date::timestamptz AS event_time,
+                        COALESCE(
+                            (r.raw_data::json->>'SQLDATE')::date::timestamptz,
+                            r.extracted_at
+                        ) AS event_time,
                         CASE
                             WHEN :available_source = 'DATEADDED' THEN COALESCE(
                                 (to_timestamp(NULLIF(r.raw_data::json->>'DATEADDED', ''), 'YYYYMMDDHH24MISS') AT TIME ZONE 'UTC'),

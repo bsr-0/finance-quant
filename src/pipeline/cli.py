@@ -7,7 +7,7 @@ import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pandas as pd
 import typer
@@ -26,6 +26,7 @@ from pipeline.load.raw_loader import RawLoader
 from pipeline.logging_config import configure_logging
 from pipeline.settings import get_settings
 from pipeline.snapshot.orderbook_runner import OrderbookSnapshotRunner
+from pipeline.snapshot.symbol_snapshots import SymbolSnapshotBuilder
 from pipeline.transform.curated import CuratedTransformer
 from pipeline.historical.latency import refresh_latency_stats
 
@@ -250,6 +251,33 @@ def build_snapshots(
 
 
 @app.command()
+def build_symbol_snapshots(
+    symbols: list[str] | None = typer.Option(None, "--symbol", "-s", help="Symbol IDs"),  # noqa: B008
+    start: str | None = typer.Option(None, "--start", help="Start timestamp"),  # noqa: B008
+    end: str | None = typer.Option(None, "--end", help="End timestamp"),  # noqa: B008
+    freq: str = typer.Option("1d", "--freq", help="Snapshot frequency (1h, 1d, 15min)"),  # noqa: B008
+):
+    """Build training snapshots for equity symbols."""
+    run_id = record_pipeline_run(
+        "build_symbol_snapshots", {"symbols": symbols, "start": start, "end": end, "freq": freq}
+    )
+    try:
+        builder = SymbolSnapshotBuilder()
+        count = builder.build_snapshots_for_range(
+            symbol_ids=[UUID(s) for s in symbols] if symbols else None,
+            start_ts=datetime.fromisoformat(start) if start else None,
+            end_ts=datetime.fromisoformat(end) if end else None,
+            frequency=freq,
+        )
+        update_pipeline_run(run_id, "success", {"snapshots_created": count})
+        console.print(f"[green]✓ Built {count} symbol snapshots[/green]")
+    except Exception as e:
+        update_pipeline_run(run_id, "failed", errors=str(e))
+        console.print(f"[red]✗ Symbol snapshot build failed: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@app.command()
 def orderbook_snapshots(
     interval: str | None = typer.Option(None, "--interval", "-i", help="Snapshot interval (e.g., 1m, 5m, 1h, off)"),  # noqa: B008
     iterations: int = typer.Option(1, "--iterations", "-n", help="Number of iterations (0 = forever)"),  # noqa: B008
@@ -452,6 +480,7 @@ def inventory():
         ("cur_contract_trades", "timestamp", "ts"),
         ("cur_factor_returns", "date", "date"),
         ("snap_contract_features", "timestamp", "asof_ts"),
+        ("snap_symbol_features", "timestamp", "asof_ts"),
     ]
 
     table = Table(title="Data Inventory")

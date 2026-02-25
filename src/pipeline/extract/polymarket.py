@@ -11,6 +11,7 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.historical.coverage import compute_polymarket_coverage, record_coverage_metrics
 from pipeline.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,25 @@ class PolymarketExtractor:
         elif max_markets is not None:
             markets = markets[:max_markets]
 
+        return markets
+
+    def get_all_markets(
+        self,
+        active: bool = True,
+        closed: bool = False,
+        limit: int = 100,
+    ) -> list[dict]:
+        """Fetch all markets for coverage auditing."""
+        markets: list[dict] = []
+        offset = 0
+        while True:
+            batch = self.get_markets(limit=limit, offset=offset, active=active, closed=closed)
+            if not batch:
+                break
+            markets.extend(batch)
+            offset += len(batch)
+            if len(batch) < limit:
+                break
         return markets
 
     def get_market_trades(
@@ -219,6 +239,22 @@ class PolymarketExtractor:
         markets = self.select_markets(max_markets=max_markets)
 
         logger.info(f"Found {len(markets)} markets to extract (mode={self.universe_mode})")
+
+        # Universe audit: measure selection bias and coverage
+        fixes = get_settings().historical_fixes
+        if fixes.polymarket_universe_audit:
+            try:
+                all_markets = self.get_all_markets(active=True, closed=False)
+                metrics = compute_polymarket_coverage(markets, all_markets)
+                if max_markets is not None:
+                    metrics["max_markets"] = float(max_markets)
+                if fixes.selection_weight_mode == "volume":
+                    metrics["selection_weighted_pct"] = metrics.get("volume_share_pct", 0.0)
+                else:
+                    metrics["selection_weighted_pct"] = metrics.get("selection_coverage_pct", 0.0)
+                record_coverage_metrics("polymarket", metrics)
+            except Exception as exc:
+                logger.warning(f"Polymarket coverage audit failed: {exc}")
 
         # Extract each market
         start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
