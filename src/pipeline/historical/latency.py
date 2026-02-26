@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import text
 
@@ -37,9 +37,11 @@ def _store_latency_metrics(
                 text(
                     """
                     INSERT INTO meta_latency_stats
-                        (source_name, metric_name, metric_value, sample_size, window_start, window_end)
+                        (source_name, metric_name, metric_value,
+                         sample_size, window_start, window_end)
                     VALUES
-                        (:source_name, :metric_name, :metric_value, :sample_size, :window_start, :window_end)
+                        (:source_name, :metric_name, :metric_value,
+                         :sample_size, :window_start, :window_end)
                     ON CONFLICT (source_name, metric_name, window_start, window_end) DO UPDATE SET
                         metric_value = EXCLUDED.metric_value,
                         sample_size = EXCLUDED.sample_size,
@@ -78,7 +80,9 @@ def compute_gdelt_latency_stats(window_days: int) -> dict[str, float | None]:
     sql = """
         WITH base AS (
             SELECT
-                (to_timestamp(NULLIF(r.raw_data::json->>'DATEADDED', ''), 'YYYYMMDDHH24MISS') AT TIME ZONE 'UTC') AS date_added,
+                (to_timestamp(
+                    NULLIF(r.raw_data::json->>'DATEADDED', ''), 'YYYYMMDDHH24MISS'
+                ) AT TIME ZONE 'UTC') AS date_added,
                 (r.raw_data::json->>'SQLDATE')::date::timestamptz AS event_time
             FROM raw_gdelt_events r
             WHERE r.raw_data ? 'DATEADDED'
@@ -123,7 +127,7 @@ def compute_polymarket_latency_stats(window_days: int) -> dict[str, float | None
     db = get_db_manager()
     if not db.table_exists("raw_polymarket_trades"):
         return {}
-    end_ts = datetime.now(timezone.utc)
+    end_ts = datetime.now(UTC)
     start_ts = end_ts - timedelta(days=window_days)
 
     sql = """
@@ -277,7 +281,7 @@ def get_latency_minutes(
         computed_at = datetime.fromisoformat(computed_at.replace("Z", "+00:00"))
     age_hours = None
     if isinstance(computed_at, datetime):
-        age_hours = (datetime.now(timezone.utc) - computed_at).total_seconds() / 3600.0
+        age_hours = (datetime.now(UTC) - computed_at).total_seconds() / 3600.0
 
     sample_size = int(row.get("sample_size") or 0)
     metric_value = row.get("metric_value")

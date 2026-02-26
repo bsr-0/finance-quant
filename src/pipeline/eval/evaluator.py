@@ -10,6 +10,7 @@ import pandas as pd
 
 from pipeline.backtesting.simulator import PortfolioSimulator, SimulatorConfig
 from pipeline.backtesting.transaction_costs import FixedPlusSpreadModel, SquareRootImpactModel
+from pipeline.db import get_db_manager
 from pipeline.eval.factor_neutrality import compute_factor_exposures, factor_correlation_gate
 from pipeline.eval.metrics import (
     brier_score,
@@ -22,11 +23,15 @@ from pipeline.eval.metrics import (
     sharpe_sortino,
     turnover,
 )
-from pipeline.eval.portfolio import ProbPortfolioConfig, SignalPortfolioConfig, generate_positions_from_probs, generate_positions_from_signals
+from pipeline.eval.portfolio import (
+    ProbPortfolioConfig,
+    SignalPortfolioConfig,
+    generate_positions_from_probs,
+    generate_positions_from_signals,
+)
 from pipeline.eval.regime import classify_regimes, regime_performance
 from pipeline.eval.robustness import bootstrap_ci, deflated_sharpe_ratio
 from pipeline.eval.stress import DEFAULT_SCENARIOS, evt_tail_risk, scenario_metrics
-from pipeline.db import get_db_manager
 from pipeline.settings import get_settings
 
 
@@ -300,7 +305,7 @@ class Evaluator:
             passed_gates=gates,
         )
 
-    def _compute_core_metrics(self, returns: pd.Series, positions: pd.DataFrame) -> dict[str, float]:
+    def _compute_core_metrics(self, returns: pd.Series, positions: pd.DataFrame) -> dict[str, float]:  # noqa: E501
         sharpe, sortino = sharpe_sortino(returns)
         turnover_series = turnover(positions)
         metrics = {
@@ -309,7 +314,7 @@ class Evaluator:
             "information_ratio": information_ratio(returns),
             "max_drawdown": max_drawdown(returns),
             "recovery_time": float(drawdown_recovery_time(returns)),
-            "turnover_avg": float(turnover_series.mean()) if not turnover_series.empty else float("nan"),
+            "turnover_avg": float(turnover_series.mean()) if not turnover_series.empty else float("nan"),  # noqa: E501
         }
         if returns is not None and len(returns.dropna()) > 5:
             r = returns.dropna()

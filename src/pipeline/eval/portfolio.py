@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
 
 import numpy as np
 import pandas as pd
@@ -106,7 +105,7 @@ def generate_positions_from_probs(
         open_side = 0
         open_date = None
 
-        for i, row in grp.iterrows():
+        for _i, row in grp.iterrows():
             edge = row["model_prob"] - row["market_price"]
             dt = row["date"]
             if open_side != 0:
