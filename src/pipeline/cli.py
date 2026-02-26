@@ -22,6 +22,14 @@ from pipeline.extract.factors_ff import extract_factors_ff
 from pipeline.extract.gdelt import extract_gdelt
 from pipeline.extract.polymarket import extract_polymarket
 from pipeline.extract.prices_daily import extract_prices
+from pipeline.extract.sec_fundamentals import extract_sec_fundamentals
+from pipeline.extract.sec_insider import extract_sec_insider
+from pipeline.extract.sec_13f import extract_sec_13f
+from pipeline.extract.options_data import extract_options
+from pipeline.extract.earnings import extract_earnings
+from pipeline.extract.reddit_sentiment import extract_reddit_sentiment
+from pipeline.extract.short_interest import extract_short_interest
+from pipeline.extract.etf_flows import extract_etf_flows
 from pipeline.load.raw_loader import RawLoader
 from pipeline.logging_config import configure_logging
 from pipeline.settings import get_settings
@@ -115,7 +123,12 @@ def update_pipeline_run(
 
 @app.command()
 def extract(
-    source: str = typer.Argument(..., help="Source to extract (fred, gdelt, polymarket, prices, factors)"),
+    source: str = typer.Argument(
+        ...,
+        help="Source to extract (fred, gdelt, polymarket, prices, factors, "
+             "sec-fundamentals, sec-insider, sec-13f, options, earnings, "
+             "reddit-sentiment, short-interest, etf-flows)",
+    ),
     start: str | None = typer.Option(None, "--start", "-s", help="Start date (YYYY-MM-DD)"),  # noqa: B008
     end: str | None = typer.Option(None, "--end", "-e", help="End date (YYYY-MM-DD)"),  # noqa: B008
     output_dir: Path | None = typer.Option(  # noqa: B008
@@ -144,6 +157,22 @@ def extract(
             files = extract_prices(raw_path, start_date=start, end_date=end, run_id=run_id)
         elif source == "factors":
             files = extract_factors_ff(raw_path, run_id=run_id)
+        elif source == "sec-fundamentals":
+            files = extract_sec_fundamentals(raw_path, start_date=start, end_date=end, run_id=run_id)
+        elif source == "sec-insider":
+            files = extract_sec_insider(raw_path, start_date=start, end_date=end, run_id=run_id)
+        elif source == "sec-13f":
+            files = extract_sec_13f(raw_path, start_date=start, end_date=end, run_id=run_id)
+        elif source == "options":
+            files = extract_options(raw_path, run_id=run_id)
+        elif source == "earnings":
+            files = extract_earnings(raw_path, start_date=start, end_date=end, run_id=run_id)
+        elif source == "reddit-sentiment":
+            files = extract_reddit_sentiment(raw_path, run_id=run_id)
+        elif source == "short-interest":
+            files = extract_short_interest(raw_path, run_id=run_id)
+        elif source == "etf-flows":
+            files = extract_etf_flows(raw_path, run_id=run_id)
         else:
             raise typer.BadParameter(f"Unknown source: {source}")
 
@@ -160,7 +189,12 @@ def extract(
 
 @app.command()
 def load_raw(
-    source: str = typer.Argument(..., help="Source to load (fred, gdelt, polymarket, prices, factors)"),
+    source: str = typer.Argument(
+        ...,
+        help="Source to load (fred, gdelt, polymarket, prices, factors, "
+             "sec_fundamentals, sec_insider, sec_13f, options, earnings, "
+             "reddit_sentiment, short_interest, etf_flows)",
+    ),
     raw_dir: Path | None = typer.Option(  # noqa: B008
         None, "--raw-dir", "-r", help="Raw data directory"
     ),
@@ -481,6 +515,14 @@ def inventory():
         ("cur_factor_returns", "date", "date"),
         ("snap_contract_features", "timestamp", "asof_ts"),
         ("snap_symbol_features", "timestamp", "asof_ts"),
+        # New data sources
+        ("cur_fundamentals_quarterly", "date", "fiscal_period_end"),
+        ("cur_insider_trades", "date", "transaction_date"),
+        ("cur_institutional_holdings", "date", "report_date"),
+        ("cur_options_summary_daily", "date", "date"),
+        ("cur_earnings_events", "date", "report_date"),
+        ("cur_short_interest", "date", "settlement_date"),
+        ("cur_etf_flows_daily", "date", "date"),
     ]
 
     table = Table(title="Data Inventory")
