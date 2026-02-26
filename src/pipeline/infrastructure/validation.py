@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 import pandas as pd
 from pydantic import BaseModel, Field, ValidationError
@@ -47,7 +47,7 @@ class ValidationResult:
         """Add statistic."""
         self.stats[key] = value
 
-    def merge(self, other: "ValidationResult"):
+    def merge(self, other: ValidationResult):
         """Merge another validation result."""
         self.errors.extend(other.errors)
         self.warnings.extend(other.warnings)
@@ -59,7 +59,7 @@ class FredObservationValidator(BaseModel):
 
     series_code: str = Field(..., min_length=1)
     date: str
-    value: Optional[float] = None
+    value: float | None = None
 
     @field_validator("value")
     @classmethod

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pandas as pd
@@ -27,10 +27,7 @@ class SymbolSnapshotBuilder:
         asof_ts: datetime,
         lookback_days: int = 60,
     ) -> dict | None:
-        if asof_ts.tzinfo is None:
-            asof_ts = asof_ts.replace(tzinfo=timezone.utc)
-        else:
-            asof_ts = asof_ts.astimezone(timezone.utc)
+        asof_ts = asof_ts.replace(tzinfo=UTC) if asof_ts.tzinfo is None else asof_ts.astimezone(UTC)
         snapshot = {
             "symbol_id": symbol_id,
             "asof_ts": asof_ts,
@@ -134,7 +131,7 @@ class SymbolSnapshotBuilder:
         windows = {"1h": timedelta(hours=1), "24h": timedelta(hours=24), "7d": timedelta(days=7)}
         counts = {}
         if not self.db.table_exists("cur_news_items"):
-            return {name: 0 for name in windows}
+            return dict.fromkeys(windows, 0)
         for name, delta in windows.items():
             start_ts = asof_ts - delta
             query = """
@@ -159,9 +156,9 @@ class SymbolSnapshotBuilder:
             symbol_ids = [UUID(r["symbol_id"]) for r in result]
 
         if not start_ts:
-            start_ts = datetime.now(timezone.utc) - timedelta(days=90)
+            start_ts = datetime.now(UTC) - timedelta(days=90)
         if not end_ts:
-            end_ts = datetime.now(timezone.utc)
+            end_ts = datetime.now(UTC)
 
         freq_map = {"1h": "H", "1d": "D", "15min": "15min"}
         pandas_freq = freq_map.get(frequency, "D")

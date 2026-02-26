@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -142,7 +142,7 @@ class YahooFinanceExtractor:
                     continue
 
                 # Add metadata
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
                 # Save to parquet

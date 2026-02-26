@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -119,7 +119,7 @@ class KillSwitch:
         with self._lock:
             if not self._engaged:
                 self._engaged = True
-                self._engaged_at = datetime.now(timezone.utc)
+                self._engaged_at = datetime.now(UTC)
                 self._reason = reason
                 logger.critical(
                     "KILL SWITCH ENGAGED at %s – reason: %s",
@@ -219,7 +219,10 @@ class IntradayRiskMonitor:
             logger.critical("SHUTDOWN triggered – %s", reason)
             return "shutdown"
 
-        if drawdown_pct <= -self.limits.max_drawdown_pct or s.realised_pnl <= -self.limits.max_daily_loss:
+        if (
+            drawdown_pct <= -self.limits.max_drawdown_pct
+            or s.realised_pnl <= -self.limits.max_daily_loss
+        ):
             if not s.throttled:
                 s.throttled = True
                 logger.warning(
@@ -358,7 +361,9 @@ class PreTradeChecker:
         if notional > lim.max_order_notional:
             return OrderCheckResult(
                 status=CheckStatus.REJECTED,
-                reason=f"Order notional {notional:,.0f} exceeds limit {lim.max_order_notional:,.0f}",
+                reason=(
+                    f"Order notional {notional:,.0f} exceeds limit {lim.max_order_notional:,.0f}"
+                ),
                 details={"notional": notional, "limit": lim.max_order_notional},
             )
 

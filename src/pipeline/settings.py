@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import yaml
 from pydantic import Field
@@ -43,7 +42,7 @@ class FredSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="FRED_")
 
-    api_key: Optional[str] = None
+    api_key: str | None = None
     base_url: str = "https://api.stlouisfed.org/fred"
     series_codes: list[str] = Field(
         default_factory=lambda: ["GDP", "UNRATE", "CPIAUCSL", "FEDFUNDS", "T10Y2Y", "VIXCLS"]
@@ -85,7 +84,7 @@ class PriceSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="PRICES_")
 
     source: str = "yahoo"  # or "alphavantage", "polygon"
-    api_key: Optional[str] = None
+    api_key: str | None = None
     enabled: bool = True
     market_close_time: str = "16:00:00"
     exchange_timezone: str = "America/New_York"
@@ -131,7 +130,7 @@ class InfrastructureSettings(BaseSettings):
 
     # Metrics
     metrics_enabled: bool = True
-    metrics_export_path: Optional[Path] = None
+    metrics_export_path: Path | None = None
 
     # Caching
     cache_enabled: bool = True
@@ -234,7 +233,7 @@ class PipelineSettings(BaseSettings):
         return v
 
     @classmethod
-    def from_yaml(cls, path: Path) -> "PipelineSettings":
+    def from_yaml(cls, path: Path) -> PipelineSettings:
         """Load settings from YAML file."""
         with open(path) as f:
             config = yaml.safe_load(f)
@@ -248,7 +247,7 @@ class PipelineSettings(BaseSettings):
 
 
 # Global settings instance
-_settings: Optional[PipelineSettings] = None
+_settings: PipelineSettings | None = None
 
 
 def get_settings() -> PipelineSettings:

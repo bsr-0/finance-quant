@@ -1,6 +1,6 @@
 """Tests for snapshot builder."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -87,7 +87,7 @@ class TestContractSnapshotBuilder:
 
         builder = ContractSnapshotBuilder()
         snapshot = builder.build_contract_snapshot(
-            contract_id=sample_contract, asof_ts=datetime.now(timezone.utc)
+            contract_id=sample_contract, asof_ts=datetime.now(UTC)
         )
 
         assert snapshot is not None
@@ -96,7 +96,7 @@ class TestContractSnapshotBuilder:
 
     def test_snapshot_no_lookahead(self, db, sample_contract):
         """Test that snapshots don't include future data."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Insert price at now
         with db.engine.connect() as conn:
@@ -126,7 +126,7 @@ class TestContractSnapshotBuilder:
 
     def test_snapshot_uses_latest_available(self, db, sample_contract):
         """Test that snapshots use the latest available data."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Insert multiple prices
         with db.engine.connect() as conn:
@@ -164,7 +164,7 @@ class TestContractSnapshotBuilder:
 
     def test_snapshot_trade_aggregation(self, db, sample_contract):
         """Test that trade statistics are correctly aggregated."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Insert some trades
         with db.engine.connect() as conn:
@@ -199,7 +199,7 @@ class TestContractSnapshotBuilder:
 
     def test_snapshot_includes_staleness_metrics(self, db, sample_contract):
         """Test that snapshots include price and macro staleness fields."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         with db.engine.connect() as conn:
             from sqlalchemy import text
@@ -227,7 +227,7 @@ class TestContractSnapshotBuilder:
 
     def test_snapshot_quality_score_deducted_for_staleness(self, db, sample_contract):
         """Test that data_quality_score is reduced for stale price data."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         with db.engine.connect() as conn:
             from sqlalchemy import text
@@ -253,7 +253,7 @@ class TestContractSnapshotBuilder:
 
     def test_snapshot_microstructure_features(self, db, sample_contract):
         """Test microstructure features are computed from buy/sell trades."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         with db.engine.connect() as conn:
             from sqlalchemy import text
@@ -312,7 +312,7 @@ class TestContractSnapshotBuilder:
 
     def test_snapshot_outlier_detection(self, db, sample_contract):
         """Test that price outlier detection is included in snapshots."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         with db.engine.connect() as conn:
             from sqlalchemy import text
