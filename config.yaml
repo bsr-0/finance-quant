@@ -16,6 +16,7 @@ fred:
   api_key: null  # Set via FRED_API_KEY env var
   base_url: https://api.stlouisfed.org/fred
   series_codes:
+    # --- Original macro indicators ---
     - GDP
     - UNRATE
     - CPIAUCSL
@@ -25,6 +26,35 @@ fred:
     - DGS10
     - DGS2
     - TB3MS
+    # --- Credit spreads ---
+    - BAMLH0A0HYM2    # ICE BofA US High Yield Index Option-Adjusted Spread
+    - BAMLC0A4CBBB    # ICE BofA BBB US Corporate Index Option-Adjusted Spread
+    # --- Housing ---
+    - HOUST            # Housing Starts: Total New Privately Owned
+    - CSUSHPISA        # S&P/Case-Shiller U.S. National Home Price Index
+    # --- Labor market ---
+    - ICSA             # Initial Claims (weekly)
+    - PAYEMS           # All Employees, Total Nonfarm
+    # --- Money supply ---
+    - M2SL             # M2 Money Stock
+    # --- Commodities ---
+    - DCOILWTICO       # Crude Oil Prices: WTI
+    - GOLDAMGBD228NLBM # Gold Fixing Price (London, USD)
+    # --- Dollar index ---
+    - DTWEXBGS         # Trade Weighted U.S. Dollar Index: Broad, Goods and Services
+    # --- Financial conditions ---
+    - NFCI             # Chicago Fed National Financial Conditions Index
+    # --- Leading indicators ---
+    - USSLIND          # Leading Index for the United States
+    # --- Inflation expectations ---
+    - T5YIE            # 5-Year Breakeven Inflation Rate
+    - T10YIE           # 10-Year Breakeven Inflation Rate
+    # --- FX rates (major pairs) ---
+    - DEXUSEU          # USD/EUR Exchange Rate
+    - DEXJPUS          # JPY/USD Exchange Rate
+    - DEXUSUK          # USD/GBP Exchange Rate
+    - DEXCHUS          # CNY/USD Exchange Rate
+    - DEXCAUS          # CAD/USD Exchange Rate
   enabled: true
 
 gdelt:
@@ -73,6 +103,62 @@ prices:
     - UNH
     - HD
     - MA
+
+# SEC EDGAR settings (fundamentals, insider trades, 13F)
+sec_edgar:
+  enabled: true
+  rate_limit_delay: 0.12
+
+# Options data settings
+options:
+  enabled: true
+  source: yahoo
+  max_expirations: 6
+
+# Earnings calendar settings
+earnings:
+  enabled: true
+  source: yahoo
+
+# Social media sentiment settings
+sentiment:
+  enabled: true
+  subreddits:
+    - wallstreetbets
+    - stocks
+    - investing
+    - options
+  posts_per_subreddit: 100
+
+# Short interest settings
+short_interest:
+  enabled: true
+
+# ETF fund flows settings
+etf_flows:
+  enabled: true
+  etf_universe:
+    - SPY
+    - QQQ
+    - IWM
+    - VTI
+    - VOO
+    - XLF
+    - XLK
+    - XLE
+    - XLV
+    - XLI
+    - TLT
+    - IEF
+    - SHY
+    - LQD
+    - HYG
+    - GLD
+    - SLV
+    - USO
+    - EEM
+    - EFA
+    - VWO
 
 # Factor data settings
 factors:

@@ -106,6 +106,84 @@ class PriceSettings(BaseSettings):
     )
 
 
+class SecEdgarSettings(BaseSettings):
+    """SEC EDGAR data settings."""
+
+    model_config = SettingsConfigDict(env_prefix="SEC_")
+
+    enabled: bool = True
+    rate_limit_delay: float = 0.12  # SEC asks for <=10 req/s
+    fundamentals_metrics: list[str] = Field(default_factory=lambda: [
+        "Revenues",
+        "NetIncomeLoss",
+        "EarningsPerShareBasic",
+        "EarningsPerShareDiluted",
+        "Assets",
+        "Liabilities",
+        "StockholdersEquity",
+        "LongTermDebt",
+        "CashAndCashEquivalentsAtCarryingValue",
+        "OperatingIncomeLoss",
+        "GrossProfit",
+        "NetCashProvidedByUsedInOperatingActivities",
+        "CommonStockSharesOutstanding",
+    ])
+
+
+class OptionsSettings(BaseSettings):
+    """Options data settings."""
+
+    model_config = SettingsConfigDict(env_prefix="OPTIONS_")
+
+    enabled: bool = True
+    source: str = "yahoo"
+    max_expirations: int = 6
+
+
+class EarningsSettings(BaseSettings):
+    """Earnings calendar settings."""
+
+    model_config = SettingsConfigDict(env_prefix="EARNINGS_")
+
+    enabled: bool = True
+    source: str = "yahoo"
+
+
+class SentimentSettings(BaseSettings):
+    """Social media sentiment settings."""
+
+    model_config = SettingsConfigDict(env_prefix="SENTIMENT_")
+
+    enabled: bool = True
+    subreddits: list[str] = Field(
+        default_factory=lambda: ["wallstreetbets", "stocks", "investing", "options"]
+    )
+    posts_per_subreddit: int = 100
+
+
+class ShortInterestSettings(BaseSettings):
+    """Short interest settings."""
+
+    model_config = SettingsConfigDict(env_prefix="SHORT_INTEREST_")
+
+    enabled: bool = True
+
+
+class EtfFlowsSettings(BaseSettings):
+    """ETF fund flows settings."""
+
+    model_config = SettingsConfigDict(env_prefix="ETF_FLOWS_")
+
+    enabled: bool = True
+    etf_universe: list[str] = Field(default_factory=lambda: [
+        "SPY", "QQQ", "IWM", "VTI", "VOO",
+        "XLF", "XLK", "XLE", "XLV", "XLI",
+        "TLT", "IEF", "SHY", "LQD", "HYG",
+        "GLD", "SLV", "USO",
+        "EEM", "EFA", "VWO",
+    ])
+
+
 class InfrastructureSettings(BaseSettings):
     """Infrastructure and performance settings."""
 
@@ -208,11 +286,19 @@ class PipelineSettings(BaseSettings):
     # Database
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
 
-    # Sources
+    # Sources — original
     fred: FredSettings = Field(default_factory=FredSettings)
     gdelt: GDELTSettings = Field(default_factory=GDELTSettings)
     polymarket: PolymarketSettings = Field(default_factory=PolymarketSettings)
     prices: PriceSettings = Field(default_factory=PriceSettings)
+
+    # Sources — new data sources
+    sec_edgar: SecEdgarSettings = Field(default_factory=SecEdgarSettings)
+    options: OptionsSettings = Field(default_factory=OptionsSettings)
+    earnings: EarningsSettings = Field(default_factory=EarningsSettings)
+    sentiment: SentimentSettings = Field(default_factory=SentimentSettings)
+    short_interest: ShortInterestSettings = Field(default_factory=ShortInterestSettings)
+    etf_flows: EtfFlowsSettings = Field(default_factory=EtfFlowsSettings)
 
     # Infrastructure
     infrastructure: InfrastructureSettings = Field(default_factory=InfrastructureSettings)

@@ -76,6 +76,12 @@ class CuratedTransformer:
             "gdelt": self.settings.gdelt.base_url,
             "polymarket": self.settings.polymarket.base_url,
             "prices": "https://finance.yahoo.com",
+            "sec_edgar": "https://data.sec.gov",
+            "options": "https://finance.yahoo.com",
+            "earnings": "https://finance.yahoo.com",
+            "reddit": "https://www.reddit.com",
+            "short_interest": "https://www.finra.org",
+            "etf_flows": "https://finance.yahoo.com",
         }
         return urls.get(source_name, "")
 
@@ -832,7 +838,45 @@ class CuratedTransformer:
             rows = result.rowcount
 
         logger.info(f"Transformed {rows} OHLCV records")
-<<<<<<< HEAD
+
+        # ------ 6. Flag data quality issues ------
+        with self.db.engine.connect() as conn:
+            conn.execute(text("""
+                UPDATE cur_prices_ohlcv_daily
+                SET data_quality_flag = CASE
+                    WHEN close <= 0 OR close IS NULL          THEN 'invalid_price'
+                    WHEN high < low                            THEN 'ohlc_error'
+                    WHEN volume = 0 OR volume IS NULL          THEN 'zero_volume'
+                    ELSE 'ok'
+                END
+                WHERE data_quality_flag IS NULL OR data_quality_flag = 'ok'
+            """))
+            conn.commit()
+
+        # Flag price spikes (>50% daily change)
+        with self.db.engine.connect() as conn:
+            conn.execute(text("""
+                WITH price_changes AS (
+                    SELECT
+                        symbol_id,
+                        date,
+                        ABS(close / NULLIF(
+                            LAG(close) OVER (PARTITION BY symbol_id ORDER BY date), 0
+                        ) - 1) AS pct_change
+                    FROM cur_prices_ohlcv_daily
+                )
+                UPDATE cur_prices_ohlcv_daily p
+                SET data_quality_flag = 'price_spike'
+                FROM price_changes pc
+                WHERE p.symbol_id = pc.symbol_id
+                  AND p.date = pc.date
+                  AND pc.pct_change IS NOT NULL
+                  AND pc.pct_change > 0.50
+                  AND p.data_quality_flag = 'ok'
+            """))
+            conn.commit()
+            logger.info("Applied data quality flags to OHLCV records")
+
         self._record_lineage("raw_prices_ohlcv", "cur_prices_ohlcv_daily", "transform_prices_ohlcv")
         return rows
 
@@ -983,48 +1027,233 @@ class CuratedTransformer:
 
         logger.info(f"Transformed {rows} universe membership records")
         self._record_lineage("dim_symbol", "snap_universe_membership", "transform_universe_membership")
-=======
+        return rows
 
-        # ------ 6. Flag data quality issues ------
-        # Priority: invalid_price > ohlc_error > zero_volume (price_spike handled separately)
+    # ------------------------------------------------------------------
+    # New data source transforms
+    # ------------------------------------------------------------------
+
+    def transform_fundamentals(self) -> int:
+        """Transform raw SEC fundamentals into cur_fundamentals_quarterly.
+
+        Uses SEC filing_date as available_time (when data became public)
+        and fiscal_period_end as event_time.
+        """
+        if not self.db.table_exists("raw_sec_fundamentals"):
+            logger.info("raw_sec_fundamentals not found, skipping")
+            return 0
+
         with self.db.engine.connect() as conn:
-            conn.execute(text("""
-                UPDATE cur_prices_ohlcv_daily
-                SET data_quality_flag = CASE
-                    WHEN close <= 0 OR close IS NULL          THEN 'invalid_price'
-                    WHEN high < low                            THEN 'ohlc_error'
-                    WHEN volume = 0 OR volume IS NULL          THEN 'zero_volume'
-                    ELSE 'ok'
-                END
-                WHERE data_quality_flag IS NULL OR data_quality_flag = 'ok'
+            result = conn.execute(text("""
+                INSERT INTO cur_fundamentals_quarterly
+                (entity_id, fiscal_period_end, filing_date, metric_name,
+                 metric_value, units, event_time, available_time,
+                 time_quality, ingested_at)
+                SELECT
+                    s.symbol_id AS entity_id,
+                    r.fiscal_period_end,
+                    r.filing_date,
+                    r.metric_name,
+                    r.metric_value,
+                    r.units,
+                    (r.fiscal_period_end::date + 1)::timestamptz AS event_time,
+                    (r.filing_date::date)::timestamptz AS available_time,
+                    'confirmed' AS time_quality,
+                    NOW() AS ingested_at
+                FROM raw_sec_fundamentals r
+                JOIN dim_symbol s ON s.ticker = r.ticker
+                WHERE r.form_type IN ('10-Q', '10-K')
+                ON CONFLICT (entity_id, fiscal_period_end, metric_name)
+                DO UPDATE SET
+                    metric_value = EXCLUDED.metric_value,
+                    filing_date = EXCLUDED.filing_date,
+                    available_time = EXCLUDED.available_time,
+                    updated_at = NOW()
             """))
+            rows = result.rowcount
             conn.commit()
 
-        # Flag price spikes (>50% daily change) – requires LAG, separate pass
-        with self.db.engine.connect() as conn:
-            conn.execute(text("""
-                WITH price_changes AS (
-                    SELECT
-                        symbol_id,
-                        date,
-                        ABS(close / NULLIF(
-                            LAG(close) OVER (PARTITION BY symbol_id ORDER BY date), 0
-                        ) - 1) AS pct_change
-                    FROM cur_prices_ohlcv_daily
-                )
-                UPDATE cur_prices_ohlcv_daily p
-                SET data_quality_flag = 'price_spike'
-                FROM price_changes pc
-                WHERE p.symbol_id = pc.symbol_id
-                  AND p.date = pc.date
-                  AND pc.pct_change IS NOT NULL
-                  AND pc.pct_change > 0.50
-                  AND p.data_quality_flag = 'ok'
-            """))
-            conn.commit()
-            logger.info("Applied data quality flags to OHLCV records")
+        self._record_lineage("raw_sec_fundamentals", "cur_fundamentals_quarterly", "transform_fundamentals")
+        logger.info(f"Transformed {rows} fundamentals records")
+        return rows
 
->>>>>>> ec7e5441d04f1d4503133005fe8166129a0bec0e
+    def transform_insider_trades(self) -> int:
+        """Transform raw SEC insider trades into cur_insider_trades."""
+        if not self.db.table_exists("raw_sec_insider_trades"):
+            logger.info("raw_sec_insider_trades not found, skipping")
+            return 0
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                INSERT INTO cur_insider_trades
+                (symbol_id, insider_name, insider_title, transaction_date,
+                 transaction_type, shares, price_per_share, total_value,
+                 shares_after, ownership_type,
+                 event_time, available_time, time_quality, ingested_at)
+                SELECT
+                    s.symbol_id,
+                    r.insider_name,
+                    r.insider_title,
+                    r.transaction_date,
+                    r.transaction_type,
+                    r.shares,
+                    r.price_per_share,
+                    r.shares * COALESCE(r.price_per_share, 0) AS total_value,
+                    r.shares_after,
+                    r.ownership_type,
+                    r.transaction_date::timestamptz AS event_time,
+                    r.filing_date::timestamptz AS available_time,
+                    'confirmed' AS time_quality,
+                    NOW() AS ingested_at
+                FROM raw_sec_insider_trades r
+                JOIN dim_symbol s ON s.ticker = r.ticker
+                WHERE r.insider_name IS NOT NULL
+                  AND r.shares IS NOT NULL
+                ON CONFLICT (symbol_id, insider_name, transaction_date, transaction_type, shares)
+                DO UPDATE SET
+                    price_per_share = EXCLUDED.price_per_share,
+                    total_value = EXCLUDED.total_value,
+                    updated_at = NOW()
+            """))
+            rows = result.rowcount
+            conn.commit()
+
+        self._record_lineage("raw_sec_insider_trades", "cur_insider_trades", "transform_insider_trades")
+        logger.info(f"Transformed {rows} insider trade records")
+        return rows
+
+    def transform_institutional_holdings(self) -> int:
+        """Transform raw 13F holdings into cur_institutional_holdings."""
+        if not self.db.table_exists("raw_sec_13f_holdings"):
+            logger.info("raw_sec_13f_holdings not found, skipping")
+            return 0
+
+        with self.db.engine.connect() as conn:
+            # Match CUSIP to dim_symbol via external_ids or issuer name
+            result = conn.execute(text("""
+                INSERT INTO cur_institutional_holdings
+                (symbol_id, filer_name, report_date, market_value,
+                 shares_held, shares_type, put_call,
+                 event_time, available_time, time_quality, ingested_at)
+                SELECT
+                    s.symbol_id,
+                    r.filer_name,
+                    r.report_date,
+                    r.market_value,
+                    r.shares_held,
+                    r.shares_type,
+                    r.put_call,
+                    r.report_date::timestamptz AS event_time,
+                    r.filing_date::timestamptz AS available_time,
+                    'confirmed' AS time_quality,
+                    NOW() AS ingested_at
+                FROM raw_sec_13f_holdings r
+                JOIN dim_symbol s ON s.external_ids->>'cusip' = r.cusip
+                WHERE r.shares_held IS NOT NULL
+                ON CONFLICT (symbol_id, filer_name, report_date)
+                DO UPDATE SET
+                    market_value = EXCLUDED.market_value,
+                    shares_held = EXCLUDED.shares_held,
+                    updated_at = NOW()
+            """))
+            rows = result.rowcount
+            conn.commit()
+
+        self._record_lineage("raw_sec_13f_holdings", "cur_institutional_holdings", "transform_institutional_holdings")
+        logger.info(f"Transformed {rows} institutional holdings")
+        return rows
+
+    def transform_options_summary(self) -> int:
+        """Transform raw options chain into cur_options_summary_daily."""
+        if not self.db.table_exists("raw_options_chain"):
+            logger.info("raw_options_chain not found, skipping")
+            return 0
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                INSERT INTO cur_options_summary_daily
+                (symbol_id, date, put_call_volume_ratio, put_call_oi_ratio,
+                 total_call_volume, total_put_volume, total_call_oi, total_put_oi,
+                 event_time, available_time, time_quality, ingested_at)
+                SELECT
+                    s.symbol_id,
+                    r.quote_date AS date,
+                    CASE WHEN SUM(CASE WHEN r.option_type = 'call' THEN r.volume ELSE 0 END) > 0
+                         THEN SUM(CASE WHEN r.option_type = 'put' THEN r.volume ELSE 0 END)::numeric
+                              / SUM(CASE WHEN r.option_type = 'call' THEN r.volume ELSE 0 END)
+                         ELSE NULL END AS put_call_volume_ratio,
+                    CASE WHEN SUM(CASE WHEN r.option_type = 'call' THEN r.open_interest ELSE 0 END) > 0
+                         THEN SUM(CASE WHEN r.option_type = 'put' THEN r.open_interest ELSE 0 END)::numeric
+                              / SUM(CASE WHEN r.option_type = 'call' THEN r.open_interest ELSE 0 END)
+                         ELSE NULL END AS put_call_oi_ratio,
+                    SUM(CASE WHEN r.option_type = 'call' THEN r.volume ELSE 0 END) AS total_call_volume,
+                    SUM(CASE WHEN r.option_type = 'put' THEN r.volume ELSE 0 END) AS total_put_volume,
+                    SUM(CASE WHEN r.option_type = 'call' THEN r.open_interest ELSE 0 END) AS total_call_oi,
+                    SUM(CASE WHEN r.option_type = 'put' THEN r.open_interest ELSE 0 END) AS total_put_oi,
+                    (r.quote_date::date + interval '16 hours')::timestamptz AS event_time,
+                    (r.quote_date::date + interval '16 hours 15 minutes')::timestamptz AS available_time,
+                    'assumed' AS time_quality,
+                    NOW() AS ingested_at
+                FROM raw_options_chain r
+                JOIN dim_symbol s ON s.ticker = r.ticker
+                GROUP BY s.symbol_id, r.quote_date
+                ON CONFLICT (symbol_id, date) DO UPDATE SET
+                    put_call_volume_ratio = EXCLUDED.put_call_volume_ratio,
+                    put_call_oi_ratio = EXCLUDED.put_call_oi_ratio,
+                    total_call_volume = EXCLUDED.total_call_volume,
+                    total_put_volume = EXCLUDED.total_put_volume,
+                    total_call_oi = EXCLUDED.total_call_oi,
+                    total_put_oi = EXCLUDED.total_put_oi,
+                    updated_at = NOW()
+            """))
+            rows = result.rowcount
+            conn.commit()
+
+        self._record_lineage("raw_options_chain", "cur_options_summary_daily", "transform_options_summary")
+        logger.info(f"Transformed {rows} options summary records")
+        return rows
+
+    def transform_earnings(self) -> int:
+        """Transform raw earnings calendar into cur_earnings_events."""
+        if not self.db.table_exists("raw_earnings_calendar"):
+            logger.info("raw_earnings_calendar not found, skipping")
+            return 0
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                INSERT INTO cur_earnings_events
+                (symbol_id, report_date, fiscal_quarter_end,
+                 eps_estimate, eps_actual, eps_surprise, eps_surprise_pct,
+                 event_time, available_time, time_quality, ingested_at)
+                SELECT
+                    s.symbol_id,
+                    r.report_date,
+                    r.fiscal_quarter_end,
+                    r.eps_estimate,
+                    r.eps_actual,
+                    r.eps_actual - r.eps_estimate AS eps_surprise,
+                    CASE WHEN r.eps_estimate != 0
+                         THEN ((r.eps_actual - r.eps_estimate) / ABS(r.eps_estimate)) * 100
+                         ELSE NULL END AS eps_surprise_pct,
+                    r.report_date::timestamptz AS event_time,
+                    (r.report_date::date + interval '17 hours')::timestamptz AS available_time,
+                    'confirmed' AS time_quality,
+                    NOW() AS ingested_at
+                FROM raw_earnings_calendar r
+                JOIN dim_symbol s ON s.ticker = r.ticker
+                WHERE r.eps_actual IS NOT NULL
+                ON CONFLICT (symbol_id, report_date)
+                DO UPDATE SET
+                    eps_actual = EXCLUDED.eps_actual,
+                    eps_surprise = EXCLUDED.eps_surprise,
+                    eps_surprise_pct = EXCLUDED.eps_surprise_pct,
+                    updated_at = NOW()
+            """))
+            rows = result.rowcount
+            conn.commit()
+
+        self._record_lineage("raw_earnings_calendar", "cur_earnings_events", "transform_earnings")
+        logger.info(f"Transformed {rows} earnings records")
         return rows
 
     # ------------------------------------------------------------------
@@ -1044,4 +1273,10 @@ class CuratedTransformer:
         results["prices_adjusted"] = self.transform_prices_adjusted_daily()
         results["universe_membership"] = self.transform_universe_membership()
         results["factor_returns"] = self.transform_factor_returns()
+        # New data source transforms
+        results["fundamentals"] = self.transform_fundamentals()
+        results["insider_trades"] = self.transform_insider_trades()
+        results["institutional_holdings"] = self.transform_institutional_holdings()
+        results["options_summary"] = self.transform_options_summary()
+        results["earnings"] = self.transform_earnings()
         return results
