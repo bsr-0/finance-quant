@@ -305,7 +305,9 @@ class Evaluator:
             passed_gates=gates,
         )
 
-    def _compute_core_metrics(self, returns: pd.Series, positions: pd.DataFrame) -> dict[str, float]:
+    def _compute_core_metrics(
+        self, returns: pd.Series, positions: pd.DataFrame
+    ) -> dict[str, float]:
         sharpe, sortino = sharpe_sortino(returns)
         turnover_series = turnover(positions)
         metrics = {
@@ -314,7 +316,9 @@ class Evaluator:
             "information_ratio": information_ratio(returns),
             "max_drawdown": max_drawdown(returns),
             "recovery_time": float(drawdown_recovery_time(returns)),
-            "turnover_avg": float(turnover_series.mean()) if not turnover_series.empty else float("nan"),
+            "turnover_avg": (
+                float(turnover_series.mean()) if not turnover_series.empty else float("nan")
+            ),
         }
         if returns is not None and len(returns.dropna()) > 5:
             r = returns.dropna()

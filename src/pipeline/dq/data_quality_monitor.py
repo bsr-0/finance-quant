@@ -210,7 +210,8 @@ class DataQualityMonitor:
             mad AS (
                 SELECT
                     p.symbol_id,
-                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ABS(p.close - m.median_price)) AS mad_price
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ABS(p.close - m.median_price))
+                        AS mad_price
                 FROM {table_name} p
                 JOIN med m ON p.symbol_id = m.symbol_id
                 GROUP BY p.symbol_id

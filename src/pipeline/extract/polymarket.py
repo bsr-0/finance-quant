@@ -106,7 +106,11 @@ class PolymarketExtractor:
                 offset += len(batch)
                 if len(batch) < 20:
                     break
-                if self.universe_mode == "top_volume" and max_markets is not None and len(markets) >= max_markets:
+                if (
+                    self.universe_mode == "top_volume"
+                    and max_markets is not None
+                    and len(markets) >= max_markets
+                ):
                     break
 
         if self.universe_mode == "top_volume":
@@ -280,7 +284,9 @@ class PolymarketExtractor:
                 if trades:
                     trades_df = pd.DataFrame(trades)
                     if "timestamp" in trades_df.columns:
-                        trades_df["timestamp"] = pd.to_datetime(trades_df["timestamp"], unit="s", utc=True)
+                        trades_df["timestamp"] = pd.to_datetime(
+                            trades_df["timestamp"], unit="s", utc=True
+                        )
                     trades_df["market_id"] = market_id
                     trades_df["extracted_at"] = datetime.now(UTC)
                     trades_df["run_id"] = run_id

@@ -91,7 +91,10 @@ class PortfolioSimulator:
                 price = px.get(sym, 0.0)
                 if price <= 0:
                     continue
-                trade_cost = self.cost_model.estimate(Trade(symbol=sym, side="buy" if qty > 0 else "sell", quantity=qty, price=price))
+                side = "buy" if qty > 0 else "sell"
+                trade_cost = self.cost_model.estimate(
+                    Trade(symbol=sym, side=side, quantity=qty, price=price)
+                )
                 total_cost += trade_cost.total
                 slippage_cost += abs(qty * price) * (self.config.slippage_bps / 10_000)
 

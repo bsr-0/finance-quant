@@ -27,10 +27,7 @@ class SymbolSnapshotBuilder:
         asof_ts: datetime,
         lookback_days: int = 60,
     ) -> dict | None:
-        if asof_ts.tzinfo is None:
-            asof_ts = asof_ts.replace(tzinfo=UTC)
-        else:
-            asof_ts = asof_ts.astimezone(UTC)
+        asof_ts = asof_ts.replace(tzinfo=UTC) if asof_ts.tzinfo is None else asof_ts.astimezone(UTC)
         snapshot = {
             "symbol_id": symbol_id,
             "asof_ts": asof_ts,

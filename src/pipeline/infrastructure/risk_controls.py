@@ -219,7 +219,10 @@ class IntradayRiskMonitor:
             logger.critical("SHUTDOWN triggered – %s", reason)
             return "shutdown"
 
-        if drawdown_pct <= -self.limits.max_drawdown_pct or s.realised_pnl <= -self.limits.max_daily_loss:
+        if (
+            drawdown_pct <= -self.limits.max_drawdown_pct
+            or s.realised_pnl <= -self.limits.max_daily_loss
+        ):
             if not s.throttled:
                 s.throttled = True
                 logger.warning(
@@ -358,7 +361,10 @@ class PreTradeChecker:
         if notional > lim.max_order_notional:
             return OrderCheckResult(
                 status=CheckStatus.REJECTED,
-                reason=f"Order notional {notional:,.0f} exceeds limit {lim.max_order_notional:,.0f}",
+                reason=(
+                    f"Order notional {notional:,.0f} exceeds limit "
+                    f"{lim.max_order_notional:,.0f}"
+                ),
                 details={"notional": notional, "limit": lim.max_order_notional},
             )
 

@@ -37,9 +37,11 @@ def _store_latency_metrics(
                 text(
                     """
                     INSERT INTO meta_latency_stats
-                        (source_name, metric_name, metric_value, sample_size, window_start, window_end)
+                        (source_name, metric_name, metric_value, sample_size,
+                         window_start, window_end)
                     VALUES
-                        (:source_name, :metric_name, :metric_value, :sample_size, :window_start, :window_end)
+                        (:source_name, :metric_name, :metric_value, :sample_size,
+                         :window_start, :window_end)
                     ON CONFLICT (source_name, metric_name, window_start, window_end) DO UPDATE SET
                         metric_value = EXCLUDED.metric_value,
                         sample_size = EXCLUDED.sample_size,
@@ -78,7 +80,8 @@ def compute_gdelt_latency_stats(window_days: int) -> dict[str, float | None]:
     sql = """
         WITH base AS (
             SELECT
-                (to_timestamp(NULLIF(r.raw_data::json->>'DATEADDED', ''), 'YYYYMMDDHH24MISS') AT TIME ZONE 'UTC') AS date_added,
+                (to_timestamp(NULLIF(r.raw_data::json->>'DATEADDED', ''),
+                    'YYYYMMDDHH24MISS') AT TIME ZONE 'UTC') AS date_added,
                 (r.raw_data::json->>'SQLDATE')::date::timestamptz AS event_time
             FROM raw_gdelt_events r
             WHERE r.raw_data ? 'DATEADDED'
