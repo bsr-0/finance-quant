@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -43,6 +44,20 @@ class SymbolSnapshotBuilder:
             "volatility_20d": None,
             "macro_panel": {},
             "news_counts": {},
+            # New data source features
+            "pe_ratio": None,
+            "pb_ratio": None,
+            "debt_to_equity": None,
+            "roe": None,
+            "insider_net_shares_90d": None,
+            "insider_buy_count_90d": None,
+            "institutional_holders_count": None,
+            "iv_30d": None,
+            "put_call_volume_ratio": None,
+            "skew_25d": None,
+            "days_to_next_earnings": None,
+            "last_eps_surprise_pct": None,
+            "short_interest_ratio": None,
         }
 
         price_df = self._get_price_series(symbol_id, asof_ts, lookback_days)
@@ -78,6 +93,25 @@ class SymbolSnapshotBuilder:
 
         snapshot["macro_panel"] = self._get_macro_panel(asof_ts)
         snapshot["news_counts"] = self._get_news_counts(asof_ts)
+
+        # New data source features
+        fundamentals = self._get_fundamentals(symbol_id, asof_ts, snapshot["price_latest"])
+        snapshot.update(fundamentals)
+
+        insider = self._get_insider_activity(symbol_id, asof_ts)
+        snapshot.update(insider)
+
+        inst = self._get_institutional_holdings(symbol_id, asof_ts)
+        snapshot.update(inst)
+
+        options = self._get_options_iv(symbol_id, asof_ts)
+        snapshot.update(options)
+
+        earnings = self._get_earnings_features(symbol_id, asof_ts)
+        snapshot.update(earnings)
+
+        short = self._get_short_interest(symbol_id, asof_ts)
+        snapshot.update(short)
 
         return snapshot
 
@@ -147,6 +181,178 @@ class SymbolSnapshotBuilder:
             counts[name] = result[0]["cnt"] if result else 0
         return counts
 
+    def _get_fundamentals(self, symbol_id: UUID, asof_ts: datetime, price: float | None) -> dict:
+        """Get latest fundamental ratios as of asof_ts."""
+        result = {"pe_ratio": None, "pb_ratio": None, "debt_to_equity": None, "roe": None}
+        if not self.db.table_exists("cur_fundamentals_quarterly"):
+            return result
+
+        rows = self.db.run_query("""
+            SELECT metric_name, metric_value
+            FROM cur_fundamentals_quarterly
+            WHERE symbol_id = :symbol_id
+              AND available_time <= :asof_ts
+              AND fiscal_period_end = (
+                  SELECT MAX(fiscal_period_end) FROM cur_fundamentals_quarterly
+                  WHERE symbol_id = :symbol_id AND available_time <= :asof_ts
+              )
+        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts})
+
+        if not rows:
+            return result
+
+        metrics = {r["metric_name"]: float(r["metric_value"]) for r in rows if r["metric_value"] is not None}
+
+        eps = metrics.get("EarningsPerShareDiluted") or metrics.get("EarningsPerShareBasic")
+        if price and eps and eps != 0:
+            result["pe_ratio"] = price / eps
+
+        equity = metrics.get("StockholdersEquity")
+        shares = metrics.get("CommonStockSharesOutstanding")
+        if price and equity and shares and shares > 0:
+            book_per_share = equity / shares
+            if book_per_share != 0:
+                result["pb_ratio"] = price / book_per_share
+
+        debt = metrics.get("LongTermDebt")
+        if debt is not None and equity and equity != 0:
+            result["debt_to_equity"] = debt / equity
+
+        net_income = metrics.get("NetIncomeLoss")
+        if net_income is not None and equity and equity != 0:
+            result["roe"] = net_income / equity
+
+        return result
+
+    def _get_insider_activity(self, symbol_id: UUID, asof_ts: datetime) -> dict:
+        """Get insider trading signals in a 90-day window."""
+        result = {"insider_net_shares_90d": None, "insider_buy_count_90d": None}
+        if not self.db.table_exists("cur_insider_trades"):
+            return result
+
+        start_ts = asof_ts - timedelta(days=90)
+        rows = self.db.run_query("""
+            SELECT
+                COALESCE(SUM(CASE WHEN transaction_type = 'P' THEN shares
+                                  WHEN transaction_type = 'S' THEN -shares
+                                  ELSE 0 END), 0) AS net_shares,
+                COALESCE(SUM(CASE WHEN transaction_type = 'P' THEN 1 ELSE 0 END), 0) AS buy_count
+            FROM cur_insider_trades
+            WHERE symbol_id = :symbol_id
+              AND available_time <= :asof_ts
+              AND event_time >= :start_ts
+        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts, "start_ts": start_ts})
+
+        if rows and rows[0]["net_shares"] is not None:
+            result["insider_net_shares_90d"] = float(rows[0]["net_shares"])
+            result["insider_buy_count_90d"] = int(rows[0]["buy_count"])
+
+        return result
+
+    def _get_institutional_holdings(self, symbol_id: UUID, asof_ts: datetime) -> dict:
+        """Get institutional holder count from latest 13F report."""
+        result = {"institutional_holders_count": None}
+        if not self.db.table_exists("cur_institutional_holdings"):
+            return result
+
+        rows = self.db.run_query("""
+            SELECT COUNT(DISTINCT filer_name) AS holder_count
+            FROM cur_institutional_holdings
+            WHERE symbol_id = :symbol_id
+              AND available_time <= :asof_ts
+              AND report_date = (
+                  SELECT MAX(report_date) FROM cur_institutional_holdings
+                  WHERE symbol_id = :symbol_id AND available_time <= :asof_ts
+              )
+        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts})
+
+        if rows and rows[0]["holder_count"]:
+            result["institutional_holders_count"] = int(rows[0]["holder_count"])
+
+        return result
+
+    def _get_options_iv(self, symbol_id: UUID, asof_ts: datetime) -> dict:
+        """Get latest options IV metrics."""
+        result = {"iv_30d": None, "put_call_volume_ratio": None, "skew_25d": None}
+        if not self.db.table_exists("cur_options_summary_daily"):
+            return result
+
+        rows = self.db.run_query("""
+            SELECT iv_30d, put_call_volume_ratio, skew_25d
+            FROM cur_options_summary_daily
+            WHERE symbol_id = :symbol_id
+              AND available_time <= :asof_ts
+            ORDER BY date DESC
+            LIMIT 1
+        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts})
+
+        if rows:
+            row = rows[0]
+            if row["iv_30d"] is not None:
+                result["iv_30d"] = float(row["iv_30d"])
+            if row["put_call_volume_ratio"] is not None:
+                result["put_call_volume_ratio"] = float(row["put_call_volume_ratio"])
+            if row["skew_25d"] is not None:
+                result["skew_25d"] = float(row["skew_25d"])
+
+        return result
+
+    def _get_earnings_features(self, symbol_id: UUID, asof_ts: datetime) -> dict:
+        """Get earnings surprise and next earnings date."""
+        result = {"days_to_next_earnings": None, "last_eps_surprise_pct": None}
+        if not self.db.table_exists("cur_earnings_events"):
+            return result
+
+        # Last earnings surprise
+        rows = self.db.run_query("""
+            SELECT eps_surprise_pct
+            FROM cur_earnings_events
+            WHERE symbol_id = :symbol_id
+              AND available_time <= :asof_ts
+            ORDER BY report_date DESC
+            LIMIT 1
+        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts})
+
+        if rows and rows[0]["eps_surprise_pct"] is not None:
+            result["last_eps_surprise_pct"] = float(rows[0]["eps_surprise_pct"])
+
+        # Days to next earnings (future event we know about)
+        asof_date = asof_ts.date()
+        rows = self.db.run_query("""
+            SELECT report_date
+            FROM cur_earnings_events
+            WHERE symbol_id = :symbol_id
+              AND report_date > :asof_date
+            ORDER BY report_date ASC
+            LIMIT 1
+        """, {"symbol_id": str(symbol_id), "asof_date": asof_date})
+
+        if rows and rows[0]["report_date"]:
+            delta = rows[0]["report_date"] - asof_date
+            result["days_to_next_earnings"] = delta.days if hasattr(delta, "days") else int(delta)
+
+        return result
+
+    def _get_short_interest(self, symbol_id: UUID, asof_ts: datetime) -> dict:
+        """Get latest short interest ratio (days to cover)."""
+        result = {"short_interest_ratio": None}
+        if not self.db.table_exists("cur_short_interest"):
+            return result
+
+        rows = self.db.run_query("""
+            SELECT days_to_cover
+            FROM cur_short_interest
+            WHERE symbol_id = :symbol_id
+              AND available_time <= :asof_ts
+            ORDER BY settlement_date DESC
+            LIMIT 1
+        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts})
+
+        if rows and rows[0]["days_to_cover"] is not None:
+            result["short_interest_ratio"] = float(rows[0]["days_to_cover"])
+
+        return result
+
     def build_snapshots_for_range(
         self,
         symbol_ids: list[UUID] | None = None,
@@ -185,10 +391,22 @@ class SymbolSnapshotBuilder:
                 INSERT INTO snap_symbol_features
                     (symbol_id, asof_ts, price_latest, price_change_1d, price_change_7d,
                      volume_avg_20d, volatility_20d, macro_panel, news_counts,
+                     pe_ratio, pb_ratio, debt_to_equity, roe,
+                     insider_net_shares_90d, insider_buy_count_90d,
+                     institutional_holders_count,
+                     iv_30d, put_call_volume_ratio, skew_25d,
+                     days_to_next_earnings, last_eps_surprise_pct,
+                     short_interest_ratio,
                      event_time, available_time)
                 VALUES
                     (:symbol_id, :asof_ts, :price_latest, :price_change_1d, :price_change_7d,
                      :volume_avg_20d, :volatility_20d, :macro_panel, :news_counts,
+                     :pe_ratio, :pb_ratio, :debt_to_equity, :roe,
+                     :insider_net_shares_90d, :insider_buy_count_90d,
+                     :institutional_holders_count,
+                     :iv_30d, :put_call_volume_ratio, :skew_25d,
+                     :days_to_next_earnings, :last_eps_surprise_pct,
+                     :short_interest_ratio,
                      :event_time, :available_time)
                 ON CONFLICT (symbol_id, asof_ts) DO UPDATE SET
                     price_latest = EXCLUDED.price_latest,
@@ -198,10 +416,22 @@ class SymbolSnapshotBuilder:
                     volatility_20d = EXCLUDED.volatility_20d,
                     macro_panel = EXCLUDED.macro_panel,
                     news_counts = EXCLUDED.news_counts,
+                    pe_ratio = EXCLUDED.pe_ratio,
+                    pb_ratio = EXCLUDED.pb_ratio,
+                    debt_to_equity = EXCLUDED.debt_to_equity,
+                    roe = EXCLUDED.roe,
+                    insider_net_shares_90d = EXCLUDED.insider_net_shares_90d,
+                    insider_buy_count_90d = EXCLUDED.insider_buy_count_90d,
+                    institutional_holders_count = EXCLUDED.institutional_holders_count,
+                    iv_30d = EXCLUDED.iv_30d,
+                    put_call_volume_ratio = EXCLUDED.put_call_volume_ratio,
+                    skew_25d = EXCLUDED.skew_25d,
+                    days_to_next_earnings = EXCLUDED.days_to_next_earnings,
+                    last_eps_surprise_pct = EXCLUDED.last_eps_surprise_pct,
+                    short_interest_ratio = EXCLUDED.short_interest_ratio,
                     updated_at = NOW()
             """
             )
-            import json
 
             conn.execute(
                 insert,
@@ -215,6 +445,19 @@ class SymbolSnapshotBuilder:
                     "volatility_20d": snapshot["volatility_20d"],
                     "macro_panel": json.dumps(snapshot["macro_panel"]),
                     "news_counts": json.dumps(snapshot["news_counts"]),
+                    "pe_ratio": snapshot.get("pe_ratio"),
+                    "pb_ratio": snapshot.get("pb_ratio"),
+                    "debt_to_equity": snapshot.get("debt_to_equity"),
+                    "roe": snapshot.get("roe"),
+                    "insider_net_shares_90d": snapshot.get("insider_net_shares_90d"),
+                    "insider_buy_count_90d": snapshot.get("insider_buy_count_90d"),
+                    "institutional_holders_count": snapshot.get("institutional_holders_count"),
+                    "iv_30d": snapshot.get("iv_30d"),
+                    "put_call_volume_ratio": snapshot.get("put_call_volume_ratio"),
+                    "skew_25d": snapshot.get("skew_25d"),
+                    "days_to_next_earnings": snapshot.get("days_to_next_earnings"),
+                    "last_eps_surprise_pct": snapshot.get("last_eps_surprise_pct"),
+                    "short_interest_ratio": snapshot.get("short_interest_ratio"),
                     "event_time": snapshot["event_time"],
                     "available_time": snapshot["available_time"],
                 },

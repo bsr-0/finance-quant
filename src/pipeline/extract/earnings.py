@@ -37,10 +37,10 @@ class EarningsExtractor:
         self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def _fetch_earnings_history(self, ticker: str) -> list[dict]:
-        """Fetch earnings history for a ticker from Yahoo Finance."""
+    def _fetch_earnings_modules(self, ticker: str) -> dict:
+        """Fetch earnings history and financials for a ticker from Yahoo Finance."""
 
-        def _do() -> list[dict]:
+        def _do() -> dict:
             url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
             params = {"modules": "earningsHistory,earnings"}
             resp = self.client.get(url, params=params)
@@ -49,11 +49,9 @@ class EarningsExtractor:
 
             result = data.get("quoteSummary", {}).get("result", [])
             if not result:
-                return []
+                return {}
 
-            module = result[0]
-            history = module.get("earningsHistory", {}).get("history", [])
-            return history
+            return result[0]
 
         return self._circuit.call(_do)
 
@@ -78,10 +76,25 @@ class EarningsExtractor:
         return self._circuit.call(_do)
 
     @staticmethod
-    def _parse_earnings_history(
-        history: list[dict], ticker: str
+    def _parse_earnings_data(
+        modules: dict, ticker: str
     ) -> list[dict]:
-        """Parse earnings history into flat records."""
+        """Parse earnings history and revenue data into flat records."""
+        history = modules.get("earningsHistory", {}).get("history", [])
+
+        # Build a revenue lookup from the earnings.financialsChart.quarterly data
+        revenue_by_quarter: dict[str, float] = {}
+        quarterly_data = (
+            modules.get("earnings", {})
+            .get("financialsChart", {})
+            .get("quarterly", [])
+        )
+        for q in quarterly_data:
+            q_date = q.get("date")  # e.g. "4Q2023"
+            rev = q.get("revenue", {}).get("raw")
+            if q_date and rev is not None:
+                revenue_by_quarter[q_date] = rev
+
         rows: list[dict] = []
         for entry in history:
             quarter = entry.get("quarter", {})
@@ -96,7 +109,6 @@ class EarningsExtractor:
             else:
                 period = str(period_val) if period_val else None
 
-            # Get the quarter end date
             quarter_raw = quarter.get("raw") if isinstance(quarter, dict) else quarter
             quarter_fmt = quarter.get("fmt") if isinstance(quarter, dict) else None
 
@@ -109,6 +121,13 @@ class EarningsExtractor:
             if report_date is None:
                 continue
 
+            # Try to match revenue from quarterly financials
+            revenue_actual = None
+            for q_key, rev in revenue_by_quarter.items():
+                if period and period in q_key:
+                    revenue_actual = rev
+                    break
+
             rows.append({
                 "ticker": ticker,
                 "report_date": report_date,
@@ -117,6 +136,9 @@ class EarningsExtractor:
                 "eps_actual": eps_act,
                 "eps_surprise": eps_diff,
                 "eps_surprise_pct": surprise_pct * 100 if surprise_pct is not None else None,
+                "revenue_estimate": None,
+                "revenue_actual": revenue_actual,
+                "report_time": None,
             })
 
         return rows
@@ -141,8 +163,8 @@ class EarningsExtractor:
             logger.info(f"Extracting earnings for {ticker}")
             try:
                 with self._metrics.time_operation(f"extract_earnings_{ticker}"):
-                    history = self._fetch_earnings_history(ticker)
-                    rows = self._parse_earnings_history(history, ticker)
+                    modules = self._fetch_earnings_modules(ticker)
+                    rows = self._parse_earnings_data(modules, ticker)
 
                 if not rows:
                     logger.warning(f"No earnings data for {ticker}")

@@ -636,11 +636,16 @@ class RawLoader:
         insert_sql = text("""
             INSERT INTO raw_earnings_calendar
             (ticker, report_date, fiscal_quarter_end, eps_estimate, eps_actual,
+             revenue_estimate, revenue_actual, report_time,
              raw_data, extracted_at, run_id)
             VALUES (:ticker, :report_date, :fiscal_quarter_end, :eps_estimate, :eps_actual,
+                    :revenue_estimate, :revenue_actual, :report_time,
                     :raw_data, :extracted_at, :run_id)
             ON CONFLICT (ticker, report_date) DO UPDATE SET
                 eps_actual = EXCLUDED.eps_actual,
+                revenue_estimate = EXCLUDED.revenue_estimate,
+                revenue_actual = EXCLUDED.revenue_actual,
+                report_time = EXCLUDED.report_time,
                 raw_data = EXCLUDED.raw_data,
                 extracted_at = EXCLUDED.extracted_at,
                 run_id = EXCLUDED.run_id
@@ -654,6 +659,7 @@ class RawLoader:
             records.append({k: row.get(k) for k in [
                 "ticker", "report_date", "fiscal_quarter_end",
                 "eps_estimate", "eps_actual",
+                "revenue_estimate", "revenue_actual", "report_time",
                 "raw_data", "extracted_at", "run_id",
             ]})
 

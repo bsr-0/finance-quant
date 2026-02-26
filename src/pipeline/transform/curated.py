@@ -1046,11 +1046,11 @@ class CuratedTransformer:
         with self.db.engine.connect() as conn:
             result = conn.execute(text("""
                 INSERT INTO cur_fundamentals_quarterly
-                (entity_id, fiscal_period_end, filing_date, metric_name,
+                (symbol_id, fiscal_period_end, filing_date, metric_name,
                  metric_value, units, event_time, available_time,
                  time_quality, ingested_at)
                 SELECT
-                    s.symbol_id AS entity_id,
+                    s.symbol_id,
                     r.fiscal_period_end,
                     r.filing_date,
                     r.metric_name,
@@ -1063,7 +1063,7 @@ class CuratedTransformer:
                 FROM raw_sec_fundamentals r
                 JOIN dim_symbol s ON s.ticker = r.ticker
                 WHERE r.form_type IN ('10-Q', '10-K')
-                ON CONFLICT (entity_id, fiscal_period_end, metric_name)
+                ON CONFLICT (symbol_id, fiscal_period_end, metric_name)
                 DO UPDATE SET
                     metric_value = EXCLUDED.metric_value,
                     filing_date = EXCLUDED.filing_date,
@@ -1122,14 +1122,43 @@ class CuratedTransformer:
         logger.info(f"Transformed {rows} insider trade records")
         return rows
 
+    def _populate_cusip_mapping(self) -> int:
+        """Populate dim_symbol.external_ids with CUSIP from settings mapping."""
+        cusip_map = self.settings.sec_edgar.cusip_mapping
+        if not cusip_map:
+            return 0
+
+        updated = 0
+        with self.db.engine.connect() as conn:
+            for ticker, cusip in cusip_map.items():
+                result = conn.execute(text("""
+                    UPDATE dim_symbol
+                    SET external_ids = jsonb_set(
+                        COALESCE(external_ids, '{}'),
+                        '{cusip}',
+                        :cusip_json::jsonb
+                    ),
+                    updated_at = NOW()
+                    WHERE ticker = :ticker
+                      AND (external_ids->>'cusip' IS NULL
+                           OR external_ids->>'cusip' != :cusip)
+                """), {"ticker": ticker, "cusip": cusip, "cusip_json": f'"{cusip}"'})
+                updated += result.rowcount
+            conn.commit()
+
+        logger.info(f"Populated CUSIP for {updated} symbols")
+        return updated
+
     def transform_institutional_holdings(self) -> int:
         """Transform raw 13F holdings into cur_institutional_holdings."""
         if not self.db.table_exists("raw_sec_13f_holdings"):
             logger.info("raw_sec_13f_holdings not found, skipping")
             return 0
 
+        # Ensure CUSIPs are populated in dim_symbol before joining
+        self._populate_cusip_mapping()
+
         with self.db.engine.connect() as conn:
-            # Match CUSIP to dim_symbol via external_ids or issuer name
             result = conn.execute(text("""
                 INSERT INTO cur_institutional_holdings
                 (symbol_id, filer_name, report_date, market_value,
@@ -1164,11 +1193,16 @@ class CuratedTransformer:
         return rows
 
     def transform_options_summary(self) -> int:
-        """Transform raw options chain into cur_options_summary_daily."""
+        """Transform raw options chain into cur_options_summary_daily.
+
+        Phase 1: SQL aggregation for volume/OI totals and ratios.
+        Phase 2: Python computation for IV metrics (ATM IV, term structure, skew).
+        """
         if not self.db.table_exists("raw_options_chain"):
             logger.info("raw_options_chain not found, skipping")
             return 0
 
+        # Phase 1: Volume/OI aggregates via SQL
         with self.db.engine.connect() as conn:
             result = conn.execute(text("""
                 INSERT INTO cur_options_summary_daily
@@ -1209,9 +1243,120 @@ class CuratedTransformer:
             rows = result.rowcount
             conn.commit()
 
+        # Phase 2: Compute IV metrics per (symbol, date) using Python
+        self._compute_iv_metrics()
+
         self._record_lineage("raw_options_chain", "cur_options_summary_daily", "transform_options_summary")
         logger.info(f"Transformed {rows} options summary records")
         return rows
+
+    def _compute_iv_metrics(self) -> None:
+        """Compute IV term structure, ATM IV, and skew from raw options chain."""
+        price_table = "cur_prices_adjusted_daily" if self.db.table_exists("cur_prices_adjusted_daily") else "cur_prices_ohlcv_daily"
+        price_col = "adj_close" if price_table == "cur_prices_adjusted_daily" else "close"
+
+        # Get all (symbol, date) pairs that need IV computation
+        chain_rows = self.db.run_query(f"""
+            SELECT r.ticker, s.symbol_id, r.quote_date, r.expiration, r.strike,
+                   r.option_type, r.implied_volatility, r.open_interest,
+                   p.{price_col} AS spot_price
+            FROM raw_options_chain r
+            JOIN dim_symbol s ON s.ticker = r.ticker
+            LEFT JOIN {price_table} p ON p.symbol_id = s.symbol_id AND p.date = r.quote_date
+            WHERE r.implied_volatility > 0 AND r.implied_volatility < 5
+              AND r.open_interest > 0
+            ORDER BY s.symbol_id, r.quote_date, r.expiration, r.strike
+        """)
+
+        if not chain_rows:
+            return
+
+        df = pd.DataFrame(chain_rows)
+        df["quote_date"] = pd.to_datetime(df["quote_date"])
+        df["expiration"] = pd.to_datetime(df["expiration"])
+        df["dte"] = (df["expiration"] - df["quote_date"]).dt.days
+
+        updates = []
+        for (symbol_id, qdate), grp in df.groupby(["symbol_id", "quote_date"]):
+            spot = grp["spot_price"].iloc[0]
+            if spot is None or float(spot) <= 0:
+                continue
+            spot = float(spot)
+            grp = grp.copy()
+            grp["moneyness"] = grp["strike"].astype(float) / spot
+
+            # ATM: moneyness between 0.95 and 1.05
+            atm = grp[(grp["moneyness"] >= 0.95) & (grp["moneyness"] <= 1.05)]
+
+            iv_atm_call = iv_atm_put = None
+            atm_calls = atm[atm["option_type"] == "call"]
+            if not atm_calls.empty:
+                nearest = atm_calls.loc[(atm_calls["moneyness"] - 1.0).abs().idxmin()]
+                iv_atm_call = float(nearest["implied_volatility"])
+            atm_puts = atm[atm["option_type"] == "put"]
+            if not atm_puts.empty:
+                nearest = atm_puts.loc[(atm_puts["moneyness"] - 1.0).abs().idxmin()]
+                iv_atm_put = float(nearest["implied_volatility"])
+
+            # Term structure: IV by DTE bucket for near-ATM options (0.90-1.10)
+            near_atm = grp[(grp["moneyness"] >= 0.90) & (grp["moneyness"] <= 1.10)]
+
+            def _bucket_iv(dte_lo, dte_hi):
+                bucket = near_atm[(near_atm["dte"] >= dte_lo) & (near_atm["dte"] <= dte_hi)]
+                if bucket.empty:
+                    return None
+                oi = bucket["open_interest"].astype(float)
+                iv = bucket["implied_volatility"].astype(float)
+                total_oi = oi.sum()
+                if total_oi > 0:
+                    return float((iv * oi).sum() / total_oi)
+                return float(iv.mean())
+
+            iv_30d = _bucket_iv(20, 40)
+            iv_60d = _bucket_iv(45, 75)
+            iv_90d = _bucket_iv(75, 105)
+
+            # Skew: OTM put (~0.90 moneyness) minus OTM call (~1.10 moneyness)
+            skew_25d = None
+            short_dte = grp[(grp["dte"] >= 20) & (grp["dte"] <= 40)]
+            otm_puts = short_dte[(short_dte["option_type"] == "put") & (short_dte["moneyness"] >= 0.88) & (short_dte["moneyness"] <= 0.92)]
+            otm_calls = short_dte[(short_dte["option_type"] == "call") & (short_dte["moneyness"] >= 1.08) & (short_dte["moneyness"] <= 1.12)]
+            if not otm_puts.empty and not otm_calls.empty:
+                skew_25d = float(otm_puts["implied_volatility"].mean() - otm_calls["implied_volatility"].mean())
+
+            # Term slope
+            iv_term_slope = None
+            if iv_30d is not None and iv_90d is not None:
+                iv_term_slope = iv_90d - iv_30d
+
+            updates.append({
+                "symbol_id": str(symbol_id),
+                "date": qdate.date() if hasattr(qdate, "date") else qdate,
+                "iv_30d": iv_30d,
+                "iv_60d": iv_60d,
+                "iv_90d": iv_90d,
+                "iv_atm_call": iv_atm_call,
+                "iv_atm_put": iv_atm_put,
+                "skew_25d": skew_25d,
+                "iv_term_slope": iv_term_slope,
+            })
+
+        if not updates:
+            return
+
+        with self.db.engine.connect() as conn:
+            for row in updates:
+                conn.execute(text("""
+                    UPDATE cur_options_summary_daily SET
+                        iv_30d = :iv_30d, iv_60d = :iv_60d, iv_90d = :iv_90d,
+                        iv_atm_call = :iv_atm_call, iv_atm_put = :iv_atm_put,
+                        skew_25d = :skew_25d, iv_term_slope = :iv_term_slope,
+                        updated_at = NOW()
+                    WHERE symbol_id = :symbol_id AND date = :date
+                """), row)
+            conn.commit()
+
+        logger.info(f"Computed IV metrics for {len(updates)} symbol-dates")
 
     def transform_earnings(self) -> int:
         """Transform raw earnings calendar into cur_earnings_events."""
@@ -1224,6 +1369,8 @@ class CuratedTransformer:
                 INSERT INTO cur_earnings_events
                 (symbol_id, report_date, fiscal_quarter_end,
                  eps_estimate, eps_actual, eps_surprise, eps_surprise_pct,
+                 revenue_estimate, revenue_actual, revenue_surprise, revenue_surprise_pct,
+                 report_time,
                  event_time, available_time, time_quality, ingested_at)
                 SELECT
                     s.symbol_id,
@@ -1235,6 +1382,15 @@ class CuratedTransformer:
                     CASE WHEN r.eps_estimate != 0
                          THEN ((r.eps_actual - r.eps_estimate) / ABS(r.eps_estimate)) * 100
                          ELSE NULL END AS eps_surprise_pct,
+                    r.revenue_estimate,
+                    r.revenue_actual,
+                    CASE WHEN r.revenue_estimate IS NOT NULL AND r.revenue_actual IS NOT NULL
+                         THEN r.revenue_actual - r.revenue_estimate
+                         ELSE NULL END AS revenue_surprise,
+                    CASE WHEN r.revenue_estimate IS NOT NULL AND r.revenue_estimate != 0
+                         THEN ((r.revenue_actual - r.revenue_estimate) / ABS(r.revenue_estimate)) * 100
+                         ELSE NULL END AS revenue_surprise_pct,
+                    r.report_time,
                     r.report_date::timestamptz AS event_time,
                     (r.report_date::date + interval '17 hours')::timestamptz AS available_time,
                     'confirmed' AS time_quality,
@@ -1247,6 +1403,11 @@ class CuratedTransformer:
                     eps_actual = EXCLUDED.eps_actual,
                     eps_surprise = EXCLUDED.eps_surprise,
                     eps_surprise_pct = EXCLUDED.eps_surprise_pct,
+                    revenue_estimate = EXCLUDED.revenue_estimate,
+                    revenue_actual = EXCLUDED.revenue_actual,
+                    revenue_surprise = EXCLUDED.revenue_surprise,
+                    revenue_surprise_pct = EXCLUDED.revenue_surprise_pct,
+                    report_time = EXCLUDED.report_time,
                     updated_at = NOW()
             """))
             rows = result.rowcount
@@ -1254,6 +1415,83 @@ class CuratedTransformer:
 
         self._record_lineage("raw_earnings_calendar", "cur_earnings_events", "transform_earnings")
         logger.info(f"Transformed {rows} earnings records")
+        return rows
+
+    def transform_short_interest(self) -> int:
+        """Transform raw short interest into cur_short_interest."""
+        if not self.db.table_exists("raw_short_interest"):
+            logger.info("raw_short_interest not found, skipping")
+            return 0
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                INSERT INTO cur_short_interest
+                (symbol_id, settlement_date, short_interest, avg_daily_volume,
+                 days_to_cover, event_time, available_time,
+                 time_quality, ingested_at)
+                SELECT
+                    s.symbol_id,
+                    r.settlement_date,
+                    r.short_interest,
+                    r.avg_daily_volume,
+                    r.days_to_cover,
+                    r.settlement_date::timestamptz AS event_time,
+                    (r.settlement_date::date + interval '10 days')::timestamptz AS available_time,
+                    'assumed' AS time_quality,
+                    NOW() AS ingested_at
+                FROM raw_short_interest r
+                JOIN dim_symbol s ON s.ticker = r.ticker
+                WHERE r.short_interest IS NOT NULL
+                ON CONFLICT (symbol_id, settlement_date)
+                DO UPDATE SET
+                    short_interest = EXCLUDED.short_interest,
+                    avg_daily_volume = EXCLUDED.avg_daily_volume,
+                    days_to_cover = EXCLUDED.days_to_cover
+            """))
+            rows = result.rowcount
+            conn.commit()
+
+        self._record_lineage("raw_short_interest", "cur_short_interest", "transform_short_interest")
+        logger.info(f"Transformed {rows} short interest records")
+        return rows
+
+    def transform_etf_flows(self) -> int:
+        """Transform raw ETF flows into cur_etf_flows_daily."""
+        if not self.db.table_exists("raw_etf_flows"):
+            logger.info("raw_etf_flows not found, skipping")
+            return 0
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                INSERT INTO cur_etf_flows_daily
+                (symbol_id, date, fund_flow, aum, flow_pct_aum,
+                 event_time, available_time, time_quality, ingested_at)
+                SELECT
+                    s.symbol_id,
+                    r.date,
+                    r.fund_flow,
+                    r.aum,
+                    CASE WHEN r.aum IS NOT NULL AND r.aum > 0
+                         THEN r.fund_flow / r.aum
+                         ELSE NULL END AS flow_pct_aum,
+                    (r.date::date + interval '16 hours')::timestamptz AS event_time,
+                    (r.date::date + interval '18 hours')::timestamptz AS available_time,
+                    'assumed' AS time_quality,
+                    NOW() AS ingested_at
+                FROM raw_etf_flows r
+                JOIN dim_symbol s ON s.ticker = r.ticker
+                WHERE r.fund_flow IS NOT NULL
+                ON CONFLICT (symbol_id, date)
+                DO UPDATE SET
+                    fund_flow = EXCLUDED.fund_flow,
+                    aum = EXCLUDED.aum,
+                    flow_pct_aum = EXCLUDED.flow_pct_aum
+            """))
+            rows = result.rowcount
+            conn.commit()
+
+        self._record_lineage("raw_etf_flows", "cur_etf_flows_daily", "transform_etf_flows")
+        logger.info(f"Transformed {rows} ETF flow records")
         return rows
 
     # ------------------------------------------------------------------
@@ -1279,4 +1517,6 @@ class CuratedTransformer:
         results["institutional_holdings"] = self.transform_institutional_holdings()
         results["options_summary"] = self.transform_options_summary()
         results["earnings"] = self.transform_earnings()
+        results["short_interest"] = self.transform_short_interest()
+        results["etf_flows"] = self.transform_etf_flows()
         return results
