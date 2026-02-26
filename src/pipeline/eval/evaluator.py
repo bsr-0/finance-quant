@@ -10,6 +10,7 @@ import pandas as pd
 
 from pipeline.backtesting.simulator import PortfolioSimulator, SimulatorConfig
 from pipeline.backtesting.transaction_costs import FixedPlusSpreadModel, SquareRootImpactModel
+from pipeline.db import get_db_manager
 from pipeline.eval.factor_neutrality import compute_factor_exposures, factor_correlation_gate
 from pipeline.eval.metrics import (
     brier_score,
@@ -22,11 +23,15 @@ from pipeline.eval.metrics import (
     sharpe_sortino,
     turnover,
 )
-from pipeline.eval.portfolio import ProbPortfolioConfig, SignalPortfolioConfig, generate_positions_from_probs, generate_positions_from_signals
+from pipeline.eval.portfolio import (
+    ProbPortfolioConfig,
+    SignalPortfolioConfig,
+    generate_positions_from_probs,
+    generate_positions_from_signals,
+)
 from pipeline.eval.regime import classify_regimes, regime_performance
 from pipeline.eval.robustness import bootstrap_ci, deflated_sharpe_ratio
 from pipeline.eval.stress import DEFAULT_SCENARIOS, evt_tail_risk, scenario_metrics
-from pipeline.db import get_db_manager
 from pipeline.settings import get_settings
 
 

@@ -17,18 +17,18 @@ from rich.table import Table
 from pipeline.db import get_db_manager
 from pipeline.dq.data_quality_monitor import DataQualityMonitor, Severity
 from pipeline.dq.tests_sql import run_dq_tests
-from pipeline.extract.fred import extract_fred
 from pipeline.extract.factors_ff import extract_factors_ff
+from pipeline.extract.fred import extract_fred
 from pipeline.extract.gdelt import extract_gdelt
 from pipeline.extract.polymarket import extract_polymarket
 from pipeline.extract.prices_daily import extract_prices
+from pipeline.historical.latency import refresh_latency_stats
 from pipeline.load.raw_loader import RawLoader
 from pipeline.logging_config import configure_logging
 from pipeline.settings import get_settings
 from pipeline.snapshot.orderbook_runner import OrderbookSnapshotRunner
 from pipeline.snapshot.symbol_snapshots import SymbolSnapshotBuilder
 from pipeline.transform.curated import CuratedTransformer
-from pipeline.historical.latency import refresh_latency_stats
 
 # Setup logging (respect LOG_FORMAT=json and LOG_LEVEL env vars)
 configure_logging(

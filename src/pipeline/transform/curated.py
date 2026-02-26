@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pandas as pd
@@ -632,7 +632,7 @@ class CuratedTransformer:
             df["event_time"] = dates.dt.tz_localize("UTC")
             df["available_time"] = available_time
             df["time_quality"] = "inferred"
-            df["ingested_at"] = datetime.now(timezone.utc)
+            df["ingested_at"] = datetime.now(UTC)
             df["data_quality_flag"] = None
 
             insert_sql = text("""

@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -119,7 +119,7 @@ class KillSwitch:
         with self._lock:
             if not self._engaged:
                 self._engaged = True
-                self._engaged_at = datetime.now(timezone.utc)
+                self._engaged_at = datetime.now(UTC)
                 self._reason = reason
                 logger.critical(
                     "KILL SWITCH ENGAGED at %s – reason: %s",
