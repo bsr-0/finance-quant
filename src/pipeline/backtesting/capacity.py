@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -145,7 +145,7 @@ def capacity_analysis(
 
     # Capacity estimate: largest level where net Sharpe >= floor
     capacity_estimate = 0.0
-    for cap, ns in zip(capital_levels, net_sharpes):
+    for cap, ns in zip(capital_levels, net_sharpes, strict=False):
         if np.isfinite(ns) and ns >= min_sharpe:
             capacity_estimate = cap
 
@@ -238,7 +238,9 @@ def sensitivity_analysis(
             result = metric_fn(df, val)
             metric_values.append(float(result))
         except Exception as exc:
-            logger.warning("sensitivity_analysis: param=%s value=%s error: %s", param_name, val, exc)
+            logger.warning(
+                "sensitivity_analysis: param=%s value=%s error: %s", param_name, val, exc
+            )
             metric_values.append(float("nan"))
 
     if baseline_value is None and param_values:
@@ -288,7 +290,7 @@ def multi_param_sensitivity(
 
     rows = []
     for combo in itertools.product(*value_lists):
-        params = dict(zip(names, combo))
+        params = dict(zip(names, combo, strict=False))
         try:
             val = float(metric_fn(df, params))
         except Exception as exc:

@@ -17,18 +17,18 @@ from rich.table import Table
 from pipeline.db import get_db_manager
 from pipeline.dq.data_quality_monitor import DataQualityMonitor, Severity
 from pipeline.dq.tests_sql import run_dq_tests
-from pipeline.extract.fred import extract_fred
 from pipeline.extract.factors_ff import extract_factors_ff
+from pipeline.extract.fred import extract_fred
 from pipeline.extract.gdelt import extract_gdelt
 from pipeline.extract.polymarket import extract_polymarket
 from pipeline.extract.prices_daily import extract_prices
+from pipeline.historical.latency import refresh_latency_stats
 from pipeline.load.raw_loader import RawLoader
 from pipeline.logging_config import configure_logging
 from pipeline.settings import get_settings
 from pipeline.snapshot.orderbook_runner import OrderbookSnapshotRunner
 from pipeline.snapshot.symbol_snapshots import SymbolSnapshotBuilder
 from pipeline.transform.curated import CuratedTransformer
-from pipeline.historical.latency import refresh_latency_stats
 
 # Setup logging (respect LOG_FORMAT=json and LOG_LEVEL env vars)
 configure_logging(
@@ -115,7 +115,9 @@ def update_pipeline_run(
 
 @app.command()
 def extract(
-    source: str = typer.Argument(..., help="Source to extract (fred, gdelt, polymarket, prices, factors)"),
+    source: str = typer.Argument(
+        ..., help="Source to extract (fred, gdelt, polymarket, prices, factors)"
+    ),
     start: str | None = typer.Option(None, "--start", "-s", help="Start date (YYYY-MM-DD)"),  # noqa: B008
     end: str | None = typer.Option(None, "--end", "-e", help="End date (YYYY-MM-DD)"),  # noqa: B008
     output_dir: Path | None = typer.Option(  # noqa: B008
@@ -160,7 +162,9 @@ def extract(
 
 @app.command()
 def load_raw(
-    source: str = typer.Argument(..., help="Source to load (fred, gdelt, polymarket, prices, factors)"),
+    source: str = typer.Argument(
+        ..., help="Source to load (fred, gdelt, polymarket, prices, factors)"
+    ),
     raw_dir: Path | None = typer.Option(  # noqa: B008
         None, "--raw-dir", "-r", help="Raw data directory"
     ),
@@ -202,7 +206,10 @@ def transform_curated():
         # DQ gating: fail on any CRITICAL alert
         monitor = DataQualityMonitor()
         report = monitor.generate_quality_report()
-        critical = [a for a in report.get("alerts", []) if a.get("severity") == Severity.CRITICAL.value]
+        critical = [
+            a for a in report.get("alerts", [])
+            if a.get("severity") == Severity.CRITICAL.value
+        ]
         if critical:
             update_pipeline_run(run_id, "failed", errors="Critical data quality alerts")
             console.print(f"[red]✗ {len(critical)} CRITICAL data quality alerts detected[/red]")
@@ -279,10 +286,16 @@ def build_symbol_snapshots(
 
 @app.command()
 def orderbook_snapshots(
-    interval: str | None = typer.Option(None, "--interval", "-i", help="Snapshot interval (e.g., 1m, 5m, 1h, off)"),  # noqa: B008
-    iterations: int = typer.Option(1, "--iterations", "-n", help="Number of iterations (0 = forever)"),  # noqa: B008
+    interval: str | None = typer.Option(  # noqa: B008
+        None, "--interval", "-i", help="Snapshot interval (e.g., 1m, 5m, 1h, off)"
+    ),
+    iterations: int = typer.Option(  # noqa: B008
+        1, "--iterations", "-n", help="Number of iterations (0 = forever)"
+    ),
     retention_days: int = typer.Option(30, "--retention-days", help="Retention window in days"),  # noqa: B008
-    transform: bool = typer.Option(True, "--transform/--no-transform", help="Transform snapshots to curated"),  # noqa: B008
+    transform: bool = typer.Option(  # noqa: B008
+        True, "--transform/--no-transform", help="Transform snapshots to curated"
+    ),
     max_markets: int | None = typer.Option(None, "--max-markets", help="Override market count"),  # noqa: B008
 ):
     """Capture Polymarket orderbook snapshots on a schedule."""
@@ -379,10 +392,18 @@ def _read_data(path: Path) -> pd.DataFrame:
 @app.command()
 def evaluate(
     scope: str = typer.Option("equity", "--scope", "-s", help="equity or prediction"),
-    signals_path: Path | None = typer.Option(None, "--signals", help="Signals file path"),
-    probs_path: Path | None = typer.Option(None, "--probs", help="Prediction market probs file path"),
-    prices_path: Path | None = typer.Option(None, "--prices", help="Prices file path"),
-    outcomes_path: Path | None = typer.Option(None, "--outcomes", help="Outcomes file path"),
+    signals_path: Path | None = typer.Option(  # noqa: B008
+        None, "--signals", help="Signals file path"
+    ),
+    probs_path: Path | None = typer.Option(  # noqa: B008
+        None, "--probs", help="Prediction market probs file path"
+    ),
+    prices_path: Path | None = typer.Option(  # noqa: B008
+        None, "--prices", help="Prices file path"
+    ),
+    outcomes_path: Path | None = typer.Option(  # noqa: B008
+        None, "--outcomes", help="Outcomes file path"
+    ),
     factors_from_db: bool = typer.Option(True, "--factors-from-db", help="Load factors from DB"),
     model_name: str = typer.Option("model", "--model-name"),
     dataset_id: str | None = typer.Option(None, "--dataset-id"),
@@ -401,7 +422,9 @@ def evaluate(
     if factors_from_db:
         db = get_db_manager()
         if db.table_exists("cur_factor_returns"):
-            factors_df = pd.DataFrame(db.run_query("SELECT * FROM cur_factor_returns ORDER BY date"))
+            factors_df = pd.DataFrame(
+                db.run_query("SELECT * FROM cur_factor_returns ORDER BY date")
+            )
             if not factors_df.empty:
                 factors_df["date"] = pd.to_datetime(factors_df["date"])
                 factors_df = factors_df.set_index("date")[

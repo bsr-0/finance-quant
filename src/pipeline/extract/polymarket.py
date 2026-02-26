@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
@@ -106,7 +106,11 @@ class PolymarketExtractor:
                 offset += len(batch)
                 if len(batch) < 20:
                     break
-                if self.universe_mode == "top_volume" and max_markets is not None and len(markets) >= max_markets:
+                if (
+                    self.universe_mode == "top_volume"
+                    and max_markets is not None
+                    and len(markets) >= max_markets
+                ):
                     break
 
         if self.universe_mode == "top_volume":
@@ -175,7 +179,7 @@ class PolymarketExtractor:
         if start_date or end_date:
             filtered_trades = []
             for trade in trades:
-                trade_time = datetime.fromtimestamp(trade.get("timestamp", 0), tz=timezone.utc)
+                trade_time = datetime.fromtimestamp(trade.get("timestamp", 0), tz=UTC)
                 if start_date and trade_time < start_date:
                     continue
                 if end_date and trade_time > end_date:
@@ -268,7 +272,7 @@ class PolymarketExtractor:
             try:
                 # Save market metadata
                 market_df = pd.DataFrame([market])
-                market_df["extracted_at"] = datetime.now(timezone.utc)
+                market_df["extracted_at"] = datetime.now(UTC)
                 market_df["run_id"] = run_id
 
                 market_path = markets_dir / f"{market_id}.parquet"
@@ -280,9 +284,11 @@ class PolymarketExtractor:
                 if trades:
                     trades_df = pd.DataFrame(trades)
                     if "timestamp" in trades_df.columns:
-                        trades_df["timestamp"] = pd.to_datetime(trades_df["timestamp"], unit="s", utc=True)
+                        trades_df["timestamp"] = pd.to_datetime(
+                            trades_df["timestamp"], unit="s", utc=True
+                        )
                     trades_df["market_id"] = market_id
-                    trades_df["extracted_at"] = datetime.now(timezone.utc)
+                    trades_df["extracted_at"] = datetime.now(UTC)
                     trades_df["run_id"] = run_id
 
                     trades_path = trades_dir / f"{market_id}_trades.parquet"
@@ -294,7 +300,7 @@ class PolymarketExtractor:
                 prices_df = self.get_price_history(market_id, start_dt, end_dt)
                 if not prices_df.empty:
                     prices_df["market_id"] = market_id
-                    prices_df["extracted_at"] = datetime.now(timezone.utc)
+                    prices_df["extracted_at"] = datetime.now(UTC)
                     prices_df["run_id"] = run_id
 
                     prices_path = prices_dir / f"{market_id}_prices.parquet"
@@ -308,7 +314,7 @@ class PolymarketExtractor:
                     orderbook = None
 
                 if orderbook:
-                    ob_ts = datetime.now(timezone.utc)
+                    ob_ts = datetime.now(UTC)
                     bids = orderbook.get("bids") or []
                     asks = orderbook.get("asks") or []
                     best_bid = max((float(b[0]) for b in bids if len(b) >= 2), default=None)
