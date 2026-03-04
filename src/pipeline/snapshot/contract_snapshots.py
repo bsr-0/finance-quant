@@ -121,10 +121,6 @@ class ContractSnapshotBuilder:
             news_counts[window_name] = news_count
         snapshot["news_counts"] = news_counts
 
-<<<<<<< HEAD
-        # Data quality score (conservative)
-        snapshot["data_quality_score"] = self._compute_quality_score(snapshot)
-=======
         # 6. Staleness metrics
         staleness = self._get_staleness_metrics(contract_id, asof_ts)
         snapshot["price_staleness_hours"] = staleness["price_staleness_hours"]
@@ -158,7 +154,6 @@ class ContractSnapshotBuilder:
             has_price_outliers=outliers["has_price_outliers"],
             microstructure=micro,
         )
->>>>>>> ec7e5441d04f1d4503133005fe8166129a0bec0e
 
         return snapshot
 
@@ -310,7 +305,6 @@ class ContractSnapshotBuilder:
         result = self.db.run_query(query, {"start_ts": start_ts, "end_ts": end_ts})
         return result[0]["cnt"] if result else 0
 
-<<<<<<< HEAD
     def _to_datetime(self, value: object) -> datetime | None:
         if value is None:
             return None
@@ -330,40 +324,6 @@ class ContractSnapshotBuilder:
             return None
         return max(0.0, (asof_ts - dt).total_seconds() / 3600.0)
 
-    def _compute_quality_score(self, snapshot: dict) -> float:
-        score = 100.0
-
-        price_staleness = snapshot.get("price_staleness_hours")
-        if price_staleness is None:
-            score -= 25
-        elif price_staleness > 72:
-            score -= 40
-        elif price_staleness > 24:
-            score -= 25
-
-        macro_staleness = snapshot.get("macro_staleness_days")
-        if macro_staleness is None:
-            score -= 10
-        elif macro_staleness > 90:
-            score -= 25
-        elif macro_staleness > 45:
-            score -= 15
-
-        outlier_pct = snapshot.get("trade_outlier_pct")
-        if outlier_pct is not None:
-            if outlier_pct > 0.05:
-                score -= 20
-            elif outlier_pct > 0.01:
-                score -= 10
-
-        if snapshot.get("implied_p_yes") is None:
-            score -= 30
-
-        if snapshot.get("volume_24h") in (None, 0):
-            score -= 5
-
-        return max(0.0, min(100.0, score))
-=======
     def _get_staleness_metrics(self, contract_id: UUID, asof_ts: datetime) -> dict:
         """Return staleness information for price and macro data."""
         # Price staleness
@@ -514,7 +474,7 @@ class ContractSnapshotBuilder:
         has_price_outliers: bool,
         microstructure: dict,
     ) -> float:
-        """Calculate a composite data quality score (0–100).
+        """Calculate a composite data quality score (0-100).
 
         Deductions:
         - Up to -30 for price staleness > 1 hour
@@ -537,7 +497,6 @@ class ContractSnapshotBuilder:
             score -= 10.0
 
         return max(0.0, score)
->>>>>>> ec7e5441d04f1d4503133005fe8166129a0bec0e
 
     def build_snapshots_for_range(
         self,
@@ -595,17 +554,20 @@ class ContractSnapshotBuilder:
             insert = text("""
                 INSERT INTO snap_contract_features
                 (contract_id, asof_ts, implied_p_yes, spread, depth_best_bid, depth_best_ask,
-<<<<<<< HEAD
                  volume_24h, trade_count_24h, price_volatility_24h, price_volatility_24h_robust,
                  trade_outlier_pct, trade_imbalance, avg_trade_size, trade_size_std,
                  price_staleness_hours, macro_staleness_days, data_quality_score,
-                 macro_panel, news_counts, event_counts_24h, event_tone_avg, event_time, available_time)
+                 macro_panel, news_counts, event_counts_24h, event_tone_avg, event_time, available_time,
+                 last_price_ts, has_price_outliers, outlier_score,
+                 micro_trade_imbalance, micro_buy_sell_ratio)
                 VALUES (:contract_id, :asof_ts, :implied_p_yes, :spread, :depth_best_bid,
                         :depth_best_ask, :volume_24h, :trade_count_24h, :price_volatility_24h,
                         :price_volatility_24h_robust, :trade_outlier_pct, :trade_imbalance,
                         :avg_trade_size, :trade_size_std, :price_staleness_hours,
                         :macro_staleness_days, :data_quality_score, :macro_panel, :news_counts,
-                        :event_counts_24h, :event_tone_avg, :event_time, :available_time)
+                        :event_counts_24h, :event_tone_avg, :event_time, :available_time,
+                        :last_price_ts, :has_price_outliers, :outlier_score,
+                        :micro_trade_imbalance, :micro_buy_sell_ratio)
                 ON CONFLICT (contract_id, asof_ts) DO UPDATE SET
                     implied_p_yes = EXCLUDED.implied_p_yes,
                     spread = EXCLUDED.spread,
@@ -619,33 +581,11 @@ class ContractSnapshotBuilder:
                     price_staleness_hours = EXCLUDED.price_staleness_hours,
                     macro_staleness_days = EXCLUDED.macro_staleness_days,
                     data_quality_score = EXCLUDED.data_quality_score,
+                    has_price_outliers = EXCLUDED.has_price_outliers,
+                    outlier_score = EXCLUDED.outlier_score,
+                    micro_trade_imbalance = EXCLUDED.micro_trade_imbalance,
+                    micro_buy_sell_ratio = EXCLUDED.micro_buy_sell_ratio,
                     updated_at = NOW()
-=======
-                 volume_24h, trade_count_24h, price_volatility_24h, macro_panel, news_counts,
-                 event_counts_24h, event_tone_avg, event_time, available_time,
-                 price_staleness_hours, macro_staleness_days, last_price_ts,
-                 has_price_outliers, outlier_score, data_quality_score,
-                 micro_trade_imbalance, micro_buy_sell_ratio)
-                VALUES (:contract_id, :asof_ts, :implied_p_yes, :spread, :depth_best_bid,
-                        :depth_best_ask, :volume_24h, :trade_count_24h, :price_volatility_24h,
-                        :macro_panel, :news_counts, :event_counts_24h, :event_tone_avg,
-                        :event_time, :available_time,
-                        :price_staleness_hours, :macro_staleness_days, :last_price_ts,
-                        :has_price_outliers, :outlier_score, :data_quality_score,
-                        :micro_trade_imbalance, :micro_buy_sell_ratio)
-                ON CONFLICT (contract_id, asof_ts) DO UPDATE SET
-                    implied_p_yes          = EXCLUDED.implied_p_yes,
-                    spread                 = EXCLUDED.spread,
-                    volume_24h             = EXCLUDED.volume_24h,
-                    price_staleness_hours  = EXCLUDED.price_staleness_hours,
-                    macro_staleness_days   = EXCLUDED.macro_staleness_days,
-                    has_price_outliers     = EXCLUDED.has_price_outliers,
-                    outlier_score          = EXCLUDED.outlier_score,
-                    data_quality_score     = EXCLUDED.data_quality_score,
-                    micro_trade_imbalance  = EXCLUDED.micro_trade_imbalance,
-                    micro_buy_sell_ratio   = EXCLUDED.micro_buy_sell_ratio,
-                    updated_at             = NOW()
->>>>>>> ec7e5441d04f1d4503133005fe8166129a0bec0e
             """)
 
             conn.execute(

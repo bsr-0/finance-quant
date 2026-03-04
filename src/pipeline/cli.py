@@ -610,6 +610,146 @@ def run_pipeline(
     console.print("\n[green bold]✓ Pipeline completed successfully![/green bold]")
 
 
+@app.command()
+def generate_signals(
+    date: str | None = typer.Option(None, "--date", "-d", help="Signal date (YYYY-MM-DD). Default: latest in data."),  # noqa: B008
+    prices_dir: Path | None = typer.Option(None, "--prices-dir", help="Directory with per-ticker CSV/parquet files"),  # noqa: B008
+    spy_path: Path | None = typer.Option(None, "--spy", help="SPY prices CSV/parquet for regime classification"),  # noqa: B008
+    output_dir: Path = typer.Option(Path("data/signals"), "--output", "-o", help="Output directory for signal CSV"),  # noqa: B008
+    threshold: int = typer.Option(60, "--threshold", "-t", help="Minimum signal score"),  # noqa: B008
+    min_volume: float = typer.Option(50_000, "--min-volume", help="Minimum average daily volume"),  # noqa: B008
+):
+    """Generate trading signals for the current universe.
+
+    Loads price data, computes indicators and composite signal scores,
+    runs pre-trade checks, and outputs a standardized signal CSV.
+
+    Examples:
+        pipeline generate-signals --prices-dir data/prices/ --output data/signals/
+        pipeline generate-signals -d 2024-12-31 --prices-dir data/prices/
+    """
+    from pipeline.strategy.pre_trade_checks import filter_signals
+    from pipeline.strategy.signal_output import format_signals, write_signal_csv
+    from pipeline.strategy.signals import SignalEngine, compute_indicators
+
+    console.print("[bold blue]Generating trading signals...[/bold blue]")
+
+    # Load price data
+    if prices_dir is None:
+        console.print("[red]--prices-dir is required (directory of per-ticker CSV/parquet files)[/red]")
+        raise typer.Exit(1)
+
+    if not prices_dir.exists():
+        console.print(f"[red]Prices directory not found: {prices_dir}[/red]")
+        raise typer.Exit(1)
+
+    price_data: dict[str, pd.DataFrame] = {}
+    for f in sorted(prices_dir.iterdir()):
+        if f.suffix.lower() in {".csv", ".parquet", ".pq"}:
+            ticker = f.stem.upper()
+            df = _read_data(f)
+            if "date" in df.columns:
+                df["date"] = pd.to_datetime(df["date"])
+                df = df.set_index("date").sort_index()
+            price_data[ticker] = df
+
+    if not price_data:
+        console.print(f"[red]No price files found in {prices_dir}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"  Loaded {len(price_data)} tickers")
+
+    # SPY for regime classification
+    spy_prices = None
+    if spy_path and spy_path.exists():
+        spy_df = _read_data(spy_path)
+        if "date" in spy_df.columns:
+            spy_df["date"] = pd.to_datetime(spy_df["date"])
+            spy_df = spy_df.set_index("date").sort_index()
+        spy_prices = spy_df["close"]
+    elif "SPY" in price_data:
+        spy_prices = price_data["SPY"]["close"]
+
+    # Compute indicators
+    indicator_data: dict[str, pd.DataFrame] = {}
+    for ticker, df in price_data.items():
+        if df.empty:
+            continue
+        required = {"open", "high", "low", "close", "volume"}
+        if not required.issubset(set(df.columns)):
+            logger.warning("Skipping %s: missing required columns", ticker)
+            continue
+        indicator_data[ticker] = compute_indicators(df)
+
+    # Determine signal date
+    if date:
+        signal_date = pd.Timestamp(date)
+    else:
+        all_dates = set()
+        for df in indicator_data.values():
+            if not df.empty:
+                all_dates.add(df.index[-1])
+        if not all_dates:
+            console.print("[red]No data available for signal generation[/red]")
+            raise typer.Exit(1)
+        signal_date = max(all_dates)
+
+    console.print(f"  Signal date: {signal_date.date()}")
+
+    # Score universe
+    engine = SignalEngine(entry_threshold=threshold)
+    scores = engine.score_universe(indicator_data, spy_prices=spy_prices, date=signal_date)
+    eligible = [s for s in scores if s.entry_eligible]
+
+    console.print(f"  Scored {len(scores)} symbols, {len(eligible)} eligible (score >= {threshold})")
+
+    # Pre-trade checks
+    passed_signals, check_results = filter_signals(
+        signals=eligible,
+        price_data=indicator_data,
+        min_volume=min_volume,
+    )
+
+    rejected = len(eligible) - len(passed_signals)
+    if rejected > 0:
+        console.print(f"  Pre-trade checks rejected {rejected} signals")
+
+    # Format and write output
+    signals_df = format_signals(
+        scores=passed_signals,
+        price_data=indicator_data,
+        date=signal_date,
+    )
+
+    if signals_df.empty:
+        console.print("[yellow]No actionable signals for this date.[/yellow]")
+    else:
+        filepath = write_signal_csv(signals_df, output_dir, signal_date)
+        console.print(f"[green]✓ Wrote {len(signals_df)} signals to {filepath}[/green]")
+
+        # Print summary table
+        sig_table = Table(title=f"Signals for {signal_date.date()}")
+        sig_table.add_column("Ticker", style="cyan")
+        sig_table.add_column("Score", justify="right", style="green")
+        sig_table.add_column("Confidence", style="yellow")
+        sig_table.add_column("Entry", justify="right")
+        sig_table.add_column("Stop", justify="right", style="red")
+        sig_table.add_column("Target", justify="right", style="green")
+        sig_table.add_column("Regime", style="magenta")
+
+        for _, row in signals_df.iterrows():
+            sig_table.add_row(
+                str(row["ticker"]),
+                str(row["score"]),
+                str(row["confidence"]),
+                f"${row['entry_price']:.2f}",
+                f"${row['stop_price']:.2f}",
+                f"${row['target_1']:.2f}",
+                str(row["regime"]),
+            )
+        console.print(sig_table)
+
+
 def main():
     """Entry point for CLI."""
     app()

@@ -351,7 +351,11 @@ class Evaluator:
         px["date"] = pd.to_datetime(px["date"])
 
         px = px.sort_values(["symbol", "date"])
-        px["fwd_ret"] = px.groupby("symbol")["price"].pct_change().shift(-1)
+        # Use same-day return (today vs yesterday).  Signals are already lagged
+        # by signal_lag_days (default 1) in the backtest harness, so the return
+        # on the signal date IS the forward return relative to signal generation.
+        # Using .shift(-1) here would peek into the future — a look-ahead bias.
+        px["fwd_ret"] = px.groupby("symbol")["price"].pct_change()
 
         merged = sig.merge(px[["date", "symbol", "fwd_ret"]], on=["date", "symbol"], how="inner")
         merged = merged.dropna(subset=["signal", "fwd_ret"])

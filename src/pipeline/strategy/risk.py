@@ -113,8 +113,16 @@ class SwingRiskManager:
         current_equity: float,
         open_positions: int,
         total_risk_pct: float,
+        daily_return: float = 0.0,
     ) -> RiskState:
-        """Compute the full risk state of the portfolio."""
+        """Compute the full risk state of the portfolio.
+
+        Args:
+            current_equity: Current total equity (cash + positions).
+            open_positions: Number of open positions.
+            total_risk_pct: Sum of risk from open positions as fraction of equity.
+            daily_return: Today's return so far (for daily loss limit check).
+        """
         self.update_equity(current_equity)
         dd_pct = (current_equity - self._peak_equity) / self._peak_equity if self._peak_equity > 0 else 0
         dd_level = self.get_drawdown_level(current_equity)
@@ -129,6 +137,14 @@ class SwingRiskManager:
             can_open = False
         if total_risk_pct >= self.max_portfolio_risk_pct:
             can_open = False
+        # Daily loss limit: block new entries if today's loss exceeds threshold
+        if daily_return < -self.max_daily_loss_pct:
+            can_open = False
+            logger.warning(
+                "Daily loss limit hit: %.2f%% exceeds max %.2f%%. Blocking new entries.",
+                abs(daily_return) * 100,
+                self.max_daily_loss_pct * 100,
+            )
 
         # Trigger cooldown on RED
         if dd_level == DrawdownLevel.RED and self._cooldown_remaining == 0:
