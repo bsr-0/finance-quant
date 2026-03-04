@@ -76,6 +76,12 @@ class CuratedTransformer:
             "gdelt": self.settings.gdelt.base_url,
             "polymarket": self.settings.polymarket.base_url,
             "prices": "https://finance.yahoo.com",
+            "sec_edgar": "https://data.sec.gov",
+            "options": "https://finance.yahoo.com",
+            "earnings": "https://finance.yahoo.com",
+            "reddit": "https://www.reddit.com",
+            "short_interest": "https://www.finra.org",
+            "etf_flows": "https://finance.yahoo.com",
         }
         return urls.get(source_name, "")
 
@@ -1041,4 +1047,12 @@ class CuratedTransformer:
         results["prices_adjusted"] = self.transform_prices_adjusted_daily()
         results["universe_membership"] = self.transform_universe_membership()
         results["factor_returns"] = self.transform_factor_returns()
+        # New data source transforms
+        results["fundamentals"] = self.transform_fundamentals()
+        results["insider_trades"] = self.transform_insider_trades()
+        results["institutional_holdings"] = self.transform_institutional_holdings()
+        results["options_summary"] = self.transform_options_summary()
+        results["earnings"] = self.transform_earnings()
+        results["short_interest"] = self.transform_short_interest()
+        results["etf_flows"] = self.transform_etf_flows()
         return results

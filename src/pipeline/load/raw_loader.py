@@ -444,6 +444,366 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} factor rows")
         return rows_loaded
 
+    def load_sec_fundamentals(self, file_path: Path, run_id: UUID | None = None) -> int:
+        """Load SEC fundamentals from parquet file."""
+        logger.info(f"Loading SEC fundamentals from {file_path}")
+
+        df = pd.read_parquet(file_path)
+        if df.empty:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_sec_fundamentals
+            (ticker, cik, metric_name, metric_label, metric_value, units,
+             fiscal_period_end, filing_date, form_type, accession_number,
+             fiscal_year, fiscal_period, raw_data, extracted_at, run_id)
+            VALUES (:ticker, :cik, :metric_name, :metric_label, :metric_value, :units,
+                    :fiscal_period_end, :filing_date, :form_type, :accession_number,
+                    :fiscal_year, :fiscal_period, :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (ticker, metric_name, fiscal_period_end, form_type, accession_number)
+            DO UPDATE SET
+                metric_value = EXCLUDED.metric_value,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append({k: row.get(k) for k in [
+                "ticker", "cik", "metric_name", "metric_label", "metric_value",
+                "units", "fiscal_period_end", "filing_date", "form_type",
+                "accession_number", "fiscal_year", "fiscal_period",
+                "raw_data", "extracted_at", "run_id",
+            ]})
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} SEC fundamentals records")
+        return rows_loaded
+
+    def load_sec_insider_trades(self, file_path: Path, run_id: UUID | None = None) -> int:
+        """Load SEC insider trades from parquet file."""
+        logger.info(f"Loading SEC insider trades from {file_path}")
+
+        df = pd.read_parquet(file_path)
+        if df.empty:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_sec_insider_trades
+            (ticker, cik, insider_cik, insider_name, insider_title,
+             transaction_date, transaction_type, shares, price_per_share,
+             shares_after, ownership_type, accession_number, filing_date,
+             raw_data, extracted_at, run_id)
+            VALUES (:ticker, :cik, :insider_cik, :insider_name, :insider_title,
+                    :transaction_date, :transaction_type, :shares, :price_per_share,
+                    :shares_after, :ownership_type, :accession_number, :filing_date,
+                    :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (accession_number, insider_cik, transaction_date, transaction_type, shares)
+            DO UPDATE SET
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append({k: row.get(k) for k in [
+                "ticker", "cik", "insider_cik", "insider_name", "insider_title",
+                "transaction_date", "transaction_type", "shares", "price_per_share",
+                "shares_after", "ownership_type", "accession_number", "filing_date",
+                "raw_data", "extracted_at", "run_id",
+            ]})
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} SEC insider trades")
+        return rows_loaded
+
+    def load_sec_13f_holdings(self, file_path: Path, run_id: UUID | None = None) -> int:
+        """Load SEC 13F holdings from parquet file."""
+        logger.info(f"Loading SEC 13F holdings from {file_path}")
+
+        df = pd.read_parquet(file_path)
+        if df.empty:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_sec_13f_holdings
+            (filer_cik, filer_name, report_date, filing_date, cusip, issuer_name,
+             class_title, market_value, shares_held, shares_type, put_call,
+             investment_discretion, voting_authority_sole, voting_authority_shared,
+             voting_authority_none, accession_number, raw_data, extracted_at, run_id)
+            VALUES (:filer_cik, :filer_name, :report_date, :filing_date, :cusip, :issuer_name,
+                    :class_title, :market_value, :shares_held, :shares_type, :put_call,
+                    :investment_discretion, :voting_authority_sole, :voting_authority_shared,
+                    :voting_authority_none, :accession_number, :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (accession_number, cusip, filer_cik, report_date)
+            DO UPDATE SET
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append({k: row.get(k) for k in [
+                "filer_cik", "filer_name", "report_date", "filing_date", "cusip",
+                "issuer_name", "class_title", "market_value", "shares_held",
+                "shares_type", "put_call", "investment_discretion",
+                "voting_authority_sole", "voting_authority_shared",
+                "voting_authority_none", "accession_number",
+                "raw_data", "extracted_at", "run_id",
+            ]})
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} SEC 13F holdings")
+        return rows_loaded
+
+    def load_options_chain(self, file_path: Path, run_id: UUID | None = None) -> int:
+        """Load options chain data from parquet file."""
+        logger.info(f"Loading options data from {file_path}")
+
+        df = pd.read_parquet(file_path)
+        if df.empty:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_options_chain
+            (ticker, quote_date, expiration, strike, option_type, last_price,
+             bid, ask, volume, open_interest, implied_volatility, in_the_money,
+             raw_data, extracted_at, run_id)
+            VALUES (:ticker, :quote_date, :expiration, :strike, :option_type, :last_price,
+                    :bid, :ask, :volume, :open_interest, :implied_volatility, :in_the_money,
+                    :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (ticker, quote_date, expiration, strike, option_type)
+            DO UPDATE SET
+                last_price = EXCLUDED.last_price,
+                implied_volatility = EXCLUDED.implied_volatility,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append({k: row.get(k) for k in [
+                "ticker", "quote_date", "expiration", "strike", "option_type",
+                "last_price", "bid", "ask", "volume", "open_interest",
+                "implied_volatility", "in_the_money",
+                "raw_data", "extracted_at", "run_id",
+            ]})
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} options contracts")
+        return rows_loaded
+
+    def load_earnings_calendar(self, file_path: Path, run_id: UUID | None = None) -> int:
+        """Load earnings calendar from parquet file."""
+        logger.info(f"Loading earnings data from {file_path}")
+
+        df = pd.read_parquet(file_path)
+        if df.empty:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_earnings_calendar
+            (ticker, report_date, fiscal_quarter_end, eps_estimate, eps_actual,
+             revenue_estimate, revenue_actual, report_time,
+             raw_data, extracted_at, run_id)
+            VALUES (:ticker, :report_date, :fiscal_quarter_end, :eps_estimate, :eps_actual,
+                    :revenue_estimate, :revenue_actual, :report_time,
+                    :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (ticker, report_date) DO UPDATE SET
+                eps_actual = EXCLUDED.eps_actual,
+                revenue_estimate = EXCLUDED.revenue_estimate,
+                revenue_actual = EXCLUDED.revenue_actual,
+                report_time = EXCLUDED.report_time,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append({k: row.get(k) for k in [
+                "ticker", "report_date", "fiscal_quarter_end",
+                "eps_estimate", "eps_actual",
+                "revenue_estimate", "revenue_actual", "report_time",
+                "raw_data", "extracted_at", "run_id",
+            ]})
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} earnings records")
+        return rows_loaded
+
+    def load_reddit_posts(self, file_path: Path, run_id: UUID | None = None) -> int:
+        """Load Reddit sentiment posts from parquet file."""
+        logger.info(f"Loading Reddit posts from {file_path}")
+
+        df = pd.read_parquet(file_path)
+        if df.empty:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_reddit_posts
+            (post_id, subreddit, title, selftext, author, score,
+             upvote_ratio, num_comments, created_utc, tickers_mentioned,
+             raw_data, extracted_at, run_id)
+            VALUES (:post_id, :subreddit, :title, :selftext, :author, :score,
+                    :upvote_ratio, :num_comments, :created_utc, :tickers_mentioned,
+                    :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (post_id) DO UPDATE SET
+                score = EXCLUDED.score,
+                num_comments = EXCLUDED.num_comments,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            tickers = row.get("tickers_mentioned")
+            records.append({
+                "post_id": row.get("post_id"),
+                "subreddit": row.get("subreddit"),
+                "title": row.get("title"),
+                "selftext": row.get("selftext"),
+                "author": row.get("author"),
+                "score": row.get("score"),
+                "upvote_ratio": row.get("upvote_ratio"),
+                "num_comments": row.get("num_comments"),
+                "created_utc": row.get("created_utc"),
+                "tickers_mentioned": json.dumps(tickers) if tickers else None,
+                "raw_data": row.get("raw_data"),
+                "extracted_at": row.get("extracted_at"),
+                "run_id": row.get("run_id"),
+            })
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} Reddit posts")
+        return rows_loaded
+
+    def load_short_interest(self, file_path: Path, run_id: UUID | None = None) -> int:
+        """Load short interest data from parquet file."""
+        logger.info(f"Loading short interest from {file_path}")
+
+        df = pd.read_parquet(file_path)
+        if df.empty:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_short_interest
+            (ticker, settlement_date, short_interest, avg_daily_volume,
+             days_to_cover, raw_data, extracted_at, run_id)
+            VALUES (:ticker, :settlement_date, :short_interest, :avg_daily_volume,
+                    :days_to_cover, :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (ticker, settlement_date) DO UPDATE SET
+                short_interest = EXCLUDED.short_interest,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append({k: row.get(k) for k in [
+                "ticker", "settlement_date", "short_interest",
+                "avg_daily_volume", "days_to_cover",
+                "raw_data", "extracted_at", "run_id",
+            ]})
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} short interest records")
+        return rows_loaded
+
+    def load_etf_flows(self, file_path: Path, run_id: UUID | None = None) -> int:
+        """Load ETF flows data from parquet file."""
+        logger.info(f"Loading ETF flows from {file_path}")
+
+        df = pd.read_parquet(file_path)
+        if df.empty:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_etf_flows
+            (ticker, date, fund_flow, aum, shares_outstanding,
+             raw_data, extracted_at, run_id)
+            VALUES (:ticker, :date, :fund_flow, :aum, :shares_outstanding,
+                    :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (ticker, date) DO UPDATE SET
+                aum = EXCLUDED.aum,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append({k: row.get(k) for k in [
+                "ticker", "date", "fund_flow", "aum", "shares_outstanding",
+                "raw_data", "extracted_at", "run_id",
+            ]})
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} ETF flow records")
+        return rows_loaded
+
     def load_all_raw_files(self, raw_dir: Path, source: str, run_id: UUID | None = None) -> int:
         """Load all raw files for a source."""
         source_dir = raw_dir / source
@@ -473,6 +833,22 @@ class RawLoader:
                     total_rows += self.load_prices_ohlcv(file_path, run_id)
                 elif source == "factors":
                     total_rows += self.load_factor_returns(file_path, run_id)
+                elif source == "sec_fundamentals":
+                    total_rows += self.load_sec_fundamentals(file_path, run_id)
+                elif source == "sec_insider":
+                    total_rows += self.load_sec_insider_trades(file_path, run_id)
+                elif source == "sec_13f":
+                    total_rows += self.load_sec_13f_holdings(file_path, run_id)
+                elif source == "options":
+                    total_rows += self.load_options_chain(file_path, run_id)
+                elif source == "earnings":
+                    total_rows += self.load_earnings_calendar(file_path, run_id)
+                elif source == "reddit_sentiment":
+                    total_rows += self.load_reddit_posts(file_path, run_id)
+                elif source == "short_interest":
+                    total_rows += self.load_short_interest(file_path, run_id)
+                elif source == "etf_flows":
+                    total_rows += self.load_etf_flows(file_path, run_id)
             except Exception as e:
                 logger.error(f"Error loading {file_path}: {e}")
                 continue

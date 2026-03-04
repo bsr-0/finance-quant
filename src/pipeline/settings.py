@@ -46,7 +46,31 @@ class FredSettings(BaseSettings):
     api_key: Optional[str] = None
     base_url: str = "https://api.stlouisfed.org/fred"
     series_codes: list[str] = Field(
-        default_factory=lambda: ["GDP", "UNRATE", "CPIAUCSL", "FEDFUNDS", "T10Y2Y", "VIXCLS"]
+        default_factory=lambda: [
+            # Core macro indicators
+            "GDP", "UNRATE", "CPIAUCSL", "FEDFUNDS", "T10Y2Y", "VIXCLS",
+            "DGS10", "DGS2", "TB3MS",
+            # Credit spreads
+            "BAMLH0A0HYM2", "BAMLC0A4CBBB",
+            # Housing
+            "HOUST", "CSUSHPISA",
+            # Labor market
+            "ICSA", "PAYEMS",
+            # Money supply
+            "M2SL",
+            # Commodities
+            "DCOILWTICO", "GOLDAMGBD228NLBM",
+            # Dollar index
+            "DTWEXBGS",
+            # Financial conditions
+            "NFCI",
+            # Leading indicators
+            "USSLIND",
+            # Inflation expectations
+            "T5YIE", "T10YIE",
+            # FX rates (major pairs)
+            "DEXUSEU", "DEXJPUS", "DEXUSUK", "DEXCHUS", "DEXCAUS",
+        ]
     )
     enabled: bool = True
 
@@ -104,6 +128,91 @@ class PriceSettings(BaseSettings):
             "TSLA",
         ]
     )
+
+
+class SecEdgarSettings(BaseSettings):
+    """SEC EDGAR data settings."""
+
+    model_config = SettingsConfigDict(env_prefix="SEC_")
+
+    enabled: bool = True
+    rate_limit_delay: float = 0.12  # SEC asks for <=10 req/s
+    cusip_mapping: dict[str, str] = Field(default_factory=lambda: {
+        "AAPL": "037833100", "MSFT": "594918104", "GOOGL": "02079K305",
+        "AMZN": "023135106", "META": "30303M102", "TSLA": "88160R101",
+        "NVDA": "67066G104", "JPM": "46625H100", "JNJ": "478160104",
+        "V": "92826C839", "WMT": "931142103", "PG": "742718109",
+        "UNH": "91324P102", "HD": "437076102", "MA": "57636Q104",
+    })
+    fundamentals_metrics: list[str] = Field(default_factory=lambda: [
+        "Revenues",
+        "NetIncomeLoss",
+        "EarningsPerShareBasic",
+        "EarningsPerShareDiluted",
+        "Assets",
+        "Liabilities",
+        "StockholdersEquity",
+        "LongTermDebt",
+        "CashAndCashEquivalentsAtCarryingValue",
+        "OperatingIncomeLoss",
+        "GrossProfit",
+        "NetCashProvidedByUsedInOperatingActivities",
+        "CommonStockSharesOutstanding",
+    ])
+
+
+class OptionsSettings(BaseSettings):
+    """Options data settings."""
+
+    model_config = SettingsConfigDict(env_prefix="OPTIONS_")
+
+    enabled: bool = True
+    source: str = "yahoo"
+    max_expirations: int = 6
+
+
+class EarningsSettings(BaseSettings):
+    """Earnings calendar settings."""
+
+    model_config = SettingsConfigDict(env_prefix="EARNINGS_")
+
+    enabled: bool = True
+    source: str = "yahoo"
+
+
+class SentimentSettings(BaseSettings):
+    """Social media sentiment settings."""
+
+    model_config = SettingsConfigDict(env_prefix="SENTIMENT_")
+
+    enabled: bool = True
+    subreddits: list[str] = Field(
+        default_factory=lambda: ["wallstreetbets", "stocks", "investing", "options"]
+    )
+    posts_per_subreddit: int = 100
+
+
+class ShortInterestSettings(BaseSettings):
+    """Short interest settings."""
+
+    model_config = SettingsConfigDict(env_prefix="SHORT_INTEREST_")
+
+    enabled: bool = True
+
+
+class EtfFlowsSettings(BaseSettings):
+    """ETF fund flows settings."""
+
+    model_config = SettingsConfigDict(env_prefix="ETF_FLOWS_")
+
+    enabled: bool = True
+    etf_universe: list[str] = Field(default_factory=lambda: [
+        "SPY", "QQQ", "IWM", "VTI", "VOO",
+        "XLF", "XLK", "XLE", "XLV", "XLI",
+        "TLT", "IEF", "SHY", "LQD", "HYG",
+        "GLD", "SLV", "USO",
+        "EEM", "EFA", "VWO",
+    ])
 
 
 class InfrastructureSettings(BaseSettings):
@@ -208,11 +317,19 @@ class PipelineSettings(BaseSettings):
     # Database
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
 
-    # Sources
+    # Sources — original
     fred: FredSettings = Field(default_factory=FredSettings)
     gdelt: GDELTSettings = Field(default_factory=GDELTSettings)
     polymarket: PolymarketSettings = Field(default_factory=PolymarketSettings)
     prices: PriceSettings = Field(default_factory=PriceSettings)
+
+    # Sources — new data sources
+    sec_edgar: SecEdgarSettings = Field(default_factory=SecEdgarSettings)
+    options: OptionsSettings = Field(default_factory=OptionsSettings)
+    earnings: EarningsSettings = Field(default_factory=EarningsSettings)
+    sentiment: SentimentSettings = Field(default_factory=SentimentSettings)
+    short_interest: ShortInterestSettings = Field(default_factory=ShortInterestSettings)
+    etf_flows: EtfFlowsSettings = Field(default_factory=EtfFlowsSettings)
 
     # Infrastructure
     infrastructure: InfrastructureSettings = Field(default_factory=InfrastructureSettings)

@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS cur_corporate_actions (
 CREATE INDEX idx_cur_corp_actions_available_time ON cur_corporate_actions(available_time);
 
 CREATE TABLE IF NOT EXISTS cur_fundamentals_quarterly (
-    entity_id UUID NOT NULL REFERENCES dim_entity(entity_id),
+    symbol_id UUID NOT NULL REFERENCES dim_symbol(symbol_id),
     fiscal_period_end DATE NOT NULL,
     filing_date DATE,
     metric_name VARCHAR(100) NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS cur_fundamentals_quarterly (
     data_quality_flag VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (entity_id, fiscal_period_end, metric_name)
+    PRIMARY KEY (symbol_id, fiscal_period_end, metric_name)
 );
 
 CREATE INDEX idx_cur_fundamentals_available_time ON cur_fundamentals_quarterly(available_time);
