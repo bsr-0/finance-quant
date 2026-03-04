@@ -1,0 +1,525 @@
+"""Generic signal generation framework for systematic strategies.
+
+Provides a composable framework for defining signals with explicit
+mathematical rules. Supports multiple signal families (momentum, value,
+quality, etc.) with configurable normalization and combination.
+"""
+
+from __future__ import annotations
+
+import logging
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from pipeline.features.technical_indicators import TechnicalIndicators
+
+logger = logging.getLogger(__name__)
+
+TI = TechnicalIndicators
+
+
+# ---------------------------------------------------------------------------
+# Signal normalization
+# ---------------------------------------------------------------------------
+
+class NormalizationMethod(Enum):
+    RAW = "raw"
+    ZSCORE = "zscore"
+    RANK = "rank"
+    PERCENTILE = "percentile"
+    WINSORIZE = "winsorize"
+    MIN_MAX = "min_max"
+
+
+def zscore_normalize(series: pd.Series, window: int = 252) -> pd.Series:
+    r"""Cross-sectional or rolling z-score.
+
+    .. math::
+        z_i = \frac{x_i - \mu}{\sigma}
+    """
+    mu = series.rolling(window, min_periods=20).mean()
+    sigma = series.rolling(window, min_periods=20).std()
+    return (series - mu) / sigma.replace(0, np.nan)
+
+
+def rank_normalize(df: pd.DataFrame) -> pd.DataFrame:
+    """Cross-sectional rank normalization (0 to 1)."""
+    return df.rank(axis=1, pct=True)
+
+
+def winsorize(series: pd.Series, lower: float = 0.01, upper: float = 0.99) -> pd.Series:
+    """Winsorize outliers to specified percentiles."""
+    lo = series.quantile(lower)
+    hi = series.quantile(upper)
+    return series.clip(lo, hi)
+
+
+def min_max_normalize(series: pd.Series, window: int = 252) -> pd.Series:
+    """Rolling min-max normalization to [0, 1]."""
+    roll_min = series.rolling(window, min_periods=20).min()
+    roll_max = series.rolling(window, min_periods=20).max()
+    denom = (roll_max - roll_min).replace(0, np.nan)
+    return (series - roll_min) / denom
+
+
+# ---------------------------------------------------------------------------
+# Signal definition
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class SignalConfig:
+    """Configuration for a single raw indicator or signal."""
+
+    name: str
+    description: str = ""
+    formula: str = ""  # LaTeX-ready formula description
+    normalization: NormalizationMethod = NormalizationMethod.ZSCORE
+    lookback_window: int = 252
+    winsorize_lower: float = 0.01
+    winsorize_upper: float = 0.99
+    weight: float = 1.0
+    higher_is_better: bool = True  # Direction of the signal
+
+
+class SignalFamily(Enum):
+    MOMENTUM = "momentum"
+    VALUE = "value"
+    QUALITY = "quality"
+    SIZE = "size"
+    LOW_VOLATILITY = "low_volatility"
+    CARRY = "carry"
+    MICROSTRUCTURE = "microstructure"
+    MEAN_REVERSION = "mean_reversion"
+
+
+# ---------------------------------------------------------------------------
+# Raw indicator computation
+# ---------------------------------------------------------------------------
+
+class RawIndicator(ABC):
+    """Base class for raw indicator computation."""
+
+    @abstractmethod
+    def compute(self, df: pd.DataFrame) -> pd.Series:
+        """Compute raw indicator values from OHLCV data."""
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Indicator name."""
+
+    @property
+    def formula(self) -> str:
+        """LaTeX-ready formula."""
+        return ""
+
+
+class MomentumReturn(RawIndicator):
+    r"""N-day price momentum (total return).
+
+    .. math::
+        \text{MOM}_{i,t} = \frac{P_{i,t}}{P_{i,t-n}} - 1
+    """
+
+    def __init__(self, lookback: int = 252, skip: int = 21) -> None:
+        self.lookback = lookback
+        self.skip = skip
+
+    @property
+    def name(self) -> str:
+        return f"momentum_{self.lookback}d"
+
+    @property
+    def formula(self) -> str:
+        return (
+            rf"\text{{MOM}}_{{i,t}} = \frac{{P_{{i,t-{self.skip}}}}}{{P_{{i,t-{self.lookback}}}}} - 1"
+        )
+
+    def compute(self, df: pd.DataFrame) -> pd.Series:
+        close = df["close"]
+        if self.skip > 0:
+            return close.shift(self.skip) / close.shift(self.lookback) - 1
+        return close / close.shift(self.lookback) - 1
+
+
+class MovingAverageCrossover(RawIndicator):
+    r"""Ratio of short-term to long-term moving average.
+
+    .. math::
+        \text{MAC}_{i,t} = \frac{\text{SMA}(P, n_s)}{\text{SMA}(P, n_l)} - 1
+    """
+
+    def __init__(self, short_window: int = 50, long_window: int = 200) -> None:
+        self.short_window = short_window
+        self.long_window = long_window
+
+    @property
+    def name(self) -> str:
+        return f"ma_cross_{self.short_window}_{self.long_window}"
+
+    @property
+    def formula(self) -> str:
+        return (
+            rf"\text{{MAC}}_{{i,t}} = \frac{{\text{{SMA}}(P, {self.short_window})}}"
+            rf"{{\text{{SMA}}(P, {self.long_window})}} - 1"
+        )
+
+    def compute(self, df: pd.DataFrame) -> pd.Series:
+        close = df["close"]
+        short_ma = TI.sma(close, self.short_window)
+        long_ma = TI.sma(close, self.long_window)
+        return short_ma / long_ma.replace(0, np.nan) - 1
+
+
+class RSIMeanReversion(RawIndicator):
+    r"""RSI-based mean reversion signal.
+
+    .. math::
+        \text{Signal}_{i,t} = 50 - \text{RSI}(P, n)
+    """
+
+    def __init__(self, window: int = 14) -> None:
+        self.window = window
+
+    @property
+    def name(self) -> str:
+        return f"rsi_reversion_{self.window}"
+
+    @property
+    def formula(self) -> str:
+        return rf"\text{{Signal}}_{{i,t}} = 50 - \text{{RSI}}(P, {self.window})"
+
+    def compute(self, df: pd.DataFrame) -> pd.Series:
+        rsi = TI.rsi(df["close"], self.window)
+        return 50 - rsi  # Positive when oversold (bullish for mean reversion)
+
+
+class VolatilitySignal(RawIndicator):
+    r"""Realized volatility as a signal (lower is better for low-vol strategy).
+
+    .. math::
+        \sigma_{i,t} = \text{std}(\text{ret}_{i}, n) \times \sqrt{252}
+    """
+
+    def __init__(self, window: int = 60) -> None:
+        self.window = window
+
+    @property
+    def name(self) -> str:
+        return f"realized_vol_{self.window}d"
+
+    @property
+    def formula(self) -> str:
+        return rf"\sigma_{{i,t}} = \text{{std}}(\text{{ret}}_i, {self.window}) \times \sqrt{{252}}"
+
+    def compute(self, df: pd.DataFrame) -> pd.Series:
+        returns = df["close"].pct_change()
+        return returns.rolling(self.window, min_periods=20).std() * np.sqrt(252)
+
+
+class VolumeRatio(RawIndicator):
+    r"""Volume ratio relative to trailing average.
+
+    .. math::
+        \text{VR}_{i,t} = \frac{V_{i,t}}{\text{SMA}(V_i, n)}
+    """
+
+    def __init__(self, window: int = 20) -> None:
+        self.window = window
+
+    @property
+    def name(self) -> str:
+        return f"volume_ratio_{self.window}d"
+
+    @property
+    def formula(self) -> str:
+        return rf"\text{{VR}}_{{i,t}} = \frac{{V_{{i,t}}}}{{\text{{SMA}}(V_i, {self.window})}}"
+
+    def compute(self, df: pd.DataFrame) -> pd.Series:
+        vol = df["volume"]
+        avg_vol = TI.sma(vol, self.window)
+        return vol / avg_vol.replace(0, np.nan)
+
+
+class BollingerBandPosition(RawIndicator):
+    r"""Position within Bollinger Bands (0 = lower, 1 = upper).
+
+    .. math::
+        \text{BB\%}_{i,t} = \frac{P_{i,t} - BB_{\text{lower}}}{BB_{\text{upper}} - BB_{\text{lower}}}
+    """
+
+    def __init__(self, window: int = 20, num_std: float = 2.0) -> None:
+        self.window = window
+        self.num_std = num_std
+
+    @property
+    def name(self) -> str:
+        return f"bb_position_{self.window}d"
+
+    @property
+    def formula(self) -> str:
+        return (
+            r"\text{BB\%}_{i,t} = \frac{P_{i,t} - BB_{\text{lower}}}"
+            r"{BB_{\text{upper}} - BB_{\text{lower}}}"
+        )
+
+    def compute(self, df: pd.DataFrame) -> pd.Series:
+        close = df["close"]
+        upper, _, lower = TI.bollinger_bands(close, self.window, self.num_std)
+        width = (upper - lower).replace(0, np.nan)
+        return (close - lower) / width
+
+
+# ---------------------------------------------------------------------------
+# Signal pipeline
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SignalDefinition:
+    """Complete definition of a composite signal with multiple indicators."""
+
+    name: str
+    family: SignalFamily
+    description: str = ""
+    indicators: list[tuple[RawIndicator, SignalConfig]] = field(default_factory=list)
+
+    def add_indicator(
+        self,
+        indicator: RawIndicator,
+        config: SignalConfig | None = None,
+    ) -> SignalDefinition:
+        """Add a raw indicator with its configuration."""
+        cfg = config or SignalConfig(
+            name=indicator.name,
+            formula=indicator.formula,
+        )
+        self.indicators.append((indicator, cfg))
+        return self
+
+    @property
+    def indicator_names(self) -> list[str]:
+        return [cfg.name for _, cfg in self.indicators]
+
+
+class SignalPipeline:
+    """Compute and normalize signals for a universe of instruments.
+
+    The pipeline:
+      1. Computes raw indicators for each instrument.
+      2. Applies normalization (z-score, rank, etc.).
+      3. Combines into a composite signal per instrument per date.
+    """
+
+    def __init__(self, signal_def: SignalDefinition) -> None:
+        self.signal_def = signal_def
+
+    def compute_raw(
+        self, price_data: dict[str, pd.DataFrame]
+    ) -> dict[str, pd.DataFrame]:
+        """Compute raw indicator values for all instruments.
+
+        Returns:
+            ``{ticker: DataFrame}`` where each DataFrame has one column
+            per indicator, indexed by date.
+        """
+        results: dict[str, pd.DataFrame] = {}
+        for ticker, df in price_data.items():
+            if df.empty:
+                continue
+            indicator_values: dict[str, pd.Series] = {}
+            for indicator, config in self.signal_def.indicators:
+                try:
+                    raw = indicator.compute(df)
+                    indicator_values[config.name] = raw
+                except Exception:
+                    logger.warning(
+                        "Failed to compute %s for %s", config.name, ticker,
+                        exc_info=True,
+                    )
+            if indicator_values:
+                results[ticker] = pd.DataFrame(indicator_values)
+        return results
+
+    def normalize(
+        self, raw_data: dict[str, pd.DataFrame]
+    ) -> dict[str, pd.DataFrame]:
+        """Apply normalization to raw indicator values."""
+        normalized: dict[str, pd.DataFrame] = {}
+        for ticker, raw_df in raw_data.items():
+            norm_df = pd.DataFrame(index=raw_df.index)
+            for indicator, config in self.signal_def.indicators:
+                col = config.name
+                if col not in raw_df.columns:
+                    continue
+                series = raw_df[col]
+
+                if config.normalization == NormalizationMethod.ZSCORE:
+                    norm_df[col] = zscore_normalize(series, config.lookback_window)
+                elif config.normalization == NormalizationMethod.PERCENTILE:
+                    norm_df[col] = series.rolling(
+                        config.lookback_window, min_periods=20
+                    ).rank(pct=True)
+                elif config.normalization == NormalizationMethod.MIN_MAX:
+                    norm_df[col] = min_max_normalize(series, config.lookback_window)
+                elif config.normalization == NormalizationMethod.WINSORIZE:
+                    norm_df[col] = zscore_normalize(
+                        winsorize(series, config.winsorize_lower, config.winsorize_upper),
+                        config.lookback_window,
+                    )
+                else:
+                    norm_df[col] = series
+
+                # Flip sign if lower is better
+                if not config.higher_is_better:
+                    norm_df[col] = -norm_df[col]
+
+            normalized[ticker] = norm_df
+        return normalized
+
+    def combine(
+        self, normalized_data: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        """Combine normalized indicators into a composite signal per ticker.
+
+        Returns:
+            DataFrame with tickers as columns and dates as index,
+            containing the weighted composite signal.
+        """
+        weights = {
+            cfg.name: cfg.weight for _, cfg in self.signal_def.indicators
+        }
+        total_weight = sum(weights.values())
+        if total_weight == 0:
+            total_weight = 1.0
+
+        composite: dict[str, pd.Series] = {}
+        for ticker, norm_df in normalized_data.items():
+            weighted_sum = pd.Series(0.0, index=norm_df.index)
+            for col in norm_df.columns:
+                w = weights.get(col, 1.0)
+                weighted_sum += norm_df[col].fillna(0) * w
+            composite[ticker] = weighted_sum / total_weight
+
+        if not composite:
+            return pd.DataFrame()
+        return pd.DataFrame(composite)
+
+    def run(self, price_data: dict[str, pd.DataFrame]) -> pd.DataFrame:
+        """Full pipeline: compute, normalize, combine.
+
+        Returns:
+            Composite signal DataFrame (dates x tickers).
+        """
+        raw = self.compute_raw(price_data)
+        normalized = self.normalize(raw)
+        return self.combine(normalized)
+
+    def cross_sectional_rank(self, composite: pd.DataFrame) -> pd.DataFrame:
+        """Rank signals cross-sectionally (across tickers) each day."""
+        return composite.rank(axis=1, pct=True)
+
+
+# ---------------------------------------------------------------------------
+# Pre-built signal definitions
+# ---------------------------------------------------------------------------
+
+def momentum_signal(
+    lookback: int = 252,
+    skip: int = 21,
+    vol_window: int = 60,
+) -> SignalDefinition:
+    """Cross-sectional momentum signal (12-1 month momentum, vol-adjusted)."""
+    sig = SignalDefinition(
+        name="cross_sectional_momentum",
+        family=SignalFamily.MOMENTUM,
+        description="12-1 month price momentum, z-scored and volatility-adjusted",
+    )
+    sig.add_indicator(
+        MomentumReturn(lookback=lookback, skip=skip),
+        SignalConfig(
+            name="momentum_return",
+            description="12-1 month total return",
+            formula=rf"\text{{MOM}}_{{i,t}} = \frac{{P_{{i,t-{skip}}}}}{{P_{{i,t-{lookback}}}}} - 1",
+            normalization=NormalizationMethod.ZSCORE,
+            lookback_window=lookback,
+            weight=0.6,
+            higher_is_better=True,
+        ),
+    )
+    sig.add_indicator(
+        MovingAverageCrossover(short_window=50, long_window=200),
+        SignalConfig(
+            name="ma_crossover",
+            description="50/200 MA ratio",
+            formula=r"\text{MAC}_{i,t} = \frac{\text{SMA}(P, 50)}{\text{SMA}(P, 200)} - 1",
+            normalization=NormalizationMethod.ZSCORE,
+            lookback_window=lookback,
+            weight=0.25,
+            higher_is_better=True,
+        ),
+    )
+    sig.add_indicator(
+        VolatilitySignal(window=vol_window),
+        SignalConfig(
+            name="volatility",
+            description="Realized volatility (penalize high-vol names)",
+            formula=rf"\sigma_{{i,t}} = \text{{std}}(\text{{ret}}_i, {vol_window}) \times \sqrt{{252}}",
+            normalization=NormalizationMethod.ZSCORE,
+            lookback_window=lookback,
+            weight=0.15,
+            higher_is_better=False,
+        ),
+    )
+    return sig
+
+
+def mean_reversion_signal(
+    rsi_window: int = 14,
+    bb_window: int = 20,
+) -> SignalDefinition:
+    """Mean reversion signal based on RSI and Bollinger Band position."""
+    sig = SignalDefinition(
+        name="mean_reversion",
+        family=SignalFamily.MEAN_REVERSION,
+        description="Short-term mean reversion via RSI and Bollinger Band position",
+    )
+    sig.add_indicator(
+        RSIMeanReversion(window=rsi_window),
+        SignalConfig(
+            name="rsi_reversion",
+            description="RSI distance from neutral (positive when oversold)",
+            formula=rf"\text{{Signal}}_{{i,t}} = 50 - \text{{RSI}}(P, {rsi_window})",
+            normalization=NormalizationMethod.ZSCORE,
+            lookback_window=252,
+            weight=0.5,
+            higher_is_better=True,
+        ),
+    )
+    sig.add_indicator(
+        BollingerBandPosition(window=bb_window),
+        SignalConfig(
+            name="bb_position",
+            description="Bollinger Band position (low = oversold)",
+            formula=r"\text{BB\%} = \frac{P - BB_{lower}}{BB_{upper} - BB_{lower}}",
+            normalization=NormalizationMethod.RAW,
+            weight=0.3,
+            higher_is_better=False,  # Low position = buy signal
+        ),
+    )
+    sig.add_indicator(
+        VolumeRatio(window=20),
+        SignalConfig(
+            name="volume_ratio",
+            description="Volume relative to 20-day average",
+            formula=r"\text{VR} = \frac{V}{\text{SMA}(V, 20)}",
+            normalization=NormalizationMethod.RAW,
+            weight=0.2,
+            higher_is_better=False,  # Low volume on pullback = healthy
+        ),
+    )
+    return sig
