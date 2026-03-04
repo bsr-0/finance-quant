@@ -203,6 +203,7 @@ class SwingStrategyEngine:
             ) if equity > 0 else 0
             risk_state = self.risk_mgr.get_risk_state(
                 equity, len(open_positions), total_risk_pct,
+                daily_return=daily_ret,
             )
             self.risk_mgr.tick_cooldown()
 
