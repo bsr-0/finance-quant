@@ -28,6 +28,7 @@ from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +67,11 @@ def check_no_future_data(
         # The target should be NaN for the last row (since there's no future data)
         last_target = features[target_col].iloc[-1]
         if pd.notna(last_target):
-            # This alone doesn't prove look-ahead, but it's suspicious
-            # if the target is always available including the last bar
-            pass
+            violations.append(
+                f"Target column '{target_col}' has a non-NaN value on the last row "
+                f"({last_target}). This suggests the target may include future data, "
+                f"since the final observation should not yet have a realised outcome."
+            )
 
     # Check alignment: signals should not reference future feature data
     if not signals.index.is_monotonic_increasing:
@@ -138,12 +141,14 @@ def random_shuffle_test(
     # (i.e. z-score is low, meaning the strategy doesn't depend on order)
     suspicious = abs(z_score) < 2.0  # Not significantly better than random
 
+    # Two-sided p-value from normal distribution
+    p_value = float(2 * norm.sf(abs(z_score))) if std_shuffled > 0 else 1.0
     stats = {
         "original_metric": original_metric,
         "mean_shuffled": mean_shuffled,
         "std_shuffled": std_shuffled,
         "z_score": z_score,
-        "p_value_approx": float(1 - abs(z_score) / 10) if z_score != 0 else 1.0,
+        "p_value": p_value,
     }
 
     if suspicious:

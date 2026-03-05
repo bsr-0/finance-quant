@@ -105,9 +105,27 @@ def evt_tail_risk(returns: pd.Series, threshold_quantile: float = 0.95) -> dict[
         return {"tail_var": float("nan"), "tail_es": float("nan")}
 
     c, loc, scale = genpareto.fit(tail, floc=0)
+
+    # Goodness-of-fit: Kolmogorov-Smirnov test against fitted GPD
+    from scipy.stats import kstest
+    ks_stat, ks_pval = kstest(tail, "genpareto", args=(c, loc, scale))
+    if ks_pval < 0.05:
+        logger.warning(
+            "GPD fit failed KS test (p=%.4f, stat=%.4f). "
+            "Tail risk estimates may be unreliable.",
+            ks_pval, ks_stat,
+        )
+
     var = threshold + genpareto.ppf(0.99, c, loc=loc, scale=scale)
     es = threshold + (scale + c * var) / (1 - c) if c < 1 else float("nan")
-    return {"tail_var": float(-var), "tail_es": float(-es)}
+    return {
+        "tail_var": float(-var),
+        "tail_es": float(-es),
+        "gpd_shape": float(c),
+        "gpd_scale": float(scale),
+        "ks_stat": float(ks_stat),
+        "ks_pval": float(ks_pval),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +213,88 @@ def apply_hypothetical_shock(
         "spread_cost_increase": spread_cost,
         "total_impact": total_pnl - spread_cost,
         "per_symbol": per_symbol,
+    }
+
+
+def apply_correlated_shock(
+    positions: dict[str, float],
+    prices: dict[str, float],
+    shock: HypotheticalShock,
+    correlation_matrix: pd.DataFrame | None = None,
+    stress_correlation: float = 0.85,
+    n_simulations: int = 1000,
+    seed: int = 42,
+) -> dict[str, float]:
+    """Compute PnL impact under correlated stress scenario.
+
+    Unlike :func:`apply_hypothetical_shock`, this models the
+    empirical observation that correlations spike during crises.
+    When no correlation matrix is provided, assumes *stress_correlation*
+    across all positions.
+
+    Args:
+        positions: Symbol -> quantity (signed).
+        prices: Symbol -> current price.
+        shock: The hypothetical shock to apply.
+        correlation_matrix: Pre-stress correlation matrix (optional).
+        stress_correlation: Correlation to assume during stress if
+            no matrix is provided (default 0.85).
+        n_simulations: Number of Monte Carlo draws.
+        seed: Random seed.
+
+    Returns:
+        Dict with mean_pnl, var_95_pnl, cvar_95_pnl, worst_pnl.
+    """
+    rng = np.random.default_rng(seed)
+    symbols = [s for s in positions if positions[s] != 0 and prices.get(s, 0) > 0]
+    n_assets = len(symbols)
+    if n_assets == 0:
+        return {"mean_pnl": 0.0, "var_95_pnl": 0.0, "cvar_95_pnl": 0.0, "worst_pnl": 0.0}
+
+    # Build stress correlation matrix
+    if correlation_matrix is not None and all(s in correlation_matrix.index for s in symbols):
+        corr = correlation_matrix.loc[symbols, symbols].values.copy()
+        # Stress: shift correlations toward 1
+        corr = corr + stress_correlation * (1 - corr)
+        np.fill_diagonal(corr, 1.0)
+    else:
+        corr = np.full((n_assets, n_assets), stress_correlation)
+        np.fill_diagonal(corr, 1.0)
+
+    # Ensure positive semi-definite
+    eigvals, eigvecs = np.linalg.eigh(corr)
+    eigvals = np.maximum(eigvals, 1e-8)
+    corr = eigvecs @ np.diag(eigvals) @ eigvecs.T
+
+    # Simulate correlated shocks
+    try:
+        L = np.linalg.cholesky(corr)
+    except np.linalg.LinAlgError:
+        L = np.eye(n_assets)
+
+    z = rng.standard_normal((n_simulations, n_assets))
+    correlated_z = z @ L.T
+
+    # Scale shocks: mean = price_shock_pct, vol = |price_shock_pct| * 0.5
+    vol_scale = max(abs(shock.price_shock_pct) * 0.5, 0.01)
+    asset_shocks = shock.price_shock_pct + vol_scale * correlated_z
+
+    # Compute portfolio PnL for each simulation
+    pos_vec = np.array([positions[s] for s in symbols])
+    px_vec = np.array([prices[s] for s in symbols])
+    notional = pos_vec * px_vec
+
+    pnl_paths = asset_shocks @ notional
+    mean_pnl = float(np.mean(pnl_paths))
+    var_95 = float(np.percentile(pnl_paths, 5))
+    tail = pnl_paths[pnl_paths <= var_95]
+    cvar_95 = float(tail.mean()) if len(tail) > 0 else var_95
+
+    return {
+        "mean_pnl": mean_pnl,
+        "var_95_pnl": var_95,
+        "cvar_95_pnl": cvar_95,
+        "worst_pnl": float(np.min(pnl_paths)),
     }
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm as z_dist
 from scipy.stats import t as t_dist
 
 _TRADING_DAYS = 252
@@ -20,6 +21,58 @@ def information_ratio(returns: pd.Series, benchmark: pd.Series | None = None) ->
     if active.empty or active.std() == 0:
         return np.nan
     return float(active.mean() / active.std() * np.sqrt(_TRADING_DAYS))
+
+
+def sharpe_confidence_interval(
+    returns: pd.Series,
+    risk_free_rate: float = 0.0,
+    confidence: float = 0.95,
+) -> dict[str, float]:
+    """Sharpe ratio with confidence interval using Lo (2002) adjustment.
+
+    Accounts for skewness and kurtosis of the return distribution when
+    computing the standard error of the Sharpe ratio, rather than assuming
+    IID Gaussian returns.
+
+    Returns:
+        Dict with sharpe, se, ci_lower, ci_upper, p_value.
+    """
+    returns = returns.dropna()
+    n = len(returns)
+    if n < 10:
+        return {"sharpe": np.nan, "se": np.nan, "ci_lower": np.nan,
+                "ci_upper": np.nan, "p_value": np.nan}
+    excess = returns - risk_free_rate / _TRADING_DAYS
+    mu = float(excess.mean())
+    sigma = float(excess.std(ddof=1))
+    if sigma == 0:
+        return {"sharpe": np.nan, "se": np.nan, "ci_lower": np.nan,
+                "ci_upper": np.nan, "p_value": np.nan}
+
+    sr_daily = mu / sigma
+    sr_annual = sr_daily * np.sqrt(_TRADING_DAYS)
+
+    # Lo (2002) standard error adjusted for skewness/kurtosis
+    skew = float(excess.skew())
+    kurt = float(excess.kurtosis())  # excess kurtosis
+    se_daily = np.sqrt(
+        (1 + 0.5 * sr_daily**2 - skew * sr_daily
+         + (kurt / 4) * sr_daily**2) / n
+    )
+    se_annual = se_daily * np.sqrt(_TRADING_DAYS)
+
+    z = z_dist.ppf(1 - (1 - confidence) / 2)
+    ci_lower = sr_annual - z * se_annual
+    ci_upper = sr_annual + z * se_annual
+    p_value = float(2 * z_dist.sf(abs(sr_annual / se_annual))) if se_annual > 0 else np.nan
+
+    return {
+        "sharpe": float(sr_annual),
+        "se": float(se_annual),
+        "ci_lower": float(ci_lower),
+        "ci_upper": float(ci_upper),
+        "p_value": p_value,
+    }
 
 
 def hit_rate(y_true: pd.Series, y_pred: pd.Series) -> float:
@@ -114,8 +167,42 @@ def calibration_error(y_true: pd.Series, y_prob: pd.Series, bins: int = 10) -> f
     return float(ece)
 
 
-def regression_stats(x: pd.DataFrame, y: pd.Series) -> dict:
-    """OLS regression stats for factor exposures."""
+def _newey_west_cov(x_mat: np.ndarray, resid: np.ndarray, n_lags: int | None = None) -> np.ndarray:
+    """Newey-West HAC covariance estimator for OLS coefficients.
+
+    Produces heteroskedasticity- and autocorrelation-consistent (HAC)
+    standard errors, which are essential for financial time-series
+    regressions where residuals are typically both heteroskedastic
+    and serially correlated.
+    """
+    n, k = x_mat.shape
+    if n_lags is None:
+        n_lags = int(np.floor(4 * (n / 100) ** (2 / 9)))
+
+    # Meat of the sandwich: S = sum of weighted autocovariance matrices
+    u = resid.reshape(-1, 1)
+    xu = x_mat * u  # n x k
+    s_mat = xu.T @ xu / n  # lag-0
+
+    for lag in range(1, n_lags + 1):
+        weight = 1 - lag / (n_lags + 1)  # Bartlett kernel
+        gamma = xu[lag:].T @ xu[:-lag] / n
+        s_mat += weight * (gamma + gamma.T)
+
+    # Sandwich: (X'X)^{-1} S (X'X)^{-1} * n
+    xtx_inv = np.linalg.inv(x_mat.T @ x_mat / n)
+    return xtx_inv @ s_mat @ xtx_inv / n
+
+
+def regression_stats(x: pd.DataFrame, y: pd.Series, hac: bool = True) -> dict:
+    """OLS regression stats for factor exposures.
+
+    Args:
+        x: Regressor DataFrame (factors).
+        y: Dependent variable (returns).
+        hac: If True, use Newey-West HAC standard errors (recommended
+             for financial time-series). If False, use classical OLS SEs.
+    """
     x = x.dropna()
     y = y.loc[x.index].dropna()
     x = x.loc[y.index]
@@ -132,9 +219,14 @@ def regression_stats(x: pd.DataFrame, y: pd.Series) -> dict:
     preds = x_mat @ beta
     resid = y_vec - preds
     dof = max(len(y_vec) - x_mat.shape[1], 1)
-    s2 = (resid @ resid) / dof
-    cov = s2 * np.linalg.inv(x_mat.T @ x_mat)
-    se = np.sqrt(np.diag(cov))
+
+    if hac and len(y_vec) > 20:
+        cov = _newey_west_cov(x_mat, resid)
+    else:
+        s2 = (resid @ resid) / dof
+        cov = s2 * np.linalg.inv(x_mat.T @ x_mat)
+
+    se = np.sqrt(np.abs(np.diag(cov)))
     t_stats = beta / se
     p_vals = 2 * (1 - t_dist.cdf(np.abs(t_stats), dof))
     ss_tot = ((y_vec - y_vec.mean()) ** 2).sum()

@@ -16,23 +16,23 @@ class TechnicalIndicators:
     @staticmethod
     def sma(prices: pd.Series, window: int) -> pd.Series:
         """Simple Moving Average."""
-        return prices.rolling(window=window, min_periods=1).mean()
+        return prices.rolling(window=window, min_periods=window).mean()
 
     @staticmethod
     def ema(prices: pd.Series, window: int) -> pd.Series:
         """Exponential Moving Average."""
-        return prices.ewm(span=window, adjust=False, min_periods=1).mean()
+        return prices.ewm(span=window, adjust=False, min_periods=window).mean()
 
     @staticmethod
     def rsi(prices: pd.Series, window: int = 14) -> pd.Series:
         """Relative Strength Index."""
         delta = prices.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=window, min_periods=1).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=window, min_periods=1).mean()
+        gain = (delta.where(delta > 0, 0)).rolling(window=window, min_periods=window).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=window, min_periods=window).mean()
 
         rs = gain / loss.replace(0, np.nan)
         rsi = 100 - (100 / (1 + rs))
-        return rsi.fillna(50)
+        return rsi
 
     @staticmethod
     def macd(
@@ -52,7 +52,7 @@ class TechnicalIndicators:
     ) -> tuple[pd.Series, pd.Series, pd.Series]:
         """Bollinger Bands."""
         sma = TechnicalIndicators.sma(prices, window)
-        std = prices.rolling(window=window, min_periods=1).std()
+        std = prices.rolling(window=window, min_periods=window).std()
         upper = sma + (std * num_std)
         lower = sma - (std * num_std)
         return upper, sma, lower
@@ -67,7 +67,7 @@ class TechnicalIndicators:
         ranges = pd.concat([high_low, high_close, low_close], axis=1)
         true_range = ranges.max(axis=1)
 
-        return true_range.rolling(window=window, min_periods=1).mean()
+        return true_range.rolling(window=window, min_periods=window).mean()
 
     @staticmethod
     def obv(close: pd.Series, volume: pd.Series) -> pd.Series:
@@ -90,12 +90,12 @@ class TechnicalIndicators:
         high: pd.Series, low: pd.Series, close: pd.Series, k_window: int = 14, d_window: int = 3
     ) -> tuple[pd.Series, pd.Series]:
         """Stochastic Oscillator."""
-        lowest_low = low.rolling(window=k_window, min_periods=1).min()
-        highest_high = high.rolling(window=k_window, min_periods=1).max()
+        lowest_low = low.rolling(window=k_window, min_periods=k_window).min()
+        highest_high = high.rolling(window=k_window, min_periods=k_window).max()
 
         k = 100 * (close - lowest_low) / (highest_high - lowest_low)
-        k = k.replace([np.inf, -np.inf], 50).fillna(50)
-        d = k.rolling(window=d_window, min_periods=1).mean()
+        k = k.replace([np.inf, -np.inf], np.nan)
+        d = k.rolling(window=d_window, min_periods=d_window).mean()
 
         return k, d
 
@@ -114,11 +114,11 @@ class TechnicalIndicators:
         high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14
     ) -> pd.Series:
         """Williams %R."""
-        highest_high = high.rolling(window=window, min_periods=1).max()
-        lowest_low = low.rolling(window=window, min_periods=1).min()
+        highest_high = high.rolling(window=window, min_periods=window).max()
+        lowest_low = low.rolling(window=window, min_periods=window).min()
 
         wr = -100 * (highest_high - close) / (highest_high - lowest_low)
-        return wr.replace([np.inf, -np.inf], -50).fillna(-50)
+        return wr.replace([np.inf, -np.inf], np.nan)
 
     @staticmethod
     def calculate_all(
@@ -197,16 +197,16 @@ class ContractFeatureEngineer:
         features["price_return_24h"] = prices.pct_change(24)
 
         # Moving averages
-        features["price_sma_6h"] = prices.rolling(6, min_periods=1).mean()
-        features["price_sma_24h"] = prices.rolling(24, min_periods=1).mean()
+        features["price_sma_6h"] = prices.rolling(6, min_periods=None).mean()
+        features["price_sma_24h"] = prices.rolling(24, min_periods=None).mean()
 
         # Volatility
-        features["price_volatility_6h"] = prices.rolling(6, min_periods=1).std()
-        features["price_volatility_24h"] = prices.rolling(24, min_periods=1).std()
+        features["price_volatility_6h"] = prices.rolling(6, min_periods=None).std()
+        features["price_volatility_24h"] = prices.rolling(24, min_periods=None).std()
 
         # Extremes
-        features["price_max_24h"] = prices.rolling(24, min_periods=1).max()
-        features["price_min_24h"] = prices.rolling(24, min_periods=1).min()
+        features["price_max_24h"] = prices.rolling(24, min_periods=None).max()
+        features["price_min_24h"] = prices.rolling(24, min_periods=None).min()
         features["price_range_24h"] = features["price_max_24h"] - features["price_min_24h"]
 
         # Momentum
@@ -243,8 +243,8 @@ class ContractFeatureEngineer:
         w = window_map.get(window, 24)
 
         features = pd.DataFrame(index=hourly.index)
-        features["volume_rolling"] = hourly["volume"].rolling(w, min_periods=1).sum()
-        features["trade_count_rolling"] = hourly["trade_count"].rolling(w, min_periods=1).sum()
+        features["volume_rolling"] = hourly["volume"].rolling(w, min_periods=None).sum()
+        features["trade_count_rolling"] = hourly["trade_count"].rolling(w, min_periods=None).sum()
         features["avg_trade_size"] = hourly["avg_trade_size"]
         features["price_volatility"] = hourly["price_std"]
         features["bid_ask_spread_est"] = hourly["price_max"] - hourly["price_min"]

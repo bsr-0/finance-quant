@@ -188,12 +188,22 @@ class RiskConstraintSet:
         if ct == ConstraintType.PORTFOLIO_RISK:
             if volatilities is None:
                 return 0.0
-            # Simplified: sum of |w_i| * sigma_i (ignores correlations)
-            risk = sum(
-                abs(weights.get(t, 0)) * volatilities.get(t, 0)
-                for t in weights.index
-            )
-            return float(risk)
+            # Portfolio risk using correlation-aware calculation.
+            # When a covariance matrix is not available, we use an
+            # upper-bound estimate assuming average pairwise correlation
+            # of 0.5, which is more realistic than the zero-correlation
+            # assumption (sum of marginal risks) or the perfect-
+            # correlation assumption (which is what sum(|w|*sigma) gives).
+            w = np.array([weights.get(t, 0) for t in weights.index])
+            s = np.array([volatilities.get(t, 0) for t in weights.index])
+            # Variance = w' * Sigma * w where Sigma_ij = rho * s_i * s_j
+            # With uniform rho: var = sum(w_i^2 * s_i^2) + rho * sum_{i!=j}(w_i*s_i*w_j*s_j)
+            ws = w * s
+            var_independent = float(np.sum(ws**2))
+            cross_term = float(np.sum(ws) ** 2 - np.sum(ws**2))
+            avg_rho = 0.5  # conservative assumption for diversified portfolios
+            portfolio_var = var_independent + avg_rho * cross_term
+            return float(np.sqrt(max(0, portfolio_var)))
 
         if ct == ConstraintType.ADV_PARTICIPATION:
             if adv is None or shares is None or prices is None:

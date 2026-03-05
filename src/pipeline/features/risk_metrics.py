@@ -132,13 +132,45 @@ def parametric_var(
     confidence: float = 0.95,
     window: int = 60,
 ) -> pd.Series:
-    """Parametric (Gaussian) Value-at-Risk."""
+    """Parametric (Gaussian) Value-at-Risk.
+
+    .. warning:: Assumes Gaussian returns.  For fat-tailed distributions
+       use :func:`cornish_fisher_var` instead.
+    """
     from scipy.stats import norm
 
     z = norm.ppf(1 - confidence)
     mu = returns.rolling(window, min_periods=10).mean()
     sigma = returns.rolling(window, min_periods=10).std()
     return mu + z * sigma
+
+
+def cornish_fisher_var(
+    returns: pd.Series,
+    confidence: float = 0.95,
+    window: int = 252,
+) -> pd.Series:
+    """Cornish-Fisher VaR adjusting for skewness and kurtosis.
+
+    Provides a more accurate VaR estimate for non-Gaussian returns
+    by expanding the quantile function to account for the third and
+    fourth moments of the return distribution.
+    """
+    from scipy.stats import norm
+
+    z = norm.ppf(1 - confidence)
+    mu = returns.rolling(window, min_periods=60).mean()
+    sigma = returns.rolling(window, min_periods=60).std()
+    skew = returns.rolling(window, min_periods=60).skew()
+    kurt = returns.rolling(window, min_periods=60).kurt()  # excess kurtosis
+
+    # Cornish-Fisher expansion
+    z_cf = (z
+            + (z**2 - 1) * skew / 6
+            + (z**3 - 3 * z) * kurt / 24
+            - (2 * z**3 - 5 * z) * skew**2 / 36)
+
+    return mu + z_cf * sigma
 
 
 # ---------------------------------------------------------------------------
@@ -212,13 +244,24 @@ def calmar_ratio(prices: pd.Series, window: int = 252) -> pd.Series:
 # ---------------------------------------------------------------------------
 
 def rolling_skewness(returns: pd.Series, window: int = 60) -> pd.Series:
-    """Rolling skewness of returns."""
-    return returns.rolling(window, min_periods=10).skew()
+    """Rolling skewness of returns.
+
+    Default window is 60 observations.  Sample skewness from fewer
+    observations has standard error > 0.5; callers should use
+    ``window >= 60`` for meaningful estimates.
+    """
+    return returns.rolling(window, min_periods=window).skew()
 
 
-def rolling_kurtosis(returns: pd.Series, window: int = 60) -> pd.Series:
-    """Rolling excess kurtosis of returns."""
-    return returns.rolling(window, min_periods=10).kurt()
+def rolling_kurtosis(returns: pd.Series, window: int = 120) -> pd.Series:
+    """Rolling excess kurtosis of returns.
+
+    Default window is 120 observations.  Sample kurtosis is extremely
+    noisy — from 60 observations the standard error exceeds 1.0, making
+    point estimates unreliable for risk decisions.  Callers should use
+    ``window >= 120`` for meaningful estimates.
+    """
+    return returns.rolling(window, min_periods=window).kurt()
 
 
 # ---------------------------------------------------------------------------

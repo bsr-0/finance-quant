@@ -96,7 +96,9 @@ class TestATR:
             sample_ohlcv["close"],
             14,
         )
-        assert (result >= 0).all()
+        valid = result.dropna()
+        assert len(valid) > 0
+        assert (valid >= 0).all()
 
 
 class TestStochastic:
@@ -106,8 +108,10 @@ class TestStochastic:
             sample_ohlcv["low"],
             sample_ohlcv["close"],
         )
-        assert k.min() >= 0
-        assert k.max() <= 100
+        valid_k = k.dropna()
+        assert len(valid_k) > 0
+        assert valid_k.min() >= 0
+        assert valid_k.max() <= 100
 
 
 class TestCalculateAll:
