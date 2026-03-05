@@ -57,17 +57,26 @@ def rolling_mad(series: pd.Series, window: int = 60) -> pd.Series:
     )
 
 
-def mad_zscore(series: pd.Series, window: int = 60) -> pd.Series:
+def mad_zscore(
+    series: pd.Series,
+    window: int = 60,
+    consistency_constant: float = 0.6745,
+) -> pd.Series:
     """Modified Z-score using MAD instead of std.
 
     More robust to outliers than the classical Z-score.
-    ``score = 0.6745 * (x - median) / MAD``
+    ``score = consistency_constant * (x - median) / MAD``
+
+    .. warning:: The default consistency constant (0.6745) makes the
+       MAD comparable to standard deviation **only under normality**.
+       Financial returns have excess kurtosis of 3-10; for heavy-tailed
+       distributions, this scaling underestimates the true dispersion
+       and may flag too few outliers.  For Student-t with df=5 the
+       appropriate constant is approximately 0.559.
     """
     med = series.rolling(window, min_periods=10).median()
     m = rolling_mad(series, window)
-    # 0.6745 is the 0.75th quantile of the standard normal distribution,
-    # used to make the MAD comparable to std for normal data.
-    return 0.6745 * (series - med) / m.replace(0, np.nan)
+    return consistency_constant * (series - med) / m.replace(0, np.nan)
 
 
 # ---------------------------------------------------------------------------
@@ -207,3 +216,47 @@ def clean_returns(
     cleaned = winsorize(returns.copy(), winsor_pct[0], winsor_pct[1])
     cleaned[outliers] = np.nan
     return cleaned
+
+
+# ---------------------------------------------------------------------------
+# Stationarity Testing
+# ---------------------------------------------------------------------------
+
+def adf_stationarity_test(
+    series: pd.Series,
+    max_lags: int | None = None,
+    significance: float = 0.05,
+) -> dict[str, float | bool]:
+    """Augmented Dickey-Fuller test for stationarity.
+
+    Non-stationary series produce spurious correlations and invalid
+    regression results.  This test should be run on any series before
+    applying rolling statistics or factor regressions.
+
+    Args:
+        series: Time series to test (e.g. returns, log-prices).
+        max_lags: Maximum number of lags (auto-selected if None).
+        significance: Significance level for the test.
+
+    Returns:
+        Dict with adf_stat, p_value, is_stationary, n_lags, n_obs.
+    """
+    from statsmodels.tsa.stattools import adfuller
+
+    clean = series.dropna()
+    if len(clean) < 20:
+        return {
+            "adf_stat": np.nan,
+            "p_value": np.nan,
+            "is_stationary": False,
+            "n_lags": 0,
+            "n_obs": len(clean),
+        }
+    result = adfuller(clean.values, maxlag=max_lags, autolag="AIC")
+    return {
+        "adf_stat": float(result[0]),
+        "p_value": float(result[1]),
+        "is_stationary": bool(result[1] < significance),
+        "n_lags": int(result[2]),
+        "n_obs": int(result[3]),
+    }

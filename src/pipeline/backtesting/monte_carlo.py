@@ -76,6 +76,33 @@ class MonteCarloResult:
     paths: np.ndarray | None = None
 
 
+def optimal_block_size(returns: np.ndarray, max_lag: int = 50) -> int:
+    """Estimate optimal block size from autocorrelation structure.
+
+    Uses a simplified Politis-White (2004) approach: finds the smallest
+    lag at which the autocorrelation function becomes insignificant for
+    two consecutive lags, then sets block size to that lag.  Falls back
+    to the square-root-of-n rule if no clear cutoff is found.
+    """
+    n = len(returns)
+    if n < 30:
+        return max(1, n)
+    max_lag = min(max_lag, n // 3)
+    mean_r = np.mean(returns)
+    var_r = np.var(returns)
+    if var_r == 0:
+        return 1
+    threshold = 1.96 / np.sqrt(n)
+    last_significant = 0
+    for lag in range(1, max_lag + 1):
+        acf = np.mean((returns[lag:] - mean_r) * (returns[:-lag] - mean_r)) / var_r
+        if abs(acf) > threshold:
+            last_significant = lag
+    block = max(1, last_significant + 1)
+    # Bound between 5 and sqrt(n)
+    return int(np.clip(block, 5, int(np.sqrt(n))))
+
+
 def block_bootstrap(
     returns: np.ndarray,
     n_paths: int,

@@ -53,7 +53,16 @@ class PortfolioSimulator:
         prices: pd.DataFrame,
         adv: pd.DataFrame | None = None,
     ) -> pd.DataFrame:
-        """Simulate equity portfolio with cash and leverage constraints."""
+        """Simulate equity portfolio with cash and leverage constraints.
+
+        .. important:: ``target_positions`` must already incorporate signal
+           lag.  If a signal is generated from data available at time T,
+           the corresponding position change should appear at T+1 (or
+           later) in ``target_positions``.  This simulator executes
+           trades at the prices observed on each row's date — it does
+           **not** add any additional lag.  Failure to pre-shift positions
+           will introduce look-ahead bias.
+        """
         if target_positions.empty or prices.empty:
             return pd.DataFrame()
 
