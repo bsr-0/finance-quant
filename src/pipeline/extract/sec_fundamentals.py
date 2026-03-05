@@ -128,7 +128,10 @@ class SecFundamentalsExtractor:
             for unit_key, entries in units_dict.items():
                 for entry in entries:
                     form = entry.get("form", "")
-                    if form not in ("10-Q", "10-K"):
+                    # Detect amendments (e.g. 10-Q/A, 10-K/A)
+                    is_amendment = form.endswith("/A")
+                    base_form = form.replace("/A", "")
+                    if base_form not in ("10-Q", "10-K"):
                         continue
 
                     filed = entry.get("filed")
@@ -147,12 +150,37 @@ class SecFundamentalsExtractor:
                             "units": unit_key,
                             "fiscal_period_end": end,
                             "filing_date": filed,
-                            "form_type": form,
+                            "form_type": base_form,
+                            "original_form_type": form,
+                            "is_amendment": is_amendment,
                             "accession_number": entry.get("accn"),
                             "fiscal_year": entry.get("fy"),
                             "fiscal_period": entry.get("fp"),
                         }
                     )
+
+        return rows
+
+    @staticmethod
+    def _assign_filing_sequence(rows: list[dict]) -> list[dict]:
+        """Assign chronological filing_sequence per (ticker, metric, period).
+
+        Sequence 1 is the original filing; higher numbers are amendments
+        filed later.  This enables point-in-time queries that return only
+        the data available at a specific date.
+        """
+        from collections import defaultdict
+
+        groups: dict[tuple, list[int]] = defaultdict(list)
+        for i, row in enumerate(rows):
+            key = (row["ticker"], row["metric_name"], row["fiscal_period_end"])
+            groups[key].append(i)
+
+        for _key, indices in groups.items():
+            # Sort by filing_date, then by is_amendment (originals first)
+            indices.sort(key=lambda i: (rows[i]["filing_date"], rows[i]["is_amendment"]))
+            for seq, idx in enumerate(indices, start=1):
+                rows[idx]["filing_sequence"] = seq
 
         return rows
 
@@ -193,6 +221,7 @@ class SecFundamentalsExtractor:
                 with self._metrics.time_operation(f"extract_{ticker}"):
                     facts = self._fetch_company_facts(cik)
                     rows = self._parse_facts(facts, ticker, cik, metrics)
+                    rows = self._assign_filing_sequence(rows)
 
                 if not rows:
                     logger.warning(f"No fundamentals data for {ticker}")
@@ -229,6 +258,41 @@ class SecFundamentalsExtractor:
             time.sleep(self._rate_limit_delay)
 
         return saved_files
+
+
+def point_in_time_fundamentals(
+    df: pd.DataFrame,
+    as_of: date,
+) -> pd.DataFrame:
+    """Return fundamentals as known at a specific date.
+
+    For each ``(ticker, metric_name, fiscal_period_end)`` group, returns the
+    latest filing whose ``filing_date <= as_of``.  This ensures backtests
+    never use restated data that was not yet publicly available.
+
+    Args:
+        df: Raw fundamentals DataFrame with ``filing_date`` column (as
+            ``datetime.date`` or convertible).
+        as_of: The point-in-time cutoff date.
+
+    Returns:
+        Filtered DataFrame with one row per (ticker, metric, period).
+    """
+    if df.empty:
+        return df
+    if df["filing_date"].dtype != "object":
+        filing_col = pd.to_datetime(df["filing_date"]).dt.date
+    else:
+        filing_col = df["filing_date"]
+    available = df[filing_col <= as_of]
+    if available.empty:
+        return available
+    idx = available.groupby(
+        ["ticker", "metric_name", "fiscal_period_end"]
+    )["filing_date"].transform("max")
+    return available[available["filing_date"] == idx].drop_duplicates(
+        subset=["ticker", "metric_name", "fiscal_period_end"], keep="last",
+    )
 
 
 def extract_sec_fundamentals(

@@ -125,6 +125,48 @@ class TestWalkForwardValidate:
         assert "mae" in summary.columns
 
 
+class TestWalkForwardEmbargo:
+    def test_embargo_default_creates_gap(self, sample_df):
+        """Default embargo_size=5 creates a gap between train and test."""
+        splits = list(walk_forward_splits(sample_df.index, 100, 50))
+        for train_idx, test_idx in splits:
+            gap = test_idx[0] - train_idx[-1]
+            assert gap == 6  # 5 embargo + 1 for the next index
+
+    def test_embargo_zero_no_gap(self, sample_df):
+        """embargo_size=0 reproduces the old contiguous behavior."""
+        splits = list(walk_forward_splits(sample_df.index, 100, 50, embargo_size=0))
+        for train_idx, test_idx in splits:
+            assert test_idx[0] == train_idx[-1] + 1
+
+    def test_embargo_no_overlap(self, sample_df):
+        """No indices appear in both train and test or the embargo zone."""
+        embargo = 10
+        splits = list(walk_forward_splits(sample_df.index, 100, 50, embargo_size=embargo))
+        for train_idx, test_idx in splits:
+            train_set = set(train_idx)
+            test_set = set(test_idx)
+            embargo_zone = set(range(train_idx[-1] + 1, test_idx[0]))
+            assert len(train_set & test_set) == 0
+            assert len(train_set & embargo_zone) == 0
+            assert len(embargo_zone) == embargo
+
+    def test_embargo_reduces_fold_count(self, sample_df):
+        """Larger embargo means fewer folds fit in the same data."""
+        splits_0 = list(walk_forward_splits(sample_df.index, 100, 50, embargo_size=0))
+        splits_20 = list(walk_forward_splits(sample_df.index, 100, 50, embargo_size=20))
+        assert len(splits_0) >= len(splits_20)
+
+    def test_validate_passes_embargo(self, sample_df):
+        """walk_forward_validate accepts embargo_size parameter."""
+        result = walk_forward_validate(
+            sample_df, _dummy_train, _dummy_predict, _dummy_eval,
+            target_col="target", train_size=100, test_size=50, embargo_size=10,
+        )
+        assert isinstance(result, ValidationResult)
+        assert len(result.folds) >= 1
+
+
 # ---------------------------------------------------------------------------
 # Purged k-Fold Tests
 # ---------------------------------------------------------------------------

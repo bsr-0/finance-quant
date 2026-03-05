@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
 from pipeline.backtesting.transaction_costs import CostModel, FixedPlusSpreadModel, Trade
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -65,6 +68,19 @@ class PortfolioSimulator:
         """
         if target_positions.empty or prices.empty:
             return pd.DataFrame()
+
+        # Warn if ADV appears static (single value per symbol)
+        if adv is not None:
+            for col in adv.columns:
+                col_vals = adv[col].dropna()
+                if not col_vals.empty and col_vals.nunique() <= 1:
+                    logger.warning(
+                        "ADV for %s appears static (single value). "
+                        "Consider using compute_historical_adv() from "
+                        "pipeline.backtesting.liquidity for realistic "
+                        "liquidity constraints.",
+                        col,
+                    )
 
         prices = prices.sort_index()
         target_positions = target_positions.reindex(prices.index).fillna(0.0)

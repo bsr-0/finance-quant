@@ -67,7 +67,7 @@ def capacity_analysis(
     returns: pd.Series,
     trades_per_year: float,
     avg_price: float,
-    adv: float,
+    adv: float | pd.Series,
     capital_levels: list[float] | None = None,
     sigma: float = 0.02,
     eta: float = 0.25,
@@ -86,7 +86,9 @@ def capacity_analysis(
         returns: Daily gross return series (pre-cost).
         trades_per_year: Expected number of round-trip trades per year.
         avg_price: Average price per share / contract.
-        adv: Average daily volume in shares / contracts.
+        adv: Average daily volume in shares / contracts.  Accepts a scalar
+            (constant ADV) or a ``pd.Series`` of time-varying ADV values;
+            when a Series is provided the median is used for the sweep.
         capital_levels: List of AUM values to test (default: log-spaced from
             1× to 1000× the initial ``10 * avg_price`` level).
         sigma: Daily return volatility used in impact model.
@@ -103,6 +105,20 @@ def capacity_analysis(
     if returns.empty:
         raise ValueError("returns series is empty")
 
+    # Accept time-varying ADV series; use median for the scalar sweep
+    if isinstance(adv, pd.Series):
+        adv_series = adv.dropna()
+        adv_scalar = float(adv_series.median()) if not adv_series.empty else 0.0
+        logger.info(
+            "Using median ADV=%.0f from time-varying series "
+            "(p5=%.0f, p95=%.0f)",
+            adv_scalar,
+            adv_series.quantile(0.05),
+            adv_series.quantile(0.95),
+        )
+    else:
+        adv_scalar = float(adv)
+
     gross_mu = float(returns.mean() * trading_days)
     gross_sigma = float(returns.std() * np.sqrt(trading_days))
     gross_sharpe = gross_mu / gross_sigma if gross_sigma > 0 else np.nan
@@ -111,7 +127,7 @@ def capacity_analysis(
         "Capacity analysis: gross Sharpe=%.2f, trades/yr=%.0f, ADV=%.0f",
         gross_sharpe,
         trades_per_year,
-        adv,
+        adv_scalar,
     )
 
     if capital_levels is None:
@@ -124,7 +140,7 @@ def capacity_analysis(
 
     for capital in capital_levels:
         shares_per_trade = capital / avg_price if avg_price > 0 else 0
-        participation = shares_per_trade / adv if adv > 0 else 0
+        participation = shares_per_trade / adv_scalar if adv_scalar > 0 else 0
 
         # Square-root impact (fraction of notional)
         impact_frac = sigma * eta * np.sqrt(participation)

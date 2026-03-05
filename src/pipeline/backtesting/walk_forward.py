@@ -98,6 +98,7 @@ def walk_forward_splits(
     test_size: int,
     step_size: int | None = None,
     expanding: bool = True,
+    embargo_size: int = 5,
 ) -> Generator[tuple[np.ndarray, np.ndarray], None, None]:
     """Generate (train_indices, test_indices) for walk-forward validation.
 
@@ -107,6 +108,9 @@ def walk_forward_splits(
         test_size: Test window size.
         step_size: Slide step; defaults to *test_size* (non-overlapping).
         expanding: If True, training window grows; if False, it rolls.
+        embargo_size: Number of observations to skip between train and test
+            sets, preventing information leakage from overlapping labels
+            (e.g. multi-day forward returns).  Defaults to 5 (~1 trading week).
     """
     n = len(index)
     step = step_size or test_size
@@ -116,13 +120,14 @@ def walk_forward_splits(
         train_start = 0 if expanding else start
 
         train_end = start + train_size
-        test_end = train_end + test_size
+        test_start = train_end + embargo_size
+        test_end = test_start + test_size
 
         if test_end > n:
             break
 
         train_idx = np.arange(train_start, train_end)
-        test_idx = np.arange(train_end, test_end)
+        test_idx = np.arange(test_start, test_end)
         yield train_idx, test_idx
 
         start += step
@@ -138,6 +143,7 @@ def walk_forward_validate(
     test_size: int = 63,
     step_size: int | None = None,
     expanding: bool = True,
+    embargo_size: int = 5,
 ) -> ValidationResult:
     """Run walk-forward validation.
 
@@ -151,6 +157,7 @@ def walk_forward_validate(
         test_size: Test observations per fold.
         step_size: Slide step (defaults to *test_size*).
         expanding: Expanding or rolling window.
+        embargo_size: Observations to skip between train and test (default 5).
 
     Returns:
         ValidationResult with per-fold and aggregate metrics.
@@ -158,7 +165,7 @@ def walk_forward_validate(
     folds: list[FoldResult] = []
 
     for fold_i, (train_idx, test_idx) in enumerate(
-        walk_forward_splits(df.index, train_size, test_size, step_size, expanding)
+        walk_forward_splits(df.index, train_size, test_size, step_size, expanding, embargo_size)
     ):
         train_df = df.iloc[train_idx]
         test_df = df.iloc[test_idx]
