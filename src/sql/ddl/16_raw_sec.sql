@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS raw_sec_fundamentals (
     UNIQUE(ticker, metric_name, fiscal_period_end, form_type, accession_number)
 );
 
+-- Restatement tracking: detect amended filings and order by filing sequence.
+ALTER TABLE raw_sec_fundamentals ADD COLUMN IF NOT EXISTS is_amendment BOOLEAN DEFAULT FALSE;
+ALTER TABLE raw_sec_fundamentals ADD COLUMN IF NOT EXISTS original_form_type VARCHAR(10);
+ALTER TABLE raw_sec_fundamentals ADD COLUMN IF NOT EXISTS filing_sequence INTEGER DEFAULT 1;
+
 CREATE INDEX idx_raw_sec_fund_ticker ON raw_sec_fundamentals(ticker);
 CREATE INDEX idx_raw_sec_fund_filing ON raw_sec_fundamentals(filing_date);
 CREATE INDEX idx_raw_sec_fund_period ON raw_sec_fundamentals(fiscal_period_end);

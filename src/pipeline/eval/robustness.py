@@ -126,6 +126,38 @@ def holm_bonferroni(pvals: list[float]) -> list[float]:
     return adjusted
 
 
+def benjamini_hochberg(pvals: list[float], alpha: float = 0.05) -> list[bool]:
+    """Benjamini-Hochberg FDR control for multiple hypothesis testing.
+
+    Controls the expected proportion of false discoveries among rejected
+    hypotheses.  More powerful than Holm-Bonferroni (FWER) when many
+    hypotheses are tested simultaneously.
+
+    Args:
+        pvals: Raw p-values, one per hypothesis.
+        alpha: Target false discovery rate.
+
+    Returns:
+        List of booleans: ``True`` = reject null (signal is significant).
+    """
+    m = len(pvals)
+    if m == 0:
+        return []
+    sorted_idx = list(np.argsort(pvals))
+    rejected = [False] * m
+    # Find largest k such that p_(k) <= k/m * alpha
+    max_k = -1
+    for i, idx in enumerate(sorted_idx):
+        rank = i + 1
+        if pvals[idx] <= rank / m * alpha:
+            max_k = i
+    # Reject all hypotheses up to and including max_k
+    if max_k >= 0:
+        for i in range(max_k + 1):
+            rejected[sorted_idx[i]] = True
+    return rejected
+
+
 def probability_of_backtest_overfitting(train_scores: pd.Series, test_scores: pd.Series) -> float:
     """Estimate probability of backtest overfitting (PBO).
 
