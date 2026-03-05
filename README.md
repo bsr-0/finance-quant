@@ -11,6 +11,8 @@ This repository provides:
 - **Time-Correctness**: Every record carries `event_time` and `available_time` to prevent look-ahead bias
 - **Backtest-Ready Snapshots**: Generate consistent as-of views for any market/contract at any time `t`
 - **Data Quality**: Automated tests for time monotonicity, referential integrity, and anti-look-ahead
+- **Strategy Engine**: Signal generation, position sizing, risk management, and backtesting
+- **Market Making**: Quoting, spread computation, inventory management, and hedging
 
 ## Architecture
 
@@ -19,7 +21,9 @@ This repository provides:
 │   Data Sources  │────▶│  Raw Lake    │────▶│  Raw Tables     │
 │  (FRED/GDELT/   │     │  (Parquet)   │     │  (Append-only)  │
 │  Polymarket/    │     │              │     │                 │
-│  Yahoo Finance) │     │              │     │                 │
+│  Yahoo Finance/ │     │              │     │                 │
+│  SEC EDGAR/     │     │              │     │                 │
+│  Reddit/etc.)   │     │              │     │                 │
 └─────────────────┘     └──────────────┘     └─────────────────┘
                                                       │
                                                       ▼
@@ -34,8 +38,9 @@ This repository provides:
 
 ### Prerequisites
 
-- Python 3.11+
-- PostgreSQL 14+ (or Docker)
+- Python 3.11+ (3.12 also supported)
+- PostgreSQL 16+ (or Docker)
+- Docker & Docker Compose (recommended for local database)
 - Make (optional, for convenience commands)
 
 ### Installation
@@ -43,71 +48,158 @@ This repository provides:
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd market-data-warehouse
+cd finance-quant
 
 # Install dependencies
-make install
-# Or: pip install -e .
+pip install -e .
 
+# Or install with development tools (recommended)
+pip install -e ".[dev]"
+```
+
+### Environment Setup
+
+```bash
 # Copy environment template
 cp .env.example .env
-# Edit .env with your API keys
 ```
+
+Edit `.env` and configure the following:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DB_HOST` | Yes | Database host (default: `localhost`) |
+| `DB_PORT` | Yes | Database port (default: `5432`) |
+| `DB_NAME` | Yes | Database name (default: `market_data`) |
+| `DB_USER` | Yes | Database user (default: `postgres`) |
+| `DB_PASSWORD` | Yes | Database password |
+| `FRED_API_KEY` | Yes | API key from [FRED](https://fred.stlouisfed.org/docs/api/api_key.html) |
+| `PRICES_SOURCE` | No | Price data provider: `yahoo` (default), `alphavantage`, or `polygon` |
+| `PRICES_API_KEY` | No | Required if using `alphavantage` or `polygon` |
+| `POLYMARKET_RATE_LIMIT_PER_SEC` | No | Rate limit for Polymarket API (default: `5.0`) |
+| `INFRA_MAX_ASYNC_WORKERS` | No | Max async workers (default: `10`) |
+| `INFRA_BATCH_SIZE` | No | Batch size for data loading (default: `1000`) |
+| `INFRA_SNAPSHOT_MAX_WORKERS` | No | Snapshot worker count (default: `4`) |
 
 ### Database Setup
 
+**Option A: Using Make (recommended)**
+
 ```bash
-# Start PostgreSQL via Docker
-make db-up
+# Start PostgreSQL container and initialize schema
+make setup
+```
+
+This runs `make install`, `make db-up`, and `make db-init` in sequence.
+
+**Option B: Using Docker Compose**
+
+```bash
+# Start PostgreSQL (auto-initializes schema from src/sql/ddl/)
+docker compose up -d postgres
+
+# Optional: start pgAdmin for database management
+docker compose --profile admin up -d
+# pgAdmin available at http://localhost:5050 (admin@localhost.com / admin)
+```
+
+**Option C: Manual**
+
+```bash
+# Start PostgreSQL container
+docker run -d \
+    --name mdw-postgres \
+    -e POSTGRES_USER=postgres \
+    -e POSTGRES_PASSWORD=postgres \
+    -e POSTGRES_DB=market_data \
+    -p 5432:5432 \
+    postgres:16-alpine
 
 # Initialize schema
-make db-init
+python -m pipeline.cli init-db
 ```
 
-Or use Docker Compose:
+### Verify Setup
 
 ```bash
-docker-compose up -d postgres
+# Run the test suite
+make test
+
+# Run linting (if dev dependencies installed)
+make lint
 ```
 
-### Run Sample Pipeline
+### Run a Sample Pipeline
 
 ```bash
-# Full setup and sample data load
-make setup
-
-# Run complete pipeline
+# Extract, load, transform, build snapshots, and run DQ checks
 make full-pipeline
 ```
 
 ## Project Structure
 
 ```
-market-data-warehouse/
+finance-quant/
 ├── src/
 │   ├── pipeline/
-│   │   ├── cli.py              # Command-line interface
-│   │   ├── settings.py         # Configuration management
-│   │   ├── db.py               # Database utilities
-│   │   ├── extract/            # Data extractors
-│   │   │   ├── fred.py         # FRED economic data
-│   │   │   ├── gdelt.py        # GDELT world events
-│   │   │   ├── polymarket.py   # Polymarket prediction markets
-│   │   │   └── prices_daily.py # Daily OHLCV prices
-│   │   ├── load/               # Raw data loaders
-│   │   ├── transform/          # Curated transformations
-│   │   ├── snapshot/           # Snapshot builders
-│   │   └── dq/                 # Data quality tests
+│   │   ├── cli.py                  # CLI entry point (Typer)
+│   │   ├── settings.py             # Configuration management (Pydantic)
+│   │   ├── db.py                   # Database utilities
+│   │   ├── logging_config.py       # Logging setup
+│   │   ├── extract/                # Data extractors
+│   │   │   ├── fred.py             # FRED economic data
+│   │   │   ├── gdelt.py            # GDELT world events
+│   │   │   ├── polymarket.py       # Polymarket prediction markets
+│   │   │   ├── prices_daily.py     # Daily OHLCV prices (Yahoo/etc.)
+│   │   │   ├── sec_fundamentals.py # SEC EDGAR fundamentals
+│   │   │   ├── sec_insider.py      # Insider trading data
+│   │   │   ├── sec_13f.py          # Institutional holdings (13F)
+│   │   │   ├── options_data.py     # Options market data
+│   │   │   ├── earnings.py         # Earnings calendar
+│   │   │   ├── reddit_sentiment.py # Social media sentiment
+│   │   │   ├── short_interest.py   # Short interest data
+│   │   │   ├── etf_flows.py        # ETF fund flows
+│   │   │   └── factors_ff.py       # Fama-French factors
+│   │   ├── load/                   # Raw data loaders
+│   │   ├── transform/              # Curated transformations
+│   │   ├── snapshot/               # Point-in-time snapshot builders
+│   │   ├── dq/                     # Data quality tests
+│   │   ├── features/               # Feature engineering
+│   │   ├── backtesting/            # Backtesting engine
+│   │   ├── strategy/               # Strategy signals & execution
+│   │   ├── eval/                   # Performance evaluation & analysis
+│   │   ├── market_making/          # Market making engine
+│   │   ├── historical/             # Historical data management
+│   │   └── infrastructure/         # Async pools, circuit breakers, metrics
 │   └── sql/
-│       └── ddl/                # Database schema files
-├── tests/                      # Test suite
+│       └── ddl/                    # Database schema files (00-22)
+├── tests/                          # Test suite
 ├── data/
-│   └── raw/                    # Raw data lake (gitignored)
-├── config.yaml                 # Pipeline configuration
-├── docker-compose.yml          # Docker services
-├── Makefile                    # Convenience commands
-└── pyproject.toml              # Package configuration
+│   └── raw/                        # Raw data lake (gitignored)
+├── .env.example                    # Environment variable template
+├── config.yaml                     # Pipeline configuration
+├── docker-compose.yml              # Docker services
+├── Makefile                        # Convenience commands
+└── pyproject.toml                  # Package configuration
 ```
+
+## Data Sources
+
+| Source | Extractor | Description |
+|--------|-----------|-------------|
+| FRED | `fred.py` | 27 economic indicators (GDP, unemployment, CPI, credit spreads, FX, etc.) |
+| GDELT | `gdelt.py` | Global database of world events |
+| Polymarket | `polymarket.py` | Prediction market contracts, prices, trades, orderbooks |
+| Yahoo Finance | `prices_daily.py` | Daily OHLCV prices for a configurable ticker universe |
+| SEC EDGAR | `sec_fundamentals.py` | Company fundamentals from SEC filings |
+| SEC Insider | `sec_insider.py` | Insider trading transactions |
+| SEC 13F | `sec_13f.py` | Institutional holdings from 13F filings |
+| Options | `options_data.py` | Options chain data |
+| Earnings | `earnings.py` | Earnings calendar and results |
+| Reddit | `reddit_sentiment.py` | Sentiment from r/wallstreetbets, r/stocks, r/investing, r/options |
+| Short Interest | `short_interest.py` | Short interest data |
+| ETF Flows | `etf_flows.py` | ETF fund flow data |
+| Fama-French | `factors_ff.py` | Fama-French factor returns |
 
 ## Data Model
 
@@ -150,6 +242,8 @@ Every record carries two timestamps:
 
 ## CLI Usage
 
+The pipeline CLI is available as `python -m pipeline.cli` or as the `mdw` command (after installation):
+
 ### Extract Data
 
 ```bash
@@ -191,9 +285,6 @@ python -m pipeline.cli build-snapshots --contract <uuid1> --contract <uuid2>
 ```bash
 # Run all DQ tests
 python -m pipeline.cli dq
-
-# Or use make
-make test-dq
 ```
 
 ### Inventory
@@ -205,7 +296,7 @@ python -m pipeline.cli inventory
 
 ## Configuration
 
-Edit `config.yaml` to customize:
+Edit `config.yaml` to customize data sources, ticker universes, and pipeline settings:
 
 ```yaml
 # Database settings
@@ -230,13 +321,7 @@ prices:
     - AAPL
 ```
 
-Or use environment variables:
-
-```bash
-export DB_HOST=localhost
-export DB_PASSWORD=secret
-export FRED_API_KEY=your_key_here
-```
+Environment variables (from `.env`) override `config.yaml` values.
 
 ## Data Quality Tests
 
@@ -249,6 +334,49 @@ The pipeline includes comprehensive DQ tests:
 | **Referential Integrity** | Foreign keys reference valid records |
 | **Coverage Sanity** | No negative prices/volumes; prices in valid range |
 | **Snapshot Anti-Look-Ahead** | Snapshots don't include future data |
+
+## Testing
+
+```bash
+# Run all tests
+make test
+
+# Run specific test file
+pytest tests/test_dq.py -v
+
+# Run with coverage
+pytest --cov=src --cov-report=html
+```
+
+## Makefile Commands
+
+| Command | Description |
+|---------|-------------|
+| `make help` | Show all available commands |
+| `make setup` | Full setup: install deps, start DB, init schema |
+| `make install` | Install package dependencies |
+| `make install-dev` | Install with dev dependencies (black, ruff, mypy, pytest) |
+| `make db-up` | Start PostgreSQL via Docker |
+| `make db-down` | Stop PostgreSQL container |
+| `make db-init` | Initialize database schema |
+| `make db-reset` | Reset database (stop, start, re-init) |
+| `make extract-fred` | Extract and load FRED data |
+| `make extract-gdelt` | Extract and load GDELT data |
+| `make extract-prices` | Extract and load price data |
+| `make extract-polymarket` | Extract and load Polymarket data |
+| `make extract-all` | Extract and load all configured sources |
+| `make transform` | Run curated transformations |
+| `make snapshots` | Build training snapshots |
+| `make full-pipeline` | Run complete pipeline (extract, transform, snapshot, DQ) |
+| `make test` | Run all tests |
+| `make test-dq` | Run data quality tests |
+| `make test-snapshots` | Run snapshot tests |
+| `make lint` | Run ruff and mypy checks |
+| `make format` | Format code with black and ruff |
+| `make inventory` | Show data inventory |
+| `make clean` | Clean generated files and caches |
+| `make docker-up` | Start all services via Docker Compose |
+| `make docker-down` | Stop all Docker Compose services |
 
 ## Adding a New Source
 
@@ -286,61 +414,6 @@ def extract_newsource(...):
     ...
 ```
 
-## Snapshot Builder
-
-The snapshot builder creates point-in-time features for training:
-
-```python
-from pipeline.snapshot.contract_snapshots import ContractSnapshotBuilder
-
-builder = ContractSnapshotBuilder()
-snapshot = builder.build_contract_snapshot(
-    contract_id=uuid,
-    asof_ts=datetime(2024, 11, 1, 12, 0, 0)
-)
-
-# Returns:
-# {
-#     "contract_id": uuid,
-#     "asof_ts": datetime,
-#     "implied_p_yes": 0.65,
-#     "spread": 0.02,
-#     "volume_24h": 15000.0,
-#     "macro_panel": {"UNRATE": 4.1, "GDP": ...},
-#     "news_counts": {"1h": 5, "24h": 45},
-#     ...
-# }
-```
-
-## Testing
-
-```bash
-# Run all tests
-make test
-
-# Run specific test file
-pytest tests/test_dq.py -v
-
-# Run with coverage
-pytest --cov=src --cov-report=html
-```
-
-## Makefile Commands
-
-| Command | Description |
-|---------|-------------|
-| `make setup` | Full setup: install deps, start DB, init schema |
-| `make db-up` | Start PostgreSQL via Docker |
-| `make db-init` | Initialize database schema |
-| `make extract-all` | Extract all configured sources |
-| `make transform` | Run curated transformations |
-| `make snapshots` | Build training snapshots |
-| `make full-pipeline` | Run complete pipeline |
-| `make test` | Run all tests |
-| `make dq` | Run data quality tests |
-| `make inventory` | Show data inventory |
-| `make clean` | Clean generated files |
-
 ## Engineering Notes
 
 ### Survivorship Bias
@@ -357,7 +430,7 @@ Store full rule text for prediction market contracts. Ambiguity is a major risk 
 
 ### Schema Evolution
 
-Add `schema_version` fields to raw tables or maintain migration scripts for schema changes.
+Database schema is managed via numbered DDL files in `src/sql/ddl/` (00 through 22). Files are applied in order. Add new migrations with the next available number.
 
 ## License
 
@@ -367,9 +440,12 @@ MIT License
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Run tests: `make test`
-5. Submit a pull request
+3. Install dev dependencies: `pip install -e ".[dev]"`
+4. Make your changes
+5. Format code: `make format`
+6. Run linting: `make lint`
+7. Run tests: `make test`
+8. Submit a pull request
 
 ## Support
 
