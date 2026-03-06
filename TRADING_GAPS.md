@@ -79,7 +79,8 @@ these generate external notifications.
 **Impact:** Single point of failure if the pullback-reversion edge decays.
 
 - QSG-MICRO-SWING-001 (pullback reversion): VIABLE, designed for micro-capital
-- QSG-SYSTEMATIC-MOM-001 (momentum): BROKEN — negative CAGR, do not trade
+- QSG-SYSTEMATIC-MOM-001 (momentum): REDESIGNED — multi-timeframe (6-1 + 3-1 month),
+  crash protection, higher signal threshold (0.3), tighter exits. Requires paper validation.
 
 Running a single strategy on mega-cap US stocks concentrates risk.
 

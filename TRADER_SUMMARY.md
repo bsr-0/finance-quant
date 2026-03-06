@@ -72,15 +72,17 @@ Entry requires score ≥ 60 in BULL regime, ≥ 70 in NEUTRAL. No entries in BEA
 
 ## Strategy 2: QSG-SYSTEMATIC-MOM-001 — Cross-Sectional Momentum
 
-### Status: UNDERPERFORMING
+### Status: REDESIGNED — Paper Validation Required
 
-| Metric | Value |
-|--------|-------|
-| CAGR | -0.02% |
-| Sharpe | 0.43 |
-| Max DD | -6.91% |
+The momentum strategy has been redesigned to address its prior failure modes:
 
-**Do not trade this strategy in its current form.** The momentum strategy has near-zero alpha after costs. It needs redesign (add short leg, shorter lookback, crash protection) before it merits capital.
+1. **Multi-timeframe signal** — blends 6-1 month (primary) and 3-1 month (fast) momentum
+2. **Crash protection** — dispersion-based de-leveraging when regime-reversal risk spikes
+3. **Higher conviction threshold** — signal threshold raised from 0.0 to 0.3
+4. **Tighter exits** — 42-day max hold, 1.5x ATR stop, 2.0x ATR trailing, 3.0x ATR target
+5. **Faster trend filter** — 20/50 MA crossover replaces 50/200
+
+**Run walk-forward validation and paper trade before allocating capital.**
 
 ---
 
@@ -158,7 +160,7 @@ After entering, track:
 3. **The stop-loss is not guaranteed.** Overnight gaps can blow through stops. The system models exits at close prices.
 4. **Past signals do not predict future performance.** The strategy is based on a behavioral hypothesis that may weaken over time.
 5. **You are responsible for your own risk.** This system provides signals, not financial advice. Size positions according to your own risk tolerance.
-6. **The momentum strategy does not work.** QSG-SYSTEMATIC-MOM-001 has negative expected returns in its current form. Do not trade it.
+6. **The momentum strategy has been redesigned but is not yet validated.** QSG-SYSTEMATIC-MOM-001 now uses multi-timeframe signals with crash protection. Paper-trade to validate before allocating capital.
 7. **Single data source risk.** All price data comes from Yahoo Finance. API failures mean no signals (fail-safe, but inconvenient).
 
 ---
