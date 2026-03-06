@@ -1080,7 +1080,10 @@ def monitor_positions(
             else:
                 console.print("[yellow]No open positions — realtime feed not started[/yellow]")
 
-        guard_config = CapitalGuardConfig()
+        settings = get_settings()
+        exec_cfg = settings.execution if hasattr(settings, "execution") else {}
+        max_cap = exec_cfg.get("max_capital", 300.0) if isinstance(exec_cfg, dict) else 300.0
+        guard_config = CapitalGuardConfig(max_capital=max_cap)
         monitor = PositionMonitor(broker=broker, guard_config=guard_config, realtime_feed=rt_feed)
         monitor.initialize()
 
