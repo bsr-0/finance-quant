@@ -12,6 +12,7 @@ This repository provides:
 - **Backtest-Ready Snapshots**: Generate consistent as-of views for any market/contract at any time `t`
 - **Data Quality**: Automated tests for time monotonicity, referential integrity, and anti-look-ahead
 - **Strategy Engine**: Signal generation, position sizing, risk management, and backtesting
+- **Execution Layer**: Live and paper trading via Alpaca, signal-to-order execution, capital guards, and position monitoring
 - **Market Making**: Quoting, spread computation, inventory management, and hedging
 
 ## Architecture
@@ -77,6 +78,16 @@ Edit `.env` and configure the following:
 | `PRICES_SOURCE` | No | Price data provider: `yahoo` (default), `alphavantage`, or `polygon` |
 | `PRICES_API_KEY` | No | Required if using `alphavantage` or `polygon` |
 | `POLYMARKET_RATE_LIMIT_PER_SEC` | No | Rate limit for Polymarket API (default: `5.0`) |
+| `ALPACA_API_KEY` | No | API key from [Alpaca](https://app.alpaca.markets/) (required for live/paper trading) |
+| `ALPACA_SECRET_KEY` | No | Alpaca secret key (required for live/paper trading) |
+| `ALPACA_BASE_URL` | No | Alpaca API URL (default: `https://paper-api.alpaca.markets`) |
+| `NOTIFY_SLACK_WEBHOOK_URL` | No | Slack webhook for trade/alert notifications |
+| `NOTIFY_SMTP_HOST` | No | SMTP host for email notifications |
+| `NOTIFY_SMTP_PORT` | No | SMTP port (default: `587`) |
+| `NOTIFY_SMTP_USER` | No | SMTP username |
+| `NOTIFY_SMTP_PASSWORD` | No | SMTP password |
+| `NOTIFY_EMAIL_FROM` | No | Sender email address |
+| `NOTIFY_EMAIL_TO` | No | Recipient email address |
 | `INFRA_MAX_ASYNC_WORKERS` | No | Max async workers (default: `10`) |
 | `INFRA_BATCH_SIZE` | No | Batch size for data loading (default: `1000`) |
 | `INFRA_SNAPSHOT_MAX_WORKERS` | No | Snapshot worker count (default: `4`) |
@@ -167,6 +178,7 @@ finance-quant/
 │   │   ├── features/               # Feature engineering
 │   │   ├── backtesting/            # Backtesting engine
 │   │   ├── strategy/               # Strategy signals & execution
+│   │   ├── execution/              # Live/paper trading (Alpaca broker, signal executor)
 │   │   ├── eval/                   # Performance evaluation & analysis
 │   │   ├── market_making/          # Market making engine
 │   │   ├── historical/             # Historical data management
@@ -285,6 +297,32 @@ python -m pipeline.cli build-snapshots --contract <uuid1> --contract <uuid2>
 ```bash
 # Run all DQ tests
 python -m pipeline.cli dq
+```
+
+### Strategy & Execution
+
+```bash
+# Generate trading signals
+python -m pipeline.cli generate-signals --strategy swing
+
+# Execute signals (paper trading by default)
+python -m pipeline.cli execute-signals --mode paper
+
+# Check trading status (positions, P&L, orders)
+python -m pipeline.cli trading-status
+
+# Monitor live prices via WebSocket feed
+python -m pipeline.cli monitor-prices --symbols SPY QQQ AAPL
+
+# Monitor open positions
+python -m pipeline.cli monitor-positions
+```
+
+### Evaluate Performance
+
+```bash
+# Run strategy evaluation
+python -m pipeline.cli evaluate --strategy swing --start 2024-01-01 --end 2024-12-31
 ```
 
 ### Inventory
