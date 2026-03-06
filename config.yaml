@@ -197,6 +197,23 @@ evaluation:
   slippage_bps: 2.0
   pm_fee_bps: 10.0
 
+# Alpaca broker / execution settings
+execution:
+  broker: alpaca
+  mode: paper  # paper or live
+  base_url: https://paper-api.alpaca.markets
+  max_capital: 300.0
+  risk_per_trade_pct: 0.02
+  max_positions: 2
+  order_type: limit
+  limit_offset_pct: 0.001
+  min_score: 60
+  min_confidence: LOW
+  require_cash_account: true
+  max_daily_orders: 10
+  signal_dir: signals
+  log_dir: logs/paper_trading
+
 # Pipeline defaults
 default_start_date: "2024-01-01"
 default_end_date: "2024-12-31"
