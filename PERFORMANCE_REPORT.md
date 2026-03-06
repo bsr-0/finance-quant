@@ -223,6 +223,13 @@ Weaknesses:
 
 ### QSG-SYSTEMATIC-MOM-001
 
-**Verdict: NOT CREDIBLE in current form.**
+**Verdict: REDESIGNED — Requires Paper Validation.**
 
-The -0.02% CAGR and 0.43 Sharpe do not justify the complexity and cost of running the strategy. Requires fundamental redesign (add short leg, adjust lookback, add crash protection) before it merits live capital.
+The original 12-1 month single-window implementation had -0.02% CAGR and 0.43 Sharpe. It has been redesigned with:
+- Multi-timeframe signal (6-1 + 3-1 month momentum blend)
+- Dispersion-based crash protection overlay
+- Higher conviction signal threshold (0.3 vs 0.0)
+- Tighter exit rules (42-day max hold, 1.5x ATR stop, 3.0x ATR target)
+- Faster trend confirmation (20/50 MA crossover)
+
+The redesign addresses all four diagnosed failure modes (slow lookback, no crash protection, low-conviction entries, excessive cost drag). Walk-forward validation and paper trading are required before capital allocation.

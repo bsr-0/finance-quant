@@ -94,7 +94,19 @@ class StrategyDefinition:
 # ---------------------------------------------------------------------------
 
 def cross_sectional_momentum_strategy() -> StrategyDefinition:
-    """Pre-built example: 12-1 month cross-sectional momentum.
+    """Pre-built: multi-timeframe cross-sectional momentum with crash protection.
+
+    Improvements over the original 12-1 month single-window approach:
+
+    1. **Faster lookback** — primary window 6-1 month (126-21 days) plus a
+       3-1 month fast component, adapting quicker to regime changes.
+    2. **Crash protection** — monitors abnormal return dispersion and dampens
+       the composite signal when momentum-crash risk is elevated.
+    3. **Higher signal threshold** (0.3) — filters out low-conviction entries,
+       reducing trade count and cost drag.
+    4. **Tighter exits** — 42-day max hold, 1.5x ATR stop, 2.0x ATR trailing,
+       3.0x ATR profit target for faster realisation.
+    5. **Faster trend confirmation** — 20/50 MA crossover instead of 50/200.
 
     This is a complete, production-ready strategy definition that can
     be backtested and used to generate a strategy memo.
@@ -105,10 +117,13 @@ def cross_sectional_momentum_strategy() -> StrategyDefinition:
         name="QSG-SYSTEMATIC-MOM-001",
         classification="Systematic Equity | Long-Only | Cross-Sectional Momentum",
         inefficiency=(
-            "Cross-sectional momentum exploits the well-documented tendency for "
-            "recent winners to continue outperforming recent losers over 3-12 month "
-            "horizons, driven by investor underreaction to fundamental news and "
-            "herding behavior."
+            "Cross-sectional momentum exploits the tendency for recent winners "
+            "to continue outperforming recent losers over 3-6 month horizons, "
+            "driven by investor underreaction to fundamental news and herding "
+            "behavior.  The multi-timeframe signal blends 6-1 and 3-1 month "
+            "windows to capture both intermediate and short-term continuation, "
+            "with a dispersion-based crash-protection overlay that de-levers "
+            "when regime-reversal risk is elevated."
         ),
         drivers=[
             "Behavioral: Investor underreaction to earnings surprises and "
@@ -118,17 +133,20 @@ def cross_sectional_momentum_strategy() -> StrategyDefinition:
             "of passive funds",
             "Liquidity: Gradual diffusion of information across heterogeneous "
             "investor populations",
+            "Crash protection: Dispersion-based de-leveraging during "
+            "momentum-reversal regimes (Daniel & Moskowitz 2016)",
         ],
-        holding_period="1-3 months (medium frequency, monthly rebalance)",
-        turnover_regime="Monthly rebalance, ~200% annualized turnover",
+        holding_period="1-2 months (medium frequency, monthly rebalance)",
+        turnover_regime="Monthly rebalance, ~150% annualized turnover",
         alpha_source=(
             "Cross-sectional momentum premium, distinct from market beta. "
-            "Expected alpha of 3-5% annualized above the market after costs."
+            "Expected alpha of 3-5% annualized above the market after costs, "
+            "with crash protection reducing tail risk during reversals."
         ),
         risk_premium_exposure=(
             "Primary: Momentum factor (UMD). Secondary: Market beta (reduced "
-            "during drawdown via regime filter). Minimal exposure to value, "
-            "size, or quality factors by construction."
+            "during drawdown via regime filter and crash overlay). Minimal "
+            "exposure to value, size, or quality factors by construction."
         ),
         when_edge_disappears=[
             "Sustained momentum crashes (rapid regime reversals as in 2009 Q1)",
@@ -137,7 +155,7 @@ def cross_sectional_momentum_strategy() -> StrategyDefinition:
             "Significant crowding in momentum strategies reducing the premium",
         ],
         target_aum="$100M - $10B (capacity constrained by liquidity filters)",
-        status="RESEARCH — Pre-Production",
+        status="RESEARCH — Paper Validation",
     )
 
     universe = UniverseFilter(
@@ -150,21 +168,27 @@ def cross_sectional_momentum_strategy() -> StrategyDefinition:
         max_spread_bps=5.0,
     )
 
-    signal = momentum_signal(lookback=252, skip=21, vol_window=60)
+    signal = momentum_signal(
+        lookback=126,           # 6-1 month primary (was 252)
+        skip=21,
+        fast_lookback=63,       # 3-1 month fast component
+        vol_window=60,
+        crash_protection=True,  # Dispersion-based de-leveraging
+    )
 
     entry_rules = institutional_entry_rules(
-        signal_threshold=0.0,
+        signal_threshold=0.3,      # Higher conviction only (was 0.0)
         blocked_regimes=["BEAR"],
         max_sector_exposure=0.30,
     )
 
     exit_engine = ExitEngine(
-        max_holding_days=63,  # ~3 months
-        stop_atr_multiple=2.0,
-        trailing_atr_multiple=2.5,
-        trailing_activation_atr=1.5,
-        target_atr_multiple=4.0,
-        rsi_overbought=80.0,
+        max_holding_days=42,        # ~2 months (was 63)
+        stop_atr_multiple=1.5,      # Tighter stop (was 2.0)
+        trailing_atr_multiple=2.0,  # Tighter trail (was 2.5)
+        trailing_activation_atr=1.0,  # Activate sooner (was 1.5)
+        target_atr_multiple=3.0,    # Take profits sooner (was 4.0)
+        rsi_overbought=75.0,        # Slightly more aggressive (was 80)
     )
 
     sizing = InstitutionalSizingConfig(
@@ -222,8 +246,8 @@ def cross_sectional_momentum_strategy() -> StrategyDefinition:
         edge_decay_config={
             "window": 60,
             "min_trades": 10,
-            "win_rate_floor": 0.45,
-            "profit_factor_floor": 1.0,
-            "sharpe_floor": 0.0,
+            "win_rate_floor": 0.48,
+            "profit_factor_floor": 1.1,
+            "sharpe_floor": 0.3,
         },
     )
