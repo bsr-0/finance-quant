@@ -19,6 +19,7 @@ that broker state matches system state.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -127,6 +128,8 @@ class SignalExecutor:
         reconciler: PositionReconciler | None = None,
         use_fractional_shares: bool = True,
         dry_run: bool = False,
+        fill_poll_interval: int = 5,
+        fill_poll_timeout: int = 120,
     ) -> None:
         """
         Args:
@@ -138,6 +141,10 @@ class SignalExecutor:
             use_fractional_shares: Allow fractional shares (Alpaca supports).
             dry_run: If True, do everything except submit orders. Useful for
                 validating the pipeline without risking capital.
+            fill_poll_interval: Seconds between fill status checks for
+                limit orders.
+            fill_poll_timeout: Maximum seconds to wait for a limit order
+                fill before cancelling.
         """
         self.broker = broker
         self.guard = CapitalGuard(config=guard_config, account_provider=broker)
@@ -146,6 +153,8 @@ class SignalExecutor:
         self.reconciler = reconciler or PositionReconciler(broker=broker)
         self.use_fractional_shares = use_fractional_shares
         self.dry_run = dry_run
+        self.fill_poll_interval = fill_poll_interval
+        self.fill_poll_timeout = fill_poll_timeout
 
         # Internal tracking for reconciliation
         self._system_positions: dict[str, SystemPosition] = {}
@@ -263,6 +272,9 @@ class SignalExecutor:
             })
             return result
 
+        # Track pending limit orders for fill polling
+        pending_order_ids: list[str] = []
+
         # Execute each signal
         for signal in signals:
             if signal.ticker in held_symbols:
@@ -376,10 +388,12 @@ class SignalExecutor:
                     held_symbols.add(signal.ticker)
                     self._system_positions[signal.ticker] = SystemPosition(
                         symbol=signal.ticker,
-                        qty=shares,
+                        qty=submitted.filled_qty or shares,
                         avg_entry_price=submitted.filled_avg_price or signal.entry_price,
                         side="long",
                     )
+                elif submitted.status in (OrderStatus.SUBMITTED, OrderStatus.PENDING, OrderStatus.PARTIAL):
+                    pending_order_ids.append(submitted.order_id)
 
                 result.details.append({
                     "ticker": signal.ticker,
@@ -422,6 +436,34 @@ class SignalExecutor:
                 })
                 logger.error("Broker rejected %s: %s", signal.ticker, e)
 
+        # Poll for fills on submitted limit orders
+        if not self.dry_run and pending_order_ids:
+            logger.info(
+                "Polling %d pending order(s) for fills (timeout=%ds)...",
+                len(pending_order_ids), self.fill_poll_timeout,
+            )
+            fill_results = self.poll_pending_orders(pending_order_ids)
+            for oid, order in fill_results.items():
+                if order.status == OrderStatus.FILLED:
+                    result.orders_filled += 1
+                    held_symbols.add(order.symbol)
+                    self._system_positions[order.symbol] = SystemPosition(
+                        symbol=order.symbol,
+                        qty=order.filled_qty,
+                        avg_entry_price=order.filled_avg_price,
+                        side="long",
+                    )
+                    notify(
+                        AlertSeverity.INFO,
+                        f"Order Filled — {order.symbol}",
+                        f"{order.filled_qty:.4f} shares @ ${order.filled_avg_price:.2f}",
+                        {"order_id": oid, "symbol": order.symbol},
+                    )
+                elif order.status in (
+                    OrderStatus.CANCELLED, OrderStatus.EXPIRED,
+                ):
+                    logger.info("Order %s (%s) → %s", oid, order.symbol, order.status.value)
+
         # Post-execution reconciliation (QAQC Layer 3)
         if not self.dry_run and result.orders_submitted > 0:
             recon = self.reconciler.reconcile(self._system_positions)
@@ -436,6 +478,62 @@ class SignalExecutor:
 
         logger.info(result.summary())
         return result
+
+    def poll_pending_orders(self, order_ids: list[str]) -> dict[str, Order]:
+        """Poll broker for fill status on submitted limit orders.
+
+        Waits up to ``fill_poll_timeout`` seconds, checking every
+        ``fill_poll_interval`` seconds.  Orders that are still open after
+        the timeout are cancelled.
+
+        Args:
+            order_ids: Broker order IDs to track.
+
+        Returns:
+            Mapping of order_id → final Order state.
+        """
+        if not order_ids:
+            return {}
+
+        pending = set(order_ids)
+        results: dict[str, Order] = {}
+        terminal = {
+            OrderStatus.FILLED, OrderStatus.CANCELLED,
+            OrderStatus.REJECTED, OrderStatus.EXPIRED,
+        }
+        deadline = time.monotonic() + self.fill_poll_timeout
+
+        while pending and time.monotonic() < deadline:
+            time.sleep(self.fill_poll_interval)
+            for oid in list(pending):
+                try:
+                    order = self.broker.get_order_status(oid)
+                    results[oid] = order
+                    if order.status in terminal:
+                        pending.discard(oid)
+                        logger.info(
+                            "Order %s → %s (filled=%.4f @ $%.2f)",
+                            oid, order.status.value,
+                            order.filled_qty, order.filled_avg_price,
+                        )
+                except (BrokerError, NotImplementedError) as e:
+                    logger.warning("Failed to poll order %s: %s", oid, e)
+                    pending.discard(oid)  # Remove from poll set on unrecoverable error
+
+        # Cancel orders still open after timeout
+        for oid in pending:
+            logger.warning("Order %s still open after %ds — cancelling", oid, self.fill_poll_timeout)
+            try:
+                self.broker.cancel_order(oid)
+                try:
+                    final = self.broker.get_order_status(oid)
+                    results[oid] = final
+                except (BrokerError, NotImplementedError):
+                    pass
+            except (BrokerError, NotImplementedError) as e:
+                logger.error("Failed to cancel timed-out order %s: %s", oid, e)
+
+        return results
 
     def _parse_signals(self, df: pd.DataFrame) -> list[ParsedSignal]:
         """Parse a signal DataFrame into typed signal objects."""

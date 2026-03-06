@@ -220,6 +220,74 @@ class EtfFlowsSettings(BaseSettings):
     ])
 
 
+class ExecutionSettings(BaseSettings):
+    """Alpaca broker execution settings.
+
+    Controls broker mode (paper/live), capital limits, order preferences,
+    and signal filtering.  All values can be overridden via environment
+    variables with the ``EXEC_`` prefix (e.g. ``EXEC_MAX_CAPITAL=500``).
+
+    The ``execution:`` block in config.yaml maps directly to these fields.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="EXEC_")
+
+    broker: str = "alpaca"
+    """Broker to use.  Currently only 'alpaca' is supported."""
+
+    mode: str = "paper"
+    """Trading mode: 'paper' (default, safe) or 'live' (real money)."""
+
+    base_url: str = "https://paper-api.alpaca.markets"
+    """Alpaca base URL.  Use paper-api for testing, api for live."""
+
+    max_capital: float = 300.0
+    """Hard cap on total deployed capital ($)."""
+
+    risk_per_trade_pct: float = 0.02
+    """Risk budget per trade as fraction of equity."""
+
+    max_positions: int = 2
+    """Maximum simultaneous open positions."""
+
+    order_type: str = "limit"
+    """Default order type: 'limit' or 'market'."""
+
+    limit_offset_pct: float = 0.001
+    """Offset from signal price for limit orders (e.g. 0.1% above)."""
+
+    min_score: int = 60
+    """Minimum signal composite score to execute."""
+
+    min_confidence: str = "LOW"
+    """Minimum signal confidence level."""
+
+    require_cash_account: bool = True
+    """Reject all orders if the broker account has margin enabled."""
+
+    max_daily_orders: int = 10
+    """Maximum orders per calendar day (prevents runaway loops)."""
+
+    signal_dir: str = "signals"
+    """Directory containing signal CSV files."""
+
+    log_dir: str = "logs/paper_trading"
+    """Directory for execution logs."""
+
+    fill_poll_interval_seconds: int = 5
+    """How often to poll for limit order fills (seconds)."""
+
+    fill_poll_timeout_seconds: int = 120
+    """Maximum time to wait for a limit order fill before cancelling."""
+
+    journal_dir: str = "logs/trade_journal"
+    """Directory for the trade journal (fill records)."""
+
+    @property
+    def is_paper(self) -> bool:
+        return self.mode.lower() == "paper" or "paper" in self.base_url.lower()
+
+
 class RealtimeFeedSettings(BaseSettings):
     """Real-time price feed settings (Alpaca WebSocket or REST polling)."""
 
@@ -380,6 +448,9 @@ class PipelineSettings(BaseSettings):
     sentiment: SentimentSettings = Field(default_factory=SentimentSettings)
     short_interest: ShortInterestSettings = Field(default_factory=ShortInterestSettings)
     etf_flows: EtfFlowsSettings = Field(default_factory=EtfFlowsSettings)
+
+    # Execution / broker
+    execution: ExecutionSettings = Field(default_factory=ExecutionSettings)
 
     # Real-time feed
     realtime_feed: RealtimeFeedSettings = Field(default_factory=RealtimeFeedSettings)
