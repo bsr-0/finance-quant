@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 from pipeline.features.risk_metrics import hurst_exponent
+from pipeline.infrastructure.notifier import AlertSeverity, notify
 
 logger = logging.getLogger(__name__)
 
@@ -170,13 +171,31 @@ class EdgeDecayMonitor:
                 metrics.alert_level = AlertLevel.RED
                 logger.critical("EDGE DECAY RED: %d metrics breached for %d months: %s",
                                 len(breaches), sustained_months, breaches)
+                notify(
+                    AlertSeverity.CRITICAL,
+                    "Edge Decay RED — Strategy Shutdown",
+                    f"{len(breaches)} metrics breached for {sustained_months} consecutive months.",
+                    {"breached": breaches, "sustained_months": sustained_months},
+                )
             else:
                 metrics.alert_level = AlertLevel.ORANGE
                 logger.warning("EDGE DECAY ORANGE: %d metrics breached: %s", len(breaches), breaches)
+                notify(
+                    AlertSeverity.WARNING,
+                    "Edge Decay ORANGE",
+                    f"{len(breaches)} metrics breached. Consider halting entries.",
+                    {"breached": breaches},
+                )
         elif len(breaches) >= 2:
             self._breach_history.append(len(breaches))
             metrics.alert_level = AlertLevel.ORANGE
             logger.warning("EDGE DECAY ORANGE: %d metrics breached: %s", len(breaches), breaches)
+            notify(
+                AlertSeverity.WARNING,
+                "Edge Decay ORANGE",
+                f"{len(breaches)} metrics breached. Consider halting entries.",
+                {"breached": breaches},
+            )
         elif len(breaches) >= 1:
             self._breach_history.append(len(breaches))
             metrics.alert_level = AlertLevel.YELLOW

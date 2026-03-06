@@ -36,6 +36,7 @@ from pipeline.execution.capital_guard import CapitalGuardConfig
 from pipeline.execution.position_monitor import PositionMonitor, TrackedPosition
 from pipeline.execution.reconciler import PositionReconciler
 from pipeline.execution.signal_executor import ExecutionResult, SignalExecutor
+from pipeline.infrastructure.notifier import AlertSeverity, notify
 from pipeline.strategy.risk import SwingRiskManager
 from pipeline.strategy.sizing import SizingConfig
 
@@ -178,6 +179,12 @@ class TradingRunner:
             logger.warning(
                 "*** LIVE TRADING MODE — Real money at risk ***"
             )
+            notify(
+                AlertSeverity.WARNING,
+                "Daily Run Started — LIVE MODE",
+                f"Live trading run started with max_capital=${self.config.max_capital:.2f}.",
+                {"signal_csv": str(signal_csv), "max_capital": self.config.max_capital},
+            )
 
         # Step 1: Check exits on existing positions
         logger.info("Step 1: Checking exits on existing positions...")
@@ -221,6 +228,17 @@ class TradingRunner:
         logger.info("=" * 60)
         logger.info("DAILY RUN COMPLETE — %s", exec_result.summary())
         logger.info("=" * 60)
+
+        notify(
+            AlertSeverity.INFO,
+            f"Daily Run Complete — {mode}",
+            exec_result.summary(),
+            {
+                "filled": exec_result.orders_filled,
+                "rejected": exec_result.orders_rejected,
+                "guard_blocked": exec_result.guard_rejections,
+            },
+        )
 
         return exec_result
 

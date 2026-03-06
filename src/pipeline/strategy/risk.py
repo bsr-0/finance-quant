@@ -13,6 +13,8 @@ from enum import IntEnum
 import numpy as np
 import pandas as pd
 
+from pipeline.infrastructure.notifier import AlertSeverity, notify
+
 logger = logging.getLogger(__name__)
 
 
@@ -145,6 +147,13 @@ class SwingRiskManager:
                 abs(daily_return) * 100,
                 self.max_daily_loss_pct * 100,
             )
+            notify(
+                AlertSeverity.WARNING,
+                "Daily Loss Limit Hit",
+                f"Loss of {abs(daily_return) * 100:.2f}% exceeds max {self.max_daily_loss_pct * 100:.1f}%. "
+                "New entries blocked.",
+                {"daily_return_pct": round(daily_return * 100, 2)},
+            )
 
         # Trigger cooldown on RED
         if dd_level == DrawdownLevel.RED and self._cooldown_remaining == 0:
@@ -152,6 +161,18 @@ class SwingRiskManager:
             logger.critical(
                 "RED ALERT: %.1f%% drawdown. Entering %d-day cooldown.",
                 abs(dd_pct) * 100, self.cooldown_days,
+            )
+            notify(
+                AlertSeverity.CRITICAL,
+                "RED Circuit Breaker — Drawdown",
+                f"Drawdown hit {abs(dd_pct) * 100:.1f}%. "
+                f"Entering {self.cooldown_days}-day cooldown. All entries blocked.",
+                {
+                    "equity": round(current_equity, 2),
+                    "peak_equity": round(self._peak_equity, 2),
+                    "drawdown_pct": round(abs(dd_pct) * 100, 1),
+                    "cooldown_days": self.cooldown_days,
+                },
             )
 
         return RiskState(

@@ -230,6 +230,36 @@ class RealtimeFeedSettings(BaseSettings):
     data_feed: str = "iex"  # iex (free) | sip (paid)
 
 
+class NotificationSettings(BaseSettings):
+    """Notification / alerting settings.
+
+    Supports Slack (webhook), email (SMTP), and console channels.
+    Channels are only activated when their required fields are set
+    (e.g. ``slack_webhook_url`` for Slack, ``smtp_host`` for email).
+    """
+
+    model_config = SettingsConfigDict(env_prefix="NOTIFY_")
+
+    enabled: bool = True
+
+    # Slack
+    slack_webhook_url: str = ""
+    slack_min_severity: str = "WARNING"  # INFO | WARNING | CRITICAL
+
+    # Email (SMTP)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    email_from: str = ""
+    email_to: list[str] = Field(default_factory=list)
+    email_min_severity: str = "CRITICAL"  # INFO | WARNING | CRITICAL
+
+    # Console (always on)
+    console_min_severity: str = "INFO"  # INFO | WARNING | CRITICAL
+
+
 class InfrastructureSettings(BaseSettings):
     """Infrastructure and performance settings."""
 
@@ -348,6 +378,9 @@ class PipelineSettings(BaseSettings):
 
     # Real-time feed
     realtime_feed: RealtimeFeedSettings = Field(default_factory=RealtimeFeedSettings)
+
+    # Notifications
+    notifications: NotificationSettings = Field(default_factory=NotificationSettings)
 
     # Infrastructure
     infrastructure: InfrastructureSettings = Field(default_factory=InfrastructureSettings)
