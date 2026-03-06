@@ -750,6 +750,189 @@ def generate_signals(
         console.print(sig_table)
 
 
+@app.command()
+def execute_signals(
+    signal_csv: Path = typer.Argument(..., help="Path to signal CSV file from generate-signals"),
+    max_capital: float = typer.Option(300.0, "--max-capital", help="Maximum capital to deploy ($)"),
+    max_positions: int = typer.Option(2, "--max-positions", help="Maximum simultaneous positions"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Validate everything but don't submit orders"),
+    paper: bool = typer.Option(True, "--paper/--live", help="Use paper trading (default) or live"),
+):
+    """Execute trading signals through Alpaca broker.
+
+    Reads a signal CSV (from generate-signals) and submits orders to
+    Alpaca with full QAQC capital guards.  Default mode is paper trading.
+
+    Requires ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables.
+
+    Examples:
+        # Paper trading (safe):
+        pipeline execute-signals data/signals/signals_20250306.csv --dry-run
+        pipeline execute-signals data/signals/signals_20250306.csv
+
+        # Live trading (real money):
+        pipeline execute-signals data/signals/signals_20250306.csv --live --max-capital 200
+    """
+    if not signal_csv.exists():
+        console.print(f"[red]Signal CSV not found: {signal_csv}[/red]")
+        raise typer.Exit(1)
+
+    if not paper and not dry_run:
+        console.print("[bold red]*** LIVE TRADING MODE — Real money at risk ***[/bold red]")
+        console.print(f"  Max capital: ${max_capital:.2f}")
+        console.print(f"  Max positions: {max_positions}")
+        confirm = typer.confirm("Are you sure you want to trade with real money?")
+        if not confirm:
+            console.print("[yellow]Aborted.[/yellow]")
+            raise typer.Exit(0)
+
+    # Set base URL based on mode
+    if paper:
+        os.environ.setdefault("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+    else:
+        os.environ.setdefault("ALPACA_BASE_URL", "https://api.alpaca.markets")
+
+    try:
+        from pipeline.execution.runner import RunnerConfig, TradingRunner
+        from pipeline.execution.alpaca_broker import AlpacaBroker
+
+        broker = AlpacaBroker.from_env()
+        config = RunnerConfig(
+            max_capital=max_capital,
+            max_positions=max_positions,
+            paper_mode=paper,
+            dry_run=dry_run,
+        )
+        runner = TradingRunner(broker=broker, config=config)
+
+        mode_label = "DRY RUN" if dry_run else ("PAPER" if paper else "LIVE")
+        console.print(f"[bold blue]Executing signals in {mode_label} mode...[/bold blue]")
+
+        # Show account status
+        status = runner.status()
+        status_table = Table(title="Account Status")
+        status_table.add_column("Field", style="cyan")
+        status_table.add_column("Value", justify="right")
+        status_table.add_row("Mode", mode_label)
+        status_table.add_row("Equity", f"${status.get('account_equity', 0):.2f}")
+        status_table.add_row("Cash", f"${status.get('account_cash', 0):.2f}")
+        status_table.add_row("Buying Power", f"${status.get('buying_power', 0):.2f}")
+        status_table.add_row("Open Positions", str(status.get('positions_count', 0)))
+        status_table.add_row("Max Capital", f"${max_capital:.2f}")
+        status_table.add_row("Margin Account", "YES ⚠️" if status.get('is_margin') else "NO ✓")
+        console.print(status_table)
+
+        # Execute
+        result = runner.run_daily(signal_csv)
+
+        # Show results
+        result_table = Table(title="Execution Results")
+        result_table.add_column("Metric", style="cyan")
+        result_table.add_column("Value", justify="right")
+        result_table.add_row("Signals Parsed", str(result.signals_parsed))
+        result_table.add_row("Signals Eligible", str(result.signals_eligible))
+        result_table.add_row("Orders Submitted", str(result.orders_submitted))
+        result_table.add_row("Orders Filled", str(result.orders_filled))
+        result_table.add_row("Orders Rejected", str(result.orders_rejected))
+        result_table.add_row("Guard Rejections", str(result.guard_rejections))
+        console.print(result_table)
+
+        if result.details:
+            detail_table = Table(title="Order Details")
+            detail_table.add_column("Ticker", style="cyan")
+            detail_table.add_column("Action", style="yellow")
+            detail_table.add_column("Details")
+            for d in result.details:
+                ticker = d.get("ticker", "—")
+                action = d.get("action", "—")
+                extra = ""
+                if "shares" in d:
+                    extra = f"{d['shares']:.4f} shares @ ${d.get('limit_price', d.get('price', 0)):.2f}"
+                elif "reason" in d:
+                    extra = d["reason"]
+                elif "summary" in d:
+                    extra = d["summary"]
+                detail_table.add_row(ticker, action, extra)
+            console.print(detail_table)
+
+        console.print(f"\n[green bold]✓ {result.summary()}[/green bold]")
+
+    except ImportError as e:
+        console.print(f"[red]Missing dependency: {e}[/red]")
+        console.print("[yellow]Install with: pip install alpaca-py[/yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Execution failed: {e}[/red]")
+        logger.exception("Signal execution failed")
+        raise typer.Exit(1)
+
+
+@app.command()
+def trading_status(
+    paper: bool = typer.Option(True, "--paper/--live", help="Check paper or live account"),
+):
+    """Show current Alpaca account and position status.
+
+    Examples:
+        pipeline trading-status
+        pipeline trading-status --live
+    """
+    if paper:
+        os.environ.setdefault("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+    else:
+        os.environ.setdefault("ALPACA_BASE_URL", "https://api.alpaca.markets")
+
+    try:
+        from pipeline.execution.alpaca_broker import AlpacaBroker
+
+        broker = AlpacaBroker.from_env()
+        account = broker.get_account_snapshot()
+        positions = broker.get_positions()
+
+        mode = "PAPER" if paper else "LIVE"
+        acct_table = Table(title=f"Alpaca Account ({mode})")
+        acct_table.add_column("Field", style="cyan")
+        acct_table.add_column("Value", justify="right")
+        acct_table.add_row("Equity", f"${account.equity:.2f}")
+        acct_table.add_row("Cash", f"${account.cash:.2f}")
+        acct_table.add_row("Buying Power", f"${account.buying_power:.2f}")
+        acct_table.add_row("Positions Value", f"${account.positions_market_value:.2f}")
+        acct_table.add_row("Position Count", str(account.position_count))
+        acct_table.add_row("Margin Account", "YES ⚠️" if account.is_margin_account else "NO ✓")
+        console.print(acct_table)
+
+        if positions:
+            pos_table = Table(title="Open Positions")
+            pos_table.add_column("Symbol", style="cyan")
+            pos_table.add_column("Qty", justify="right")
+            pos_table.add_column("Avg Entry", justify="right")
+            pos_table.add_column("Current", justify="right")
+            pos_table.add_column("P&L", justify="right")
+            pos_table.add_column("Side")
+
+            for p in positions:
+                pnl_style = "green" if p.unrealised_pnl >= 0 else "red"
+                pos_table.add_row(
+                    p.symbol,
+                    f"{p.qty:.4f}",
+                    f"${p.avg_entry_price:.2f}",
+                    f"${p.current_price:.2f}",
+                    f"[{pnl_style}]${p.unrealised_pnl:.2f}[/{pnl_style}]",
+                    p.side,
+                )
+            console.print(pos_table)
+        else:
+            console.print("[dim]No open positions[/dim]")
+
+    except ImportError as e:
+        console.print(f"[red]Missing dependency: {e}[/red]")
+        console.print("[yellow]Install with: pip install alpaca-py[/yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Failed to fetch status: {e}[/red]")
+        raise typer.Exit(1)
+
+
 def main():
     """Entry point for CLI."""
     app()
