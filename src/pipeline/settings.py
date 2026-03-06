@@ -108,12 +108,17 @@ class PriceSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="PRICES_")
 
-    source: str = "yahoo"  # or "alphavantage", "polygon"
+    source: str = "yahoo"  # yahoo | alpaca | polygon
+    fallback_source: Optional[str] = None  # Fallback if primary fails (alpaca | polygon | yahoo)
     api_key: Optional[str] = None
+    alpaca_api_key: Optional[str] = None  # Also reads ALPACA_API_KEY env var
+    alpaca_secret_key: Optional[str] = None  # Also reads ALPACA_SECRET_KEY env var
+    polygon_api_key: Optional[str] = None  # Also reads POLYGON_API_KEY env var
     enabled: bool = True
     market_close_time: str = "16:00:00"
     exchange_timezone: str = "America/New_York"
     vendor_delay_minutes: int = 15
+    adjust_corporate_actions: bool = True  # Auto-adjust prices for splits/dividends
     universe: list[str] = Field(
         default_factory=lambda: [
             "SPY",

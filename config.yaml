@@ -77,11 +77,16 @@ polymarket:
 
 prices:
   source: yahoo
+  fallback_source: alpaca  # Fallback if Yahoo Finance is unavailable
   api_key: null
+  alpaca_api_key: null   # Set via ALPACA_API_KEY env var
+  alpaca_secret_key: null # Set via ALPACA_SECRET_KEY env var
+  polygon_api_key: null  # Set via POLYGON_API_KEY env var
   enabled: true
   market_close_time: "16:00:00"
   exchange_timezone: "America/New_York"
   vendor_delay_minutes: 15
+  adjust_corporate_actions: true  # Auto-adjust prices for splits/dividends
   universe:
     - SPY
     - QQQ
