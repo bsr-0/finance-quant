@@ -933,6 +933,200 @@ def trading_status(
         raise typer.Exit(1)
 
 
+@app.command()
+def monitor_prices(
+    symbols: list[str] | None = typer.Option(None, "--symbol", "-s", help="Symbols to monitor"),  # noqa: B008
+    mode: str = typer.Option("websocket", "--mode", "-m", help="Feed mode: websocket or polling"),
+    interval: int = typer.Option(5, "--interval", "-i", help="Display refresh interval (seconds)"),
+    duration: int = typer.Option(0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)"),
+    paper: bool = typer.Option(True, "--paper/--live", help="Use paper or live API keys"),
+):
+    """Monitor real-time prices via Alpaca WebSocket or polling.
+
+    Streams live prices for the configured universe (or specified symbols)
+    and displays them in a refreshing table.  Useful for verifying feed
+    connectivity and observing intraday stop levels.
+
+    Examples:
+        pipeline monitor-prices
+        pipeline monitor-prices -s AAPL -s MSFT --mode polling
+        pipeline monitor-prices --duration 60
+    """
+    import time as _time
+
+    if paper:
+        os.environ.setdefault("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+
+    try:
+        from pipeline.execution.realtime_feed import RealtimePriceFeed
+
+        feed = RealtimePriceFeed.from_env(symbols=symbols)
+
+        # Override mode if specified
+        if mode != feed._mode:
+            feed._mode = mode
+
+        console.print(
+            f"[bold blue]Starting real-time price monitor "
+            f"(mode={feed._mode}, symbols={len(feed.symbols)})[/bold blue]"
+        )
+        console.print(
+            f"  Symbols: {', '.join(feed.symbols[:10])}"
+            + (f" ... +{len(feed.symbols) - 10} more" if len(feed.symbols) > 10 else "")
+        )
+        console.print("  Press Ctrl-C to stop\n")
+
+        feed.start()
+
+        # Wait briefly for initial data
+        _time.sleep(min(interval, 3))
+
+        start_time = _time.time()
+
+        try:
+            while True:
+                quotes = feed.get_all_latest()
+
+                table = Table(title=f"Live Prices ({datetime.now().strftime('%H:%M:%S')})")
+                table.add_column("Symbol", style="cyan")
+                table.add_column("Price", justify="right")
+                table.add_column("Bid", justify="right", style="dim")
+                table.add_column("Ask", justify="right", style="dim")
+                table.add_column("High", justify="right", style="green")
+                table.add_column("Low", justify="right", style="red")
+                table.add_column("Age", justify="right")
+                table.add_column("Source", style="dim")
+
+                for sym in sorted(feed.symbols):
+                    q = quotes.get(sym)
+                    if q:
+                        age = f"{q.age_seconds:.0f}s"
+                        age_style = "green" if q.age_seconds < 60 else (
+                            "yellow" if q.age_seconds < 120 else "red"
+                        )
+                        table.add_row(
+                            sym,
+                            f"${q.price:.2f}",
+                            f"${q.bid:.2f}" if q.bid > 0 else "—",
+                            f"${q.ask:.2f}" if q.ask > 0 else "—",
+                            f"${q.high:.2f}" if q.high > 0 else "—",
+                            f"${q.low:.2f}" if q.low > 0 else "—",
+                            f"[{age_style}]{age}[/{age_style}]",
+                            q.source.replace("alpaca_", ""),
+                        )
+                    else:
+                        table.add_row(sym, "—", "—", "—", "—", "—", "[red]no data[/red]", "")
+
+                console.print(table)
+
+                if duration > 0 and (_time.time() - start_time) >= duration:
+                    break
+
+                _time.sleep(interval)
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interrupted[/yellow]")
+
+        feed.stop()
+        console.print("[green]Feed stopped.[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Monitor failed: {e}[/red]")
+        logger.exception("Price monitor failed")
+        raise typer.Exit(1)
+
+
+@app.command()
+def monitor_positions(
+    poll_seconds: int = typer.Option(60, "--poll", "-p", help="Check interval in seconds"),
+    duration: int = typer.Option(0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)"),
+    paper: bool = typer.Option(True, "--paper/--live", help="Use paper or live keys"),
+    realtime: bool = typer.Option(True, "--realtime/--no-realtime", help="Use real-time prices for stop checks"),
+):
+    """Continuously monitor open positions with real-time stop enforcement.
+
+    Combines the existing PositionMonitor with the real-time price feed.
+    Checks exit conditions (stops, trailing stops, profit targets, time exits)
+    using live intraday prices instead of stale closing prices.
+
+    Examples:
+        pipeline monitor-positions --poll 30
+        pipeline monitor-positions --no-realtime  # use broker prices only
+    """
+    import time as _time
+
+    if paper:
+        os.environ.setdefault("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+
+    try:
+        from pipeline.execution.alpaca_broker import AlpacaBroker
+        from pipeline.execution.capital_guard import CapitalGuardConfig
+        from pipeline.execution.position_monitor import PositionMonitor
+        from pipeline.execution.realtime_feed import RealtimePriceFeed
+
+        broker = AlpacaBroker.from_env()
+
+        # Build feed if requested
+        rt_feed = None
+        if realtime:
+            positions = broker.get_positions()
+            if positions:
+                syms = [p.symbol for p in positions]
+                rt_feed = RealtimePriceFeed.create_for_positions(syms)
+                rt_feed.start()
+                console.print(
+                    f"[bold blue]Real-time feed started for {len(syms)} positions[/bold blue]"
+                )
+            else:
+                console.print("[yellow]No open positions — realtime feed not started[/yellow]")
+
+        settings = get_settings()
+        exec_cfg = settings.execution if hasattr(settings, "execution") else {}
+        max_cap = exec_cfg.get("max_capital", 300.0) if isinstance(exec_cfg, dict) else 300.0
+        guard_config = CapitalGuardConfig(max_capital=max_cap)
+        monitor = PositionMonitor(broker=broker, guard_config=guard_config, realtime_feed=rt_feed)
+        monitor.initialize()
+
+        mode_label = "PAPER" if paper else "LIVE"
+        console.print(
+            f"[bold blue]Position monitor started ({mode_label}, "
+            f"interval={poll_seconds}s, realtime={'ON' if rt_feed else 'OFF'})[/bold blue]"
+        )
+        console.print("  Press Ctrl-C to stop\n")
+
+        start_time = _time.time()
+
+        try:
+            while True:
+                result = monitor.check_and_exit()
+                console.print(f"  {result.summary()}")
+
+                for action in result.actions:
+                    style = "green" if action.success else "red"
+                    console.print(
+                        f"  [{style}]EXIT {action.symbol}: {action.reason.value} "
+                        f"→ P&L=${action.pnl_estimate:.2f} "
+                        f"({'OK' if action.success else action.error})[/{style}]"
+                    )
+
+                if duration > 0 and (_time.time() - start_time) >= duration:
+                    break
+
+                _time.sleep(poll_seconds)
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interrupted[/yellow]")
+
+        if rt_feed:
+            rt_feed.stop()
+        console.print("[green]Position monitor stopped.[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Position monitor failed: {e}[/red]")
+        logger.exception("Position monitor failed")
+        raise typer.Exit(1)
+
+
 def main():
     """Entry point for CLI."""
     app()

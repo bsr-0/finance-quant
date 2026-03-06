@@ -215,6 +215,21 @@ class EtfFlowsSettings(BaseSettings):
     ])
 
 
+class RealtimeFeedSettings(BaseSettings):
+    """Real-time price feed settings (Alpaca WebSocket or REST polling)."""
+
+    model_config = SettingsConfigDict(env_prefix="REALTIME_")
+
+    enabled: bool = False
+    source: str = "alpaca"  # alpaca | polygon
+    mode: str = "websocket"  # websocket | polling
+    poll_interval_seconds: int = 30
+    stale_threshold_seconds: int = 120
+    reconnect_max_retries: int = 5
+    reconnect_backoff_base: float = 2.0
+    data_feed: str = "iex"  # iex (free) | sip (paid)
+
+
 class InfrastructureSettings(BaseSettings):
     """Infrastructure and performance settings."""
 
@@ -330,6 +345,9 @@ class PipelineSettings(BaseSettings):
     sentiment: SentimentSettings = Field(default_factory=SentimentSettings)
     short_interest: ShortInterestSettings = Field(default_factory=ShortInterestSettings)
     etf_flows: EtfFlowsSettings = Field(default_factory=EtfFlowsSettings)
+
+    # Real-time feed
+    realtime_feed: RealtimeFeedSettings = Field(default_factory=RealtimeFeedSettings)
 
     # Infrastructure
     infrastructure: InfrastructureSettings = Field(default_factory=InfrastructureSettings)

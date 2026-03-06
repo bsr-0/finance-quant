@@ -32,6 +32,7 @@ from pipeline.execution.broker import (
     Position,
 )
 from pipeline.execution.capital_guard import CapitalGuardConfig, CapitalGuard
+from pipeline.execution.realtime_feed import PriceQuote, RealtimePriceFeed
 from pipeline.execution.reconciler import PositionReconciler, SystemPosition
 from pipeline.strategy.exits import ExitEngine, ExitReason, PositionState
 from pipeline.strategy.risk import DrawdownLevel, SwingRiskManager
@@ -129,12 +130,14 @@ class PositionMonitor:
         exit_engine: ExitEngine | None = None,
         risk_manager: SwingRiskManager | None = None,
         regime: str = "BULL",
+        realtime_feed: RealtimePriceFeed | None = None,
     ) -> None:
         self.broker = broker
         self.guard = CapitalGuard(config=guard_config, account_provider=broker)
         self.exit_engine = exit_engine or ExitEngine()
         self.risk_mgr = risk_manager or SwingRiskManager()
         self.regime = regime
+        self.realtime_feed = realtime_feed
 
         # Tracked positions with entry metadata
         self._tracked: dict[str, TrackedPosition] = {}
@@ -249,10 +252,29 @@ class PositionMonitor:
                 del self._tracked[symbol]
                 continue
 
-            # Build state for exit engine
+            # Build state for exit engine — prefer real-time prices when available
             pos_state = tracked.to_position_state()
-            current_close = broker_pos.current_price
-            current_high = broker_pos.current_price  # Best approximation without intraday high
+            rt_quote = (
+                self.realtime_feed.get_latest(symbol)
+                if self.realtime_feed and self.realtime_feed.is_running
+                else None
+            )
+
+            if rt_quote and not self.realtime_feed.is_stale(symbol):
+                current_close = rt_quote.price
+                current_high = rt_quote.high if rt_quote.high > 0 else rt_quote.price
+                logger.debug(
+                    "%s: using realtime price $%.2f (high=$%.2f, age=%.0fs)",
+                    symbol, current_close, current_high, rt_quote.age_seconds,
+                )
+            else:
+                current_close = broker_pos.current_price
+                current_high = broker_pos.current_price
+                if rt_quote:
+                    logger.warning(
+                        "%s: realtime quote stale (%.0fs), using broker price $%.2f",
+                        symbol, rt_quote.age_seconds, current_close,
+                    )
 
             exit_signal = self.exit_engine.check_exit(
                 position=pos_state,
@@ -312,6 +334,30 @@ class PositionMonitor:
 
         logger.info(result.summary())
         return result
+
+    def start_realtime_feed(self) -> None:
+        """Start the real-time feed for currently tracked symbols.
+
+        Creates a feed from environment variables if one wasn't provided
+        at construction time.  No-op if the feed is already running.
+        """
+        symbols = list(self._tracked.keys())
+        if not symbols:
+            logger.info("No tracked positions — skipping realtime feed start")
+            return
+
+        if self.realtime_feed is None:
+            self.realtime_feed = RealtimePriceFeed.create_for_positions(symbols)
+
+        if not self.realtime_feed.is_running:
+            # Ensure all tracked symbols are subscribed
+            self.realtime_feed.add_symbols(symbols)
+            self.realtime_feed.start()
+
+    def stop_realtime_feed(self) -> None:
+        """Stop the real-time feed if running."""
+        if self.realtime_feed and self.realtime_feed.is_running:
+            self.realtime_feed.stop()
 
     @property
     def tracked_positions(self) -> dict[str, TrackedPosition]:

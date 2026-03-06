@@ -197,6 +197,17 @@ evaluation:
   slippage_bps: 2.0
   pm_fee_bps: 10.0
 
+# Real-time price feed settings
+realtime_feed:
+  enabled: false
+  source: alpaca        # alpaca | polygon
+  mode: websocket       # websocket | polling
+  poll_interval_seconds: 30
+  stale_threshold_seconds: 120
+  reconnect_max_retries: 5
+  reconnect_backoff_base: 2.0
+  data_feed: iex        # iex (free) | sip (paid, requires subscription)
+
 # Alpaca broker / execution settings
 execution:
   broker: alpaca
