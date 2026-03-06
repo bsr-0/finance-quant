@@ -35,6 +35,7 @@ from pipeline.execution.broker import (
 )
 from pipeline.execution.capital_guard import CapitalGuard, CapitalGuardConfig
 from pipeline.execution.reconciler import PositionReconciler, SystemPosition
+from pipeline.infrastructure.notifier import AlertSeverity, notify
 from pipeline.strategy.risk import DrawdownLevel, SwingRiskManager
 from pipeline.strategy.sizing import PositionSizer, SizingConfig
 
@@ -236,16 +237,29 @@ class SignalExecutor:
         )
 
         if not risk_state.can_open_new:
+            dd_name = DrawdownLevel(risk_state.drawdown_level).name
             logger.warning(
                 "Risk state blocks new entries: level=%s, consecutive_losses=%d, "
                 "cooldown=%d days",
-                DrawdownLevel(risk_state.drawdown_level).name,
+                dd_name,
                 risk_state.consecutive_losses,
                 risk_state.cooldown_remaining_days,
             )
+            notify(
+                AlertSeverity.WARNING,
+                "Entries Blocked by Risk State",
+                f"Level={dd_name}, consecutive_losses={risk_state.consecutive_losses}, "
+                f"cooldown={risk_state.cooldown_remaining_days}d. "
+                f"{len(signals_df)} signal(s) will not be executed.",
+                {
+                    "drawdown_level": dd_name,
+                    "consecutive_losses": risk_state.consecutive_losses,
+                    "cooldown_days": risk_state.cooldown_remaining_days,
+                },
+            )
             result.details.append({
                 "action": "BLOCKED_BY_RISK",
-                "drawdown_level": DrawdownLevel(risk_state.drawdown_level).name,
+                "drawdown_level": dd_name,
             })
             return result
 
@@ -384,6 +398,20 @@ class SignalExecutor:
                     submitted.order_id, signal.ticker, shares,
                     signal.entry_price, signal.stop_price, signal.target_1,
                     submitted.status.value,
+                )
+                notify(
+                    AlertSeverity.INFO,
+                    f"Order Submitted — {signal.ticker}",
+                    f"{shares:.4f} shares @ ${signal.entry_price:.2f} limit → {submitted.status.value}",
+                    {
+                        "order_id": submitted.order_id,
+                        "ticker": signal.ticker,
+                        "shares": shares,
+                        "limit_price": signal.entry_price,
+                        "stop": signal.stop_price,
+                        "target": signal.target_1,
+                        "status": submitted.status.value,
+                    },
                 )
 
             except BrokerError as e:

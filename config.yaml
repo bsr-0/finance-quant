@@ -197,6 +197,24 @@ evaluation:
   slippage_bps: 2.0
   pm_fee_bps: 10.0
 
+# Notification / alerting settings
+notifications:
+  enabled: true
+  # Slack: set webhook URL to enable (or use NOTIFY_SLACK_WEBHOOK_URL env var)
+  slack_webhook_url: ""
+  slack_min_severity: WARNING     # INFO | WARNING | CRITICAL
+  # Email: set smtp_host to enable (or use NOTIFY_SMTP_HOST env var)
+  smtp_host: ""
+  smtp_port: 587
+  smtp_user: ""
+  smtp_password: ""               # prefer NOTIFY_SMTP_PASSWORD env var
+  smtp_use_tls: true
+  email_from: ""
+  email_to: []
+  email_min_severity: CRITICAL    # INFO | WARNING | CRITICAL
+  # Console (always on)
+  console_min_severity: INFO      # INFO | WARNING | CRITICAL
+
 # Real-time price feed settings
 realtime_feed:
   enabled: false

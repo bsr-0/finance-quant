@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Any
 
 from pipeline.execution.broker import BaseBroker, Position
+from pipeline.infrastructure.notifier import AlertSeverity, notify
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +274,15 @@ class PositionReconciler:
                         "RECOMMEND TRADING HALT: %d critical discrepancies found. "
                         "Resolve before placing new orders.",
                         len(critical),
+                    )
+                    notify(
+                        AlertSeverity.CRITICAL,
+                        "Reconciliation — Trading Halt Recommended",
+                        f"{len(critical)} critical discrepancies between system and broker.",
+                        {
+                            "discrepancies": [str(d) for d in critical],
+                            "value_diff": round(result.value_discrepancy, 2),
+                        },
                     )
 
         return result

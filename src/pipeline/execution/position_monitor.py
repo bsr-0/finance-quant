@@ -34,6 +34,7 @@ from pipeline.execution.broker import (
 from pipeline.execution.capital_guard import CapitalGuardConfig, CapitalGuard
 from pipeline.execution.realtime_feed import PriceQuote, RealtimePriceFeed
 from pipeline.execution.reconciler import PositionReconciler, SystemPosition
+from pipeline.infrastructure.notifier import AlertSeverity, notify
 from pipeline.strategy.exits import ExitEngine, ExitReason, PositionState
 from pipeline.strategy.risk import DrawdownLevel, SwingRiskManager
 
@@ -219,6 +220,17 @@ class PositionMonitor:
                 "RED CIRCUIT BREAKER: drawdown=%.2f%%, closing all positions",
                 abs(risk_state.drawdown_pct) * 100,
             )
+            notify(
+                AlertSeverity.CRITICAL,
+                "RED Circuit Breaker — Closing All Positions",
+                f"Drawdown {abs(risk_state.drawdown_pct) * 100:.1f}%. "
+                f"Emergency close of {len(positions)} position(s).",
+                {
+                    "equity": round(account.equity, 2),
+                    "drawdown_pct": round(abs(risk_state.drawdown_pct) * 100, 1),
+                    "positions": [p.symbol for p in positions],
+                },
+            )
             try:
                 close_orders = self.broker.close_all_positions()
                 for order in close_orders:
@@ -236,6 +248,12 @@ class PositionMonitor:
                 self._tracked.clear()
             except BrokerError as e:
                 logger.critical("Failed to close all positions: %s", e)
+                notify(
+                    AlertSeverity.CRITICAL,
+                    "FAILED to Close Positions",
+                    f"RED circuit breaker fired but broker close failed: {e}",
+                    {"positions": [p.symbol for p in positions]},
+                )
                 result.exits_failed = len(positions)
 
             return result
@@ -301,6 +319,24 @@ class PositionMonitor:
                     "entry=$%.2f, P&L=$%.2f",
                     symbol, exit_signal.reason.value, current_close,
                     tracked.entry_price, pnl,
+                )
+
+                sev = AlertSeverity.WARNING if exit_signal.reason in (
+                    ExitReason.STOP_LOSS, ExitReason.REGIME_BEAR,
+                ) else AlertSeverity.INFO
+                notify(
+                    sev,
+                    f"Exit Triggered — {symbol}",
+                    f"Reason: {exit_signal.reason.value}, "
+                    f"price=${current_close:.2f}, P&L=${pnl:+.2f}",
+                    {
+                        "symbol": symbol,
+                        "reason": exit_signal.reason.value,
+                        "entry_price": round(tracked.entry_price, 2),
+                        "exit_price": round(current_close, 2),
+                        "pnl": round(pnl, 2),
+                        "shares": tracked.shares,
+                    },
                 )
 
                 try:
