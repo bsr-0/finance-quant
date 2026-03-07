@@ -416,6 +416,78 @@ pytest --cov=src --cov-report=html
 | `make docker-up` | Start all services via Docker Compose |
 | `make docker-down` | Stop all Docker Compose services |
 
+## Troubleshooting
+
+### Python version mismatch
+
+```
+ERROR: Package 'market-data-warehouse' requires a different Python: 3.9.12 not in '>=3.11'
+```
+
+The project requires Python 3.11+. If you're using Conda, create a dedicated environment:
+
+```bash
+conda create -n finance-quant python=3.11 -y
+conda activate finance-quant
+make setup
+```
+
+If you're using pyenv:
+
+```bash
+pyenv install 3.11
+pyenv local 3.11
+make setup
+```
+
+### Docker not installed
+
+```
+bin/sh: docker: command not found
+```
+
+The default `make db-up` target starts PostgreSQL via Docker. If Docker is not installed, `make setup` will print `✓ PostgreSQL started` even though the container failed to launch, and the subsequent `db-init` step will fail with a connection error.
+
+**Fix — install Docker Desktop** (recommended):
+
+Download from [docker.com](https://www.docker.com/products/docker-desktop/), launch it, then re-run `make setup`.
+
+**Fix — use Homebrew PostgreSQL instead** (no Docker required):
+
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+createdb market_data
+make install
+make db-init
+```
+
+### PostgreSQL connection refused
+
+```
+psycopg2.OperationalError: connection to server at "localhost", port 5432 failed: Connection refused
+```
+
+This usually means PostgreSQL is not running. Common causes:
+
+- **Docker isn't installed or isn't running.** See the section above.
+- **The Docker container exited.** Check with `docker ps -a | grep mdw-postgres` and restart with `make db-up`.
+- **Port conflict.** Another service is using port 5432. Either stop it or change the port in `config.yaml` and `.env`.
+- **Using Homebrew Postgres.** Make sure the service is running: `brew services list | grep postgresql`.
+
+### Editable install fails with older pip
+
+```
+ERROR: File "setup.py" or "setup.cfg" not found. Directory cannot be installed in editable mode.
+```
+
+Older versions of pip don't support editable installs from `pyproject.toml`. Upgrade first:
+
+```bash
+pip install --upgrade pip setuptools wheel
+pip install -e .
+```
+
 ## Adding a New Source
 
 1. **Create extractor** in `src/pipeline/extract/<source>.py`:
