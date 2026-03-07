@@ -21,9 +21,9 @@ CREATE TABLE IF NOT EXISTS raw_options_chain (
     UNIQUE(ticker, quote_date, expiration, strike, option_type)
 );
 
-CREATE INDEX idx_raw_options_ticker ON raw_options_chain(ticker);
-CREATE INDEX idx_raw_options_quote ON raw_options_chain(quote_date);
-CREATE INDEX idx_raw_options_expiry ON raw_options_chain(expiration);
+CREATE INDEX IF NOT EXISTS idx_raw_options_ticker ON raw_options_chain(ticker);
+CREATE INDEX IF NOT EXISTS idx_raw_options_quote ON raw_options_chain(quote_date);
+CREATE INDEX IF NOT EXISTS idx_raw_options_expiry ON raw_options_chain(expiration);
 
 -- Daily aggregated options summary per symbol
 CREATE TABLE IF NOT EXISTS cur_options_summary_daily (
@@ -52,4 +52,4 @@ CREATE TABLE IF NOT EXISTS cur_options_summary_daily (
     PRIMARY KEY (symbol_id, date)
 );
 
-CREATE INDEX idx_cur_options_summary_available_time ON cur_options_summary_daily(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_options_summary_available_time ON cur_options_summary_daily(available_time);

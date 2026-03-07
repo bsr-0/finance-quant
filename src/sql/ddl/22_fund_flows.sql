@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS raw_etf_flows (
     UNIQUE(ticker, date)
 );
 
-CREATE INDEX idx_raw_etf_flows_ticker ON raw_etf_flows(ticker);
-CREATE INDEX idx_raw_etf_flows_date ON raw_etf_flows(date);
+CREATE INDEX IF NOT EXISTS idx_raw_etf_flows_ticker ON raw_etf_flows(ticker);
+CREATE INDEX IF NOT EXISTS idx_raw_etf_flows_date ON raw_etf_flows(date);
 
 CREATE TABLE IF NOT EXISTS cur_etf_flows_daily (
     symbol_id UUID NOT NULL REFERENCES dim_symbol(symbol_id),
@@ -34,4 +34,4 @@ CREATE TABLE IF NOT EXISTS cur_etf_flows_daily (
     PRIMARY KEY (symbol_id, date)
 );
 
-CREATE INDEX idx_cur_etf_flows_available_time ON cur_etf_flows_daily(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_etf_flows_available_time ON cur_etf_flows_daily(available_time);

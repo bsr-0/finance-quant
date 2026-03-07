@@ -13,6 +13,6 @@ CREATE TABLE IF NOT EXISTS meta_pipeline_runs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_meta_pipeline_runs_status ON meta_pipeline_runs(status);
-CREATE INDEX idx_meta_pipeline_runs_started_at ON meta_pipeline_runs(started_at);
-CREATE INDEX idx_meta_pipeline_runs_pipeline_name ON meta_pipeline_runs(pipeline_name);
+CREATE INDEX IF NOT EXISTS idx_meta_pipeline_runs_status ON meta_pipeline_runs(status);
+CREATE INDEX IF NOT EXISTS idx_meta_pipeline_runs_started_at ON meta_pipeline_runs(started_at);
+CREATE INDEX IF NOT EXISTS idx_meta_pipeline_runs_pipeline_name ON meta_pipeline_runs(pipeline_name);

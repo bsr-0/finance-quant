@@ -69,13 +69,6 @@ CREATE INDEX IF NOT EXISTS idx_raw_fred_observations_brin
 CREATE INDEX IF NOT EXISTS idx_raw_gdelt_events_brin 
     ON raw_gdelt_events USING BRIN(event_date);
 
--- Indexes for lineage tracking
-CREATE INDEX IF NOT EXISTS idx_meta_lineage_created 
-    ON meta_data_lineage(created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_meta_lineage_transformation 
-    ON meta_data_lineage(transformation_name);
-
 -- Indexes for pipeline runs
 CREATE INDEX IF NOT EXISTS idx_meta_pipeline_runs_time 
     ON meta_pipeline_runs(started_at DESC, finished_at);

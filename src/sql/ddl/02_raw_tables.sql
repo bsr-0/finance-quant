@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS raw_fred_observations (
     run_id UUID REFERENCES meta_pipeline_runs(run_id)
 );
 
-CREATE INDEX idx_raw_fred_series_date ON raw_fred_observations(series_code, observation_date);
-CREATE INDEX idx_raw_fred_extracted_at ON raw_fred_observations(extracted_at);
+CREATE INDEX IF NOT EXISTS idx_raw_fred_series_date ON raw_fred_observations(series_code, observation_date);
+CREATE INDEX IF NOT EXISTS idx_raw_fred_extracted_at ON raw_fred_observations(extracted_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_fred_unique
     ON raw_fred_observations(series_code, observation_date, realtime_start);
 
@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS raw_gdelt_events (
     run_id UUID REFERENCES meta_pipeline_runs(run_id)
 );
 
-CREATE INDEX idx_raw_gdelt_event_date ON raw_gdelt_events(event_date);
-CREATE INDEX idx_raw_gdelt_extracted_at ON raw_gdelt_events(extracted_at);
+CREATE INDEX IF NOT EXISTS idx_raw_gdelt_event_date ON raw_gdelt_events(event_date);
+CREATE INDEX IF NOT EXISTS idx_raw_gdelt_extracted_at ON raw_gdelt_events(extracted_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_gdelt_unique
     ON raw_gdelt_events(gdelt_event_id)
     WHERE gdelt_event_id IS NOT NULL;
@@ -40,8 +40,8 @@ CREATE TABLE IF NOT EXISTS raw_polymarket_markets (
     run_id UUID REFERENCES meta_pipeline_runs(run_id)
 );
 
-CREATE INDEX idx_raw_polymarket_market_id ON raw_polymarket_markets(venue_market_id);
-CREATE INDEX idx_raw_polymarket_extracted_at ON raw_polymarket_markets(extracted_at);
+CREATE INDEX IF NOT EXISTS idx_raw_polymarket_market_id ON raw_polymarket_markets(venue_market_id);
+CREATE INDEX IF NOT EXISTS idx_raw_polymarket_extracted_at ON raw_polymarket_markets(extracted_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_polymarket_markets_unique
     ON raw_polymarket_markets(venue_market_id);
 
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS raw_polymarket_prices (
     run_id UUID REFERENCES meta_pipeline_runs(run_id)
 );
 
-CREATE INDEX idx_raw_polymarket_prices_market_ts ON raw_polymarket_prices(venue_market_id, ts);
+CREATE INDEX IF NOT EXISTS idx_raw_polymarket_prices_market_ts ON raw_polymarket_prices(venue_market_id, ts);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_polymarket_prices_unique
     ON raw_polymarket_prices(venue_market_id, ts, outcome);
 
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS raw_polymarket_trades (
     run_id UUID REFERENCES meta_pipeline_runs(run_id)
 );
 
-CREATE INDEX idx_raw_polymarket_trades_market_ts ON raw_polymarket_trades(venue_market_id, ts);
+CREATE INDEX IF NOT EXISTS idx_raw_polymarket_trades_market_ts ON raw_polymarket_trades(venue_market_id, ts);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_polymarket_trades_unique
     ON raw_polymarket_trades(trade_id)
     WHERE trade_id IS NOT NULL;
@@ -96,8 +96,8 @@ CREATE TABLE IF NOT EXISTS raw_prices_ohlcv (
     run_id UUID REFERENCES meta_pipeline_runs(run_id)
 );
 
-CREATE INDEX idx_raw_prices_ticker_date ON raw_prices_ohlcv(ticker, date);
-CREATE INDEX idx_raw_prices_extracted_at ON raw_prices_ohlcv(extracted_at);
+CREATE INDEX IF NOT EXISTS idx_raw_prices_ticker_date ON raw_prices_ohlcv(ticker, date);
+CREATE INDEX IF NOT EXISTS idx_raw_prices_extracted_at ON raw_prices_ohlcv(extracted_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_prices_unique
     ON raw_prices_ohlcv(ticker, date);
 
@@ -115,6 +115,6 @@ CREATE TABLE IF NOT EXISTS raw_polymarket_orderbook_snapshots (
     run_id UUID REFERENCES meta_pipeline_runs(run_id)
 );
 
-CREATE INDEX idx_raw_polymarket_ob_market_ts ON raw_polymarket_orderbook_snapshots(venue_market_id, ts);
+CREATE INDEX IF NOT EXISTS idx_raw_polymarket_ob_market_ts ON raw_polymarket_orderbook_snapshots(venue_market_id, ts);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_polymarket_ob_unique
     ON raw_polymarket_orderbook_snapshots(venue_market_id, ts);

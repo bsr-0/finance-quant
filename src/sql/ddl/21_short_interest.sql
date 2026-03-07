@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS raw_short_interest (
     UNIQUE(ticker, settlement_date)
 );
 
-CREATE INDEX idx_raw_short_interest_ticker ON raw_short_interest(ticker);
-CREATE INDEX idx_raw_short_interest_date ON raw_short_interest(settlement_date);
+CREATE INDEX IF NOT EXISTS idx_raw_short_interest_ticker ON raw_short_interest(ticker);
+CREATE INDEX IF NOT EXISTS idx_raw_short_interest_date ON raw_short_interest(settlement_date);
 
 CREATE TABLE IF NOT EXISTS cur_short_interest (
     symbol_id UUID NOT NULL REFERENCES dim_symbol(symbol_id),
@@ -35,4 +35,4 @@ CREATE TABLE IF NOT EXISTS cur_short_interest (
     PRIMARY KEY (symbol_id, settlement_date)
 );
 
-CREATE INDEX idx_cur_short_interest_available_time ON cur_short_interest(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_short_interest_available_time ON cur_short_interest(available_time);

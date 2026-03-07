@@ -29,8 +29,8 @@ CREATE TABLE IF NOT EXISTS dim_entity (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_dim_entity_type ON dim_entity(entity_type);
-CREATE INDEX idx_dim_entity_name ON dim_entity(name);
+CREATE INDEX IF NOT EXISTS idx_dim_entity_type ON dim_entity(entity_type);
+CREATE INDEX IF NOT EXISTS idx_dim_entity_name ON dim_entity(name);
 
 -- Market dimensions
 CREATE TABLE IF NOT EXISTS dim_symbol (
@@ -48,9 +48,9 @@ CREATE TABLE IF NOT EXISTS dim_symbol (
     UNIQUE(ticker, exchange)
 );
 
-CREATE INDEX idx_dim_symbol_ticker ON dim_symbol(ticker);
-CREATE INDEX idx_dim_symbol_asset_class ON dim_symbol(asset_class);
-CREATE INDEX idx_dim_symbol_is_delisted ON dim_symbol(is_delisted);
+CREATE INDEX IF NOT EXISTS idx_dim_symbol_ticker ON dim_symbol(ticker);
+CREATE INDEX IF NOT EXISTS idx_dim_symbol_asset_class ON dim_symbol(asset_class);
+CREATE INDEX IF NOT EXISTS idx_dim_symbol_is_delisted ON dim_symbol(is_delisted);
 
 -- Macro dimensions
 CREATE TABLE IF NOT EXISTS dim_macro_series (
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS dim_macro_series (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_dim_macro_series_country ON dim_macro_series(country);
+CREATE INDEX IF NOT EXISTS idx_dim_macro_series_country ON dim_macro_series(country);
 
 -- Prediction market dimensions
 CREATE TABLE IF NOT EXISTS dim_contract (
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS dim_contract (
     UNIQUE(venue, venue_market_id)
 );
 
-CREATE INDEX idx_dim_contract_venue ON dim_contract(venue);
-CREATE INDEX idx_dim_contract_status ON dim_contract(status);
-CREATE INDEX idx_dim_contract_resolution_time ON dim_contract(resolution_time);
-CREATE INDEX idx_dim_contract_available_time ON dim_contract(available_time);
+CREATE INDEX IF NOT EXISTS idx_dim_contract_venue ON dim_contract(venue);
+CREATE INDEX IF NOT EXISTS idx_dim_contract_status ON dim_contract(status);
+CREATE INDEX IF NOT EXISTS idx_dim_contract_resolution_time ON dim_contract(resolution_time);
+CREATE INDEX IF NOT EXISTS idx_dim_contract_available_time ON dim_contract(available_time);

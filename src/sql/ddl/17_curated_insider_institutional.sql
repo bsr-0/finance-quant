@@ -20,9 +20,9 @@ CREATE TABLE IF NOT EXISTS cur_insider_trades (
     PRIMARY KEY (symbol_id, insider_name, transaction_date, transaction_type, shares)
 );
 
-CREATE INDEX idx_cur_insider_available_time ON cur_insider_trades(available_time);
-CREATE INDEX idx_cur_insider_event_time ON cur_insider_trades(event_time);
-CREATE INDEX idx_cur_insider_txn_type ON cur_insider_trades(transaction_type);
+CREATE INDEX IF NOT EXISTS idx_cur_insider_available_time ON cur_insider_trades(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_insider_event_time ON cur_insider_trades(event_time);
+CREATE INDEX IF NOT EXISTS idx_cur_insider_txn_type ON cur_insider_trades(transaction_type);
 
 CREATE TABLE IF NOT EXISTS cur_institutional_holdings (
     symbol_id UUID NOT NULL REFERENCES dim_symbol(symbol_id),
@@ -43,6 +43,6 @@ CREATE TABLE IF NOT EXISTS cur_institutional_holdings (
     PRIMARY KEY (symbol_id, filer_name, report_date)
 );
 
-CREATE INDEX idx_cur_inst_holdings_available_time ON cur_institutional_holdings(available_time);
-CREATE INDEX idx_cur_inst_holdings_report_date ON cur_institutional_holdings(report_date);
-CREATE INDEX idx_cur_inst_holdings_filer ON cur_institutional_holdings(filer_name);
+CREATE INDEX IF NOT EXISTS idx_cur_inst_holdings_available_time ON cur_institutional_holdings(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_inst_holdings_report_date ON cur_institutional_holdings(report_date);
+CREATE INDEX IF NOT EXISTS idx_cur_inst_holdings_filer ON cur_institutional_holdings(filer_name);

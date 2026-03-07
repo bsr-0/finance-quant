@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS cur_contract_state_daily (
     PRIMARY KEY (contract_id, date)
 );
 
-CREATE INDEX idx_cur_contract_state_available_time ON cur_contract_state_daily(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_contract_state_available_time ON cur_contract_state_daily(available_time);
 
 CREATE TABLE IF NOT EXISTS cur_contract_prices (
     contract_id UUID NOT NULL REFERENCES dim_contract(contract_id),
@@ -32,8 +32,8 @@ CREATE TABLE IF NOT EXISTS cur_contract_prices (
     PRIMARY KEY (contract_id, ts, outcome)
 );
 
-CREATE INDEX idx_cur_contract_prices_contract_ts ON cur_contract_prices(contract_id, ts);
-CREATE INDEX idx_cur_contract_prices_available_time ON cur_contract_prices(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_contract_prices_contract_ts ON cur_contract_prices(contract_id, ts);
+CREATE INDEX IF NOT EXISTS idx_cur_contract_prices_available_time ON cur_contract_prices(available_time);
 
 CREATE TABLE IF NOT EXISTS cur_contract_orderbook_snapshots (
     contract_id UUID NOT NULL REFERENCES dim_contract(contract_id),
@@ -52,8 +52,8 @@ CREATE TABLE IF NOT EXISTS cur_contract_orderbook_snapshots (
     PRIMARY KEY (contract_id, ts)
 );
 
-CREATE INDEX idx_cur_contract_ob_available_time ON cur_contract_orderbook_snapshots(available_time);
-CREATE INDEX idx_cur_contract_ob_contract_ts ON cur_contract_orderbook_snapshots(contract_id, ts);
+CREATE INDEX IF NOT EXISTS idx_cur_contract_ob_available_time ON cur_contract_orderbook_snapshots(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_contract_ob_contract_ts ON cur_contract_orderbook_snapshots(contract_id, ts);
 
 CREATE TABLE IF NOT EXISTS cur_contract_trades (
     contract_id UUID NOT NULL REFERENCES dim_contract(contract_id),
@@ -71,8 +71,8 @@ CREATE TABLE IF NOT EXISTS cur_contract_trades (
     PRIMARY KEY (contract_id, trade_id)
 );
 
-CREATE INDEX idx_cur_contract_trades_contract_ts ON cur_contract_trades(contract_id, ts);
-CREATE INDEX idx_cur_contract_trades_available_time ON cur_contract_trades(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_contract_trades_contract_ts ON cur_contract_trades(contract_id, ts);
+CREATE INDEX IF NOT EXISTS idx_cur_contract_trades_available_time ON cur_contract_trades(available_time);
 
 CREATE TABLE IF NOT EXISTS cur_contract_resolution (
     contract_id UUID PRIMARY KEY REFERENCES dim_contract(contract_id),
@@ -87,4 +87,4 @@ CREATE TABLE IF NOT EXISTS cur_contract_resolution (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_cur_contract_resolution_available_time ON cur_contract_resolution(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_contract_resolution_available_time ON cur_contract_resolution(available_time);

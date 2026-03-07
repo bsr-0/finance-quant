@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS raw_earnings_calendar (
     UNIQUE(ticker, report_date)
 );
 
-CREATE INDEX idx_raw_earnings_ticker ON raw_earnings_calendar(ticker);
-CREATE INDEX idx_raw_earnings_date ON raw_earnings_calendar(report_date);
+CREATE INDEX IF NOT EXISTS idx_raw_earnings_ticker ON raw_earnings_calendar(ticker);
+CREATE INDEX IF NOT EXISTS idx_raw_earnings_date ON raw_earnings_calendar(report_date);
 
 CREATE TABLE IF NOT EXISTS cur_earnings_events (
     symbol_id UUID NOT NULL REFERENCES dim_symbol(symbol_id),
@@ -42,5 +42,5 @@ CREATE TABLE IF NOT EXISTS cur_earnings_events (
     PRIMARY KEY (symbol_id, report_date)
 );
 
-CREATE INDEX idx_cur_earnings_available_time ON cur_earnings_events(available_time);
-CREATE INDEX idx_cur_earnings_event_time ON cur_earnings_events(event_time);
+CREATE INDEX IF NOT EXISTS idx_cur_earnings_available_time ON cur_earnings_events(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_earnings_event_time ON cur_earnings_events(event_time);

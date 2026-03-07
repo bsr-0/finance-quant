@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS cur_prices_ohlcv_daily (
     PRIMARY KEY (symbol_id, date)
 );
 
-CREATE INDEX idx_cur_prices_available_time ON cur_prices_ohlcv_daily(available_time);
-CREATE INDEX idx_cur_prices_event_time ON cur_prices_ohlcv_daily(event_time);
+CREATE INDEX IF NOT EXISTS idx_cur_prices_available_time ON cur_prices_ohlcv_daily(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_prices_event_time ON cur_prices_ohlcv_daily(event_time);
 
 CREATE TABLE IF NOT EXISTS cur_corporate_actions (
     symbol_id UUID NOT NULL REFERENCES dim_symbol(symbol_id),
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS cur_corporate_actions (
     PRIMARY KEY (symbol_id, action_type, action_date)
 );
 
-CREATE INDEX idx_cur_corp_actions_available_time ON cur_corporate_actions(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_corp_actions_available_time ON cur_corporate_actions(available_time);
 
 CREATE TABLE IF NOT EXISTS cur_fundamentals_quarterly (
     symbol_id UUID NOT NULL REFERENCES dim_symbol(symbol_id),
@@ -56,4 +56,4 @@ CREATE TABLE IF NOT EXISTS cur_fundamentals_quarterly (
     PRIMARY KEY (symbol_id, fiscal_period_end, metric_name)
 );
 
-CREATE INDEX idx_cur_fundamentals_available_time ON cur_fundamentals_quarterly(available_time);
+CREATE INDEX IF NOT EXISTS idx_cur_fundamentals_available_time ON cur_fundamentals_quarterly(available_time);

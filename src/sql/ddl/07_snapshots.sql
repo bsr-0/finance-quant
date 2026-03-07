@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS snap_contract_features (
     PRIMARY KEY (contract_id, asof_ts)
 );
 
-CREATE INDEX idx_snap_contract_features_asof_ts ON snap_contract_features(asof_ts);
-CREATE INDEX idx_snap_contract_features_contract ON snap_contract_features(contract_id);
+CREATE INDEX IF NOT EXISTS idx_snap_contract_features_asof_ts ON snap_contract_features(asof_ts);
+CREATE INDEX IF NOT EXISTS idx_snap_contract_features_contract ON snap_contract_features(contract_id);
 
 -- Symbol-level snapshots for equity training
 CREATE TABLE IF NOT EXISTS snap_symbol_features (
@@ -63,4 +63,4 @@ CREATE TABLE IF NOT EXISTS snap_symbol_features (
     PRIMARY KEY (symbol_id, asof_ts)
 );
 
-CREATE INDEX idx_snap_symbol_features_asof_ts ON snap_symbol_features(asof_ts);
+CREATE INDEX IF NOT EXISTS idx_snap_symbol_features_asof_ts ON snap_symbol_features(asof_ts);

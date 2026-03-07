@@ -27,9 +27,9 @@ ALTER TABLE raw_sec_fundamentals ADD COLUMN IF NOT EXISTS is_amendment BOOLEAN D
 ALTER TABLE raw_sec_fundamentals ADD COLUMN IF NOT EXISTS original_form_type VARCHAR(10);
 ALTER TABLE raw_sec_fundamentals ADD COLUMN IF NOT EXISTS filing_sequence INTEGER DEFAULT 1;
 
-CREATE INDEX idx_raw_sec_fund_ticker ON raw_sec_fundamentals(ticker);
-CREATE INDEX idx_raw_sec_fund_filing ON raw_sec_fundamentals(filing_date);
-CREATE INDEX idx_raw_sec_fund_period ON raw_sec_fundamentals(fiscal_period_end);
+CREATE INDEX IF NOT EXISTS idx_raw_sec_fund_ticker ON raw_sec_fundamentals(ticker);
+CREATE INDEX IF NOT EXISTS idx_raw_sec_fund_filing ON raw_sec_fundamentals(filing_date);
+CREATE INDEX IF NOT EXISTS idx_raw_sec_fund_period ON raw_sec_fundamentals(fiscal_period_end);
 
 -- Raw SEC insider trades (Form 4)
 CREATE TABLE IF NOT EXISTS raw_sec_insider_trades (
@@ -55,9 +55,9 @@ CREATE TABLE IF NOT EXISTS raw_sec_insider_trades (
     UNIQUE(accession_number, insider_cik, transaction_date, transaction_type, shares)
 );
 
-CREATE INDEX idx_raw_sec_insider_ticker ON raw_sec_insider_trades(ticker);
-CREATE INDEX idx_raw_sec_insider_filing ON raw_sec_insider_trades(filing_date);
-CREATE INDEX idx_raw_sec_insider_txn ON raw_sec_insider_trades(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_raw_sec_insider_ticker ON raw_sec_insider_trades(ticker);
+CREATE INDEX IF NOT EXISTS idx_raw_sec_insider_filing ON raw_sec_insider_trades(filing_date);
+CREATE INDEX IF NOT EXISTS idx_raw_sec_insider_txn ON raw_sec_insider_trades(transaction_date);
 
 -- Raw SEC 13F institutional holdings
 CREATE TABLE IF NOT EXISTS raw_sec_13f_holdings (
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS raw_sec_13f_holdings (
     UNIQUE(accession_number, cusip, filer_cik, report_date)
 );
 
-CREATE INDEX idx_raw_sec_13f_filer ON raw_sec_13f_holdings(filer_cik);
-CREATE INDEX idx_raw_sec_13f_cusip ON raw_sec_13f_holdings(cusip);
-CREATE INDEX idx_raw_sec_13f_report ON raw_sec_13f_holdings(report_date);
-CREATE INDEX idx_raw_sec_13f_filing ON raw_sec_13f_holdings(filing_date);
+CREATE INDEX IF NOT EXISTS idx_raw_sec_13f_filer ON raw_sec_13f_holdings(filer_cik);
+CREATE INDEX IF NOT EXISTS idx_raw_sec_13f_cusip ON raw_sec_13f_holdings(cusip);
+CREATE INDEX IF NOT EXISTS idx_raw_sec_13f_report ON raw_sec_13f_holdings(report_date);
+CREATE INDEX IF NOT EXISTS idx_raw_sec_13f_filing ON raw_sec_13f_holdings(filing_date);
