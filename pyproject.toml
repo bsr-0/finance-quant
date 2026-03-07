@@ -21,7 +21,8 @@ classifiers = [
 ]
 dependencies = [
     "sqlalchemy>=2.0.0",
-    "psycopg2-binary>=2.9.0",
+    "duckdb>=0.9.0",
+    "duckdb-engine>=0.11.0",
     "pandas>=2.0.0",
     "numpy>=1.24.0",
     "pyarrow>=14.0.0",
@@ -34,11 +35,15 @@ dependencies = [
     "tenacity>=8.2.0",
     "rich>=13.0.0",
     "scipy>=1.11.0",
-    "duckdb>=0.9.0",
     "aiocache>=0.12.0",
     "prometheus-client>=0.19.0",
     "alpaca-py>=0.21.0",
     "websocket-client>=1.6.0",
+]
+
+[project.optional-dependencies]
+postgresql = [
+    "psycopg2-binary>=2.9.0",
 ]
 
 [project.optional-dependencies]

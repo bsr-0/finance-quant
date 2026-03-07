@@ -23,10 +23,18 @@ except ImportError:  # pragma: no cover - pydantic v1 fallback
 
 
 class DatabaseSettings(BaseSettings):
-    """Database connection settings."""
+    """Database connection settings.
+
+    Defaults to DuckDB (zero-config, no server required).
+    Set ``DB_BACKEND=postgresql`` to use PostgreSQL instead.
+    """
 
     model_config = SettingsConfigDict(env_prefix="DB_")
 
+    backend: str = "duckdb"  # "duckdb" or "postgresql"
+    path: str = "data/market_data.duckdb"  # DuckDB file path
+
+    # PostgreSQL settings (only used when backend=postgresql)
     host: str = "localhost"
     port: int = 5432
     name: str = "market_data"
@@ -35,6 +43,8 @@ class DatabaseSettings(BaseSettings):
 
     @property
     def connection_string(self) -> str:
+        if self.backend == "duckdb":
+            return f"duckdb:///{self.path}"
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
 
 

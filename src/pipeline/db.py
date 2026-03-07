@@ -1,4 +1,7 @@
-"""Database connection and utility functions."""
+"""Database connection and utility functions.
+
+Supports DuckDB (default, zero-config) and PostgreSQL backends.
+"""
 
 from __future__ import annotations
 
@@ -31,7 +34,9 @@ class DatabaseManager:
     """Manages database connections and schema operations."""
 
     def __init__(self, connection_string: str | None = None):
-        self.connection_string = connection_string or get_settings().database.connection_string
+        settings = get_settings()
+        self.connection_string = connection_string or settings.database.connection_string
+        self.backend = settings.database.backend
         self._engine: Engine | None = None
         self._session_factory: sessionmaker | None = None
 
@@ -39,9 +44,15 @@ class DatabaseManager:
     def engine(self) -> Engine:
         """Get or create SQLAlchemy engine."""
         if self._engine is None:
-            self._engine = create_engine(
-                self.connection_string, pool_pre_ping=True, pool_recycle=300, echo=False
-            )
+            if self.backend == "duckdb":
+                # Ensure parent directory exists for DuckDB file
+                db_path = get_settings().database.path
+                Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+                self._engine = create_engine(self.connection_string, echo=False)
+            else:
+                self._engine = create_engine(
+                    self.connection_string, pool_pre_ping=True, pool_recycle=300, echo=False
+                )
         return self._engine
 
     @property
@@ -70,12 +81,57 @@ class DatabaseManager:
             sql = f.read()
 
         with self.engine.connect() as conn:
-            conn.execute(text(sql))
+            # DuckDB needs statements executed individually
+            if self.backend == "duckdb":
+                for statement in self._split_sql(sql):
+                    if statement.strip():
+                        conn.execute(text(statement))
+            else:
+                conn.execute(text(sql))
             conn.commit()
             logger.info(f"Executed SQL file: {file_path}")
 
+    @staticmethod
+    def _split_sql(sql: str) -> list[str]:
+        """Split SQL into individual statements, respecting $$ blocks."""
+        statements = []
+        current = []
+        in_dollar_block = False
+
+        for line in sql.split("\n"):
+            stripped = line.strip()
+
+            # Track $$ delimited blocks (PL/pgSQL etc.)
+            if "$$" in stripped:
+                in_dollar_block = not in_dollar_block
+
+            current.append(line)
+
+            if not in_dollar_block and stripped.endswith(";"):
+                stmt = "\n".join(current).strip()
+                if stmt and not stmt.startswith("--"):
+                    statements.append(stmt)
+                current = []
+
+        # Leftover
+        if current:
+            stmt = "\n".join(current).strip()
+            if stmt and not stmt.startswith("--"):
+                statements.append(stmt)
+
+        return statements
+
     def init_schema(self, ddl_dir: Path) -> None:
-        """Initialize database schema from DDL files."""
+        """Initialize database schema from DDL files.
+
+        Picks the right DDL directory based on backend:
+        - DuckDB: uses ddl_dir/../ddl_duckdb/ if it exists, else ddl_dir
+        - PostgreSQL: uses ddl_dir as-is
+        """
+        if self.backend == "duckdb":
+            duckdb_dir = ddl_dir.parent / "ddl_duckdb"
+            if duckdb_dir.exists():
+                ddl_dir = duckdb_dir
         ddl_files = sorted(ddl_dir.glob("*.sql"))
         for sql_file in ddl_files:
             self.execute_sql_file(sql_file)
@@ -103,6 +159,12 @@ class DatabaseManager:
                 AND table_name = :table_name
             ) as exists
         """
+        if self.backend == "duckdb":
+            query = """
+                SELECT COUNT(*) > 0 as exists
+                FROM information_schema.tables
+                WHERE table_name = :table_name
+            """
         result = self.run_query(query, {"table_name": table_name})
         return result[0]["exists"] if result else False
 
