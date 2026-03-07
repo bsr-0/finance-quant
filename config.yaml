@@ -1,12 +1,15 @@
 # Market Data Warehouse Configuration
 
-# Database settings
+# Database settings — defaults to DuckDB (no server required)
 database:
-  host: localhost
-  port: 5432
-  name: market_data
-  user: postgres
-  password: postgres
+  backend: duckdb
+  path: data/market_data.duckdb
+  # PostgreSQL settings (used when backend: postgresql)
+  # host: localhost
+  # port: 5432
+  # name: market_data
+  # user: postgres
+  # password: postgres
 
 # Raw data lake path
 raw_lake_path: data/raw

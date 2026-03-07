@@ -1,18 +1,22 @@
-.PHONY: help setup install install-dev db-up db-down db-init test test-dq lint format clean extract-all transform snapshots inventory full-pipeline
+.PHONY: help setup install install-dev db-init db-reset test test-dq lint format clean extract-all transform snapshots inventory full-pipeline
 
 # Default target
 help:
 	@echo "Market Data Warehouse - Available Commands:"
 	@echo ""
 	@echo "Setup:"
-	@echo "  make setup          - Full setup: install deps, start DB, init schema"
+	@echo "  make setup          - Full setup: install deps + init DuckDB schema"
 	@echo "  make install        - Install package dependencies"
 	@echo "  make install-dev    - Install with dev dependencies"
 	@echo ""
 	@echo "Database:"
-	@echo "  make db-up          - Start PostgreSQL via Docker"
-	@echo "  make db-down        - Stop PostgreSQL"
 	@echo "  make db-init        - Initialize database schema"
+	@echo "  make db-reset       - Delete and reinitialize DuckDB"
+	@echo ""
+	@echo "Database (PostgreSQL - optional):"
+	@echo "  make pg-up          - Start PostgreSQL via Docker"
+	@echo "  make pg-down        - Stop PostgreSQL"
+	@echo "  make pg-init        - Initialize PostgreSQL schema"
 	@echo ""
 	@echo "Pipeline:"
 	@echo "  make extract-all    - Extract all configured sources"
@@ -30,9 +34,9 @@ help:
 	@echo "  make inventory      - Show data inventory"
 	@echo "  make clean          - Clean generated files"
 
-# Setup
-setup: install db-up db-init
-	@echo "✓ Setup complete"
+# Setup (no Docker needed!)
+setup: install db-init
+	@echo "✓ Setup complete (using DuckDB — no server required)"
 
 install:
 	pip install -e .
@@ -40,34 +44,38 @@ install:
 install-dev:
 	pip install -e ".[dev]"
 
-# Database (Docker)
-db-up:
-	@echo "Starting PostgreSQL..."
-	docker run -d \
-		--name mdw-postgres \
-		-e POSTGRES_USER=postgres \
-		-e POSTGRES_PASSWORD=postgres \
-		-e POSTGRES_DB=market_data \
-		-p 5432:5432 \
-		postgres:16-alpine || true
-	@sleep 3
-	@echo "✓ PostgreSQL started"
-
-db-down:
-	docker stop mdw-postgres || true
-	docker rm mdw-postgres || true
-	@echo "✓ PostgreSQL stopped"
-
+# Database — DuckDB (default, zero-config)
 db-init:
-	@echo "Initializing database schema..."
+	@echo "Initializing DuckDB schema..."
 	python -m pipeline.cli init-db
 	@echo "✓ Schema initialized"
 
-db-reset: db-down
-	@sleep 2
-	$(MAKE) db-up
-	@sleep 3
+db-reset:
+	@echo "Resetting DuckDB..."
+	rm -f data/market_data.duckdb data/market_data.duckdb.wal
 	$(MAKE) db-init
+
+# Database — PostgreSQL (optional, for production)
+pg-up:
+	@echo "Starting PostgreSQL..."
+	docker compose up -d postgres
+	@sleep 3
+	@echo "✓ PostgreSQL started"
+
+pg-down:
+	docker compose down
+	@echo "✓ PostgreSQL stopped"
+
+pg-init:
+	@echo "Initializing PostgreSQL schema..."
+	DB_BACKEND=postgresql python -m pipeline.cli init-db
+	@echo "✓ PostgreSQL schema initialized"
+
+pg-reset: pg-down
+	@sleep 2
+	$(MAKE) pg-up
+	@sleep 3
+	$(MAKE) pg-init
 
 # Pipeline commands
 extract-fred:
@@ -133,7 +141,7 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	@echo "✓ Cleaned"
 
-# Docker Compose alternative
+# Docker Compose alternative (PostgreSQL)
 docker-up:
 	docker-compose up -d
 
