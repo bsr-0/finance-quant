@@ -45,8 +45,6 @@ dependencies = [
 postgresql = [
     "psycopg2-binary>=2.9.0",
 ]
-
-[project.optional-dependencies]
 dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
