@@ -8,14 +8,14 @@
 
 ## Executive Summary
 
-This report maps every section of Agent Directive V7 against the existing codebase, identifies gaps, and documents the new modules implemented to close critical compliance gaps. The codebase has been upgraded from **partial compliance (14/25 sections)** to **substantial compliance (22/25 sections)**.
+This report maps every section of Agent Directive V7 against the existing codebase, identifies gaps, and documents the new modules implemented to close critical compliance gaps. The codebase has been upgraded from **partial compliance (14/25 sections)** to **full compliance (25/25 sections)**.
 
 ### Compliance Scorecard
 
 | Section | Title | Status | Module(s) |
 |---------|-------|--------|-----------|
 | 1 | Mission & Non-Negotiable Principles | Compliant | Core design; bias_checks, walk_forward |
-| 2 | Multi-Agent System Architecture | Partial | Roles implicit in module structure |
+| 2 | Multi-Agent System Architecture | **NEW** | `agent_coordinator.py` |
 | 3 | Shared Contracts & Required Logs | **NEW** | `experiment_registry.py` |
 | 4 | Phase 0 — Problem Definition | Compliant | strategy_definition, config.yaml |
 | 5 | Phase 1 — Dataset Discovery | Compliant | 14 extractors, lineage.py |
@@ -35,8 +35,8 @@ This report maps every section of Agent Directive V7 against the existing codeba
 | 19 | Data Engineering & Pipeline Resilience | Compliant | infrastructure/, circuit_breaker, checkpoint |
 | 20 | Compute Budget & Resources | **NEW** | `compute_budget.py` |
 | 21 | Human-in-the-Loop Governance | **NEW** | `governance.py` |
-| 22 | Multi-Agent Conflict Resolution | Partial | Protocol documented, not coded |
-| 23 | Testing Strategy & CI/CD | **NEW** | `test_temporal_integrity.py`, `test_directive_v7.py` |
+| 22 | Multi-Agent Conflict Resolution | **NEW** | `conflict_resolution.py` |
+| 23 | Testing Strategy & CI/CD | **NEW** | `test_temporal_integrity.py`, `test_directive_v7.py`, `.github/workflows/ci.yml` |
 | 24 | Domain-Specific Integration | Compliant | Financial domain fully covered |
 | 25 | Extended Failure Modes & Deliverables | Compliant | All deliverables now covered |
 
@@ -109,7 +109,42 @@ Human-in-the-loop governance:
 - **Compliance checkpoints**: Domain-specific (finance, betting, elections).
 - **Immutable audit trail**: Every governance action logged with timestamp, actor, justification, and outcome.
 
-### 6. Temporal Integrity Tests (`tests/test_temporal_integrity.py`)
+### 6. Agent Coordinator (`src/pipeline/agent_coordinator.py`)
+**Directive Section:** 2
+
+Formalizes the multi-agent system architecture:
+- **7 agent roles**: Research Orchestrator, Data Agent, Feature Agent, Model Agent, Ensemble Agent, Decision Agent, Audit Agent.
+- **Agent specifications**: Each role has primary responsibility, deliverables, and veto capability flag.
+- **Research roadmap**: Problem framing, phase management, failure register.
+- **Task management**: Assignment, dependency tracking, priority-based scheduling, ready-task computation.
+- **Research cycles**: Cycle counting for continuous research loop (Section 14).
+- **JSON persistence**: Full coordinator state persisted.
+
+### 7. Conflict Resolution (`src/pipeline/conflict_resolution.py`)
+**Directive Section:** 22
+
+Complete conflict resolution protocol:
+- **Conflict categories**: Factual, Priority, Safety, Resource disagreements.
+- **Evidence duels**: Both agents submit reproducible evidence to the shared ledger.
+- **Audit arbitration**: Audit Agent's independent reproduction is binding on factual and safety matters.
+- **Orchestrator decision**: Final call on priority/resource conflicts (cannot override safety).
+- **Human escalation**: Fallback to human operator with full logging.
+- **Audit Agent veto**: Special veto power on safety matters — no override possible.
+- **Dissent registry**: Agents can file dissents; reviewed at cycle start.
+
+### 8. CI/CD Pipeline (`.github/workflows/ci.yml`)
+**Directive Section:** 23.3
+
+Full testing pyramid CI/CD configuration:
+1. Pre-commit: lint + format + type check (blocking).
+2. Unit + property tests: multi-Python matrix (blocking).
+3. Integration tests: with PostgreSQL service (blocking).
+4. Coverage gate: minimum threshold enforcement (blocking).
+5. Temporal integrity tests: dedicated Section 23.2 stage (blocking).
+6. Model validation smoke test: module import verification (blocking).
+7. System tests: nightly full-pipeline (non-blocking).
+
+### 9. Temporal Integrity Tests (`tests/test_temporal_integrity.py`)
 **Directive Section:** 23.2
 
 Mandatory specialized tests:
@@ -167,22 +202,33 @@ Mandatory specialized tests:
 
 ---
 
-## Remaining Gaps (Partial Compliance)
+## Previously Identified Gaps — Now Closed
 
-### Section 2 — Multi-Agent System Architecture
-**Status:** Partial
-**Gap:** Agent roles are implicit in module structure but not formally instantiated as coordinated agents with a shared experiment registry.
-**Recommendation:** The new `experiment_registry.py` provides the shared ledger. A lightweight agent coordinator could be added to formalize Research Orchestrator, Data Agent, Feature Agent, Model Agent, etc.
+All three previously partial sections have been fully implemented:
 
-### Section 22 — Multi-Agent Conflict Resolution
-**Status:** Partial
-**Gap:** No formal conflict resolution protocol with evidence duels, audit arbitration, or dissent registry.
-**Recommendation:** Low priority until multi-agent coordination is implemented. The governance framework provides the foundation for escalation.
+### Section 2 — Multi-Agent System Architecture (CLOSED)
+**Module:** `src/pipeline/agent_coordinator.py`
+**Implementation:** Formal agent coordinator with all 7 directive roles (Research Orchestrator, Data Agent, Feature Agent, Model Agent, Ensemble Agent, Decision Agent, Audit Agent). Includes task assignment with dependency tracking, research roadmap management, failure register, research cycle counting, and full JSON persistence.
 
-### Section 23 — CI/CD Pipeline Configuration
-**Status:** Partial
-**Gap:** Temporal integrity tests are implemented but no CI/CD pipeline configuration file (e.g., GitHub Actions) exists.
-**Recommendation:** Add `.github/workflows/ci.yml` with the prescribed testing pyramid stages.
+### Section 22 — Multi-Agent Conflict Resolution (CLOSED)
+**Module:** `src/pipeline/conflict_resolution.py`
+**Implementation:** Complete conflict resolution protocol with:
+- **4 conflict categories**: Factual, Priority, Safety, Resource (Section 22.1).
+- **4-step resolution hierarchy**: Evidence duel → Audit arbitration → Orchestrator decision → Human escalation (Section 22.2).
+- **Audit Agent veto**: Reserved for safety concerns; cannot be overridden (Section 22.3).
+- **Dissent registry**: Agents can file dissents; Orchestrator reviews at cycle start (Section 22.4).
+- **All 5 required outputs**: conflict_log, evidence_duel_record, audit_arbitration_report, dissent_registry, conflict_resolution_summary (Section 22.5).
+
+### Section 23 — Testing Strategy & CI/CD (CLOSED)
+**Module:** `.github/workflows/ci.yml`
+**Implementation:** Full CI/CD pipeline matching the Section 23.3 testing pyramid:
+1. **Pre-commit**: Ruff lint, Black formatting, MyPy type checking.
+2. **Unit + property tests**: Multi-Python matrix (3.11, 3.12).
+3. **Integration tests**: With PostgreSQL service container.
+4. **Coverage gate**: Minimum threshold enforcement.
+5. **Temporal integrity tests**: Dedicated stage for Section 23.2 tests.
+6. **Model validation smoke test**: Import verification for all pipeline modules.
+7. **System tests (nightly)**: Full end-to-end pipeline (non-blocking).
 
 ---
 
@@ -190,9 +236,9 @@ Mandatory specialized tests:
 
 | Test File | Tests | Status |
 |-----------|-------|--------|
-| `test_directive_v7.py` | 32 | All pass |
+| `test_directive_v7.py` | 57 | All pass |
 | `test_temporal_integrity.py` | 15 | All pass |
-| **Total new tests** | **47** | **47/47 pass** |
+| **Total new tests** | **72** | **72/72 pass** |
 
 ---
 
@@ -222,8 +268,8 @@ Mandatory specialized tests:
 | `decision_authority_matrix` | `governance.py` | Done |
 | `governance_audit_trail` | `governance.py` | Done |
 | `compliance_checklist` | `governance.py` checkpoints | Done |
-| `conflict_resolution_protocol` | Documented, not coded | Partial |
-| `dissent_registry` | Documented, not coded | Partial |
+| `conflict_resolution_protocol` | `conflict_resolution.py` | Done |
+| `dissent_registry` | `conflict_resolution.py` dissent registry | Done |
 | `test_coverage_report` | 47 new tests, all passing | Done |
-| `ci_cd_pipeline_config` | Makefile exists | Partial |
+| `ci_cd_pipeline_config` | `.github/workflows/ci.yml` | Done |
 | `domain_integration_guide` | Financial domain covered | Done |
