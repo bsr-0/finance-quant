@@ -157,7 +157,7 @@ class TestWalkForwardReplay:
         )
 
         assert len(result1.folds) == len(result2.folds)
-        for f1, f2 in zip(result1.folds, result2.folds):
+        for f1, f2 in zip(result1.folds, result2.folds, strict=True):
             assert f1.metrics == f2.metrics
 
 
