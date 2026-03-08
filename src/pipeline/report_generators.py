@@ -605,3 +605,79 @@ def generate_refactoring_plan(
         "total_items": len(items),
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Section 7 — Model Search report
+# ---------------------------------------------------------------------------
+
+
+def generate_model_search_report(
+    results: list[dict[str, Any]],
+    primary_metric: str = "sharpe",
+    meta_learning_insights: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """<model_search_report> — Section 7 required output.
+
+    Args:
+        results: List of dicts with model_family, hyperparameters,
+            primary_metric_value, secondary_metrics, compute_seconds.
+        primary_metric: Name of the primary metric.
+        meta_learning_insights: Output from KnowledgeStore.generate_meta_learning_insights().
+    """
+    if results:
+        best = max(results, key=lambda r: r.get("primary_metric_value", float("-inf")))
+        total_compute = sum(r.get("compute_seconds", 0) for r in results)
+        families_tested = list({r.get("model_family", "") for r in results})
+    else:
+        best = None
+        total_compute = 0.0
+        families_tested = []
+
+    return {
+        "report_type": "model_search_report",
+        "primary_metric": primary_metric,
+        "total_candidates_evaluated": len(results),
+        "families_tested": families_tested,
+        "best_candidate": best,
+        "total_compute_seconds": total_compute,
+        "results": results,
+        "meta_learning_insights": meta_learning_insights,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 8 — Ensemble report
+# ---------------------------------------------------------------------------
+
+
+def generate_ensemble_report(
+    ensemble_method: str,
+    component_weights: list[dict[str, Any]],
+    diversity_metrics: dict[str, Any] | None = None,
+    comparison: dict[str, Any] | None = None,
+    primary_metric: str = "sharpe",
+    primary_metric_value: float | None = None,
+) -> dict[str, Any]:
+    """<ensemble_report> — Section 8 required output.
+
+    Args:
+        ensemble_method: Method used (weighted_average, greedy, stacking).
+        component_weights: List of {component_id, model_family, weight}.
+        diversity_metrics: Output from EnsembleBuilder.measure_diversity().
+        comparison: Raw-vs-calibrated comparison from compare_raw_vs_calibrated().
+        primary_metric: Name of the primary metric.
+        primary_metric_value: Best ensemble metric value.
+    """
+    return {
+        "report_type": "ensemble_report",
+        "ensemble_method": ensemble_method,
+        "n_components": len(component_weights),
+        "component_weights": component_weights,
+        "diversity_metrics": diversity_metrics,
+        "primary_metric": primary_metric,
+        "primary_metric_value": primary_metric_value,
+        "raw_vs_calibrated_comparison": comparison,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }

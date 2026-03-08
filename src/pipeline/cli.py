@@ -1127,6 +1127,218 @@ def monitor_positions(
         raise typer.Exit(1)
 
 
+@app.command()
+def model_search(
+    problem_id: str = typer.Option("equity_direction", help="Problem identifier"),
+    target_col: str = typer.Option("fwd_return_1d", help="Target column name"),
+    data_path: str = typer.Option("data/features.parquet", help="Path to feature data (Parquet)"),
+    output_dir: str = typer.Option("data/model_search", help="Output directory for results"),
+    primary_metric: str = typer.Option("sharpe", help="Primary metric for model selection"),
+    task_type: str = typer.Option("regression", help="Task type: regression or classification"),
+    max_per_family: int = typer.Option(20, help="Max candidates per model family"),
+    train_size: int = typer.Option(252, help="Walk-forward training window size"),
+    test_size: int = typer.Option(63, help="Walk-forward test window size"),
+):
+    """Run model search across diverse model families (Section 7)."""
+    configure_logging()
+
+    from pipeline.experiment_registry import ExperimentRegistry, KnowledgeStore
+    from pipeline.model_search import ModelSearcher, default_equity_search_spaces
+
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    registry = ExperimentRegistry(storage_path=out / "experiment_registry.json")
+    knowledge_store = KnowledgeStore(storage_path=out / "knowledge_store.json")
+
+    searcher = ModelSearcher(
+        registry=registry,
+        knowledge_store=knowledge_store,
+        problem_id=problem_id,
+        primary_metric=primary_metric,
+    )
+
+    data_file = Path(data_path)
+    if not data_file.exists():
+        console.print(f"[red]Data file not found: {data_path}[/red]")
+        raise typer.Exit(1)
+
+    df = pd.read_parquet(data_file)
+    if not isinstance(df.index, pd.DatetimeIndex):
+        if "date" in df.columns:
+            df = df.set_index("date")
+        df.index = pd.DatetimeIndex(df.index)
+
+    spaces = default_equity_search_spaces(task_type=task_type)
+
+    def eval_fn(y_true, y_pred):
+        from pipeline.eval.metrics import hit_rate, sharpe_sortino
+        aligned_true, aligned_pred = y_true.align(y_pred, join="inner")
+        rmse = float(((aligned_true - aligned_pred) ** 2).mean() ** 0.5)
+        hr = hit_rate(aligned_true, aligned_pred)
+        sharpe, sortino = sharpe_sortino(aligned_true - aligned_pred)
+        return {"rmse": rmse, "hit_rate": hr, "sharpe": sharpe, "sortino": sortino}
+
+    results = searcher.run_search(
+        df=df,
+        target_col=target_col,
+        spaces=spaces,
+        eval_fn=eval_fn,
+        train_size=train_size,
+        test_size=test_size,
+        max_per_family=max_per_family,
+    )
+
+    searcher.update_meta_knowledge(results)
+
+    from pipeline.report_generators import generate_model_search_report
+    report = generate_model_search_report(
+        results=[
+            {
+                "model_family": r.model_spec.model_family,
+                "hyperparameters": r.model_spec.hyperparameters,
+                "primary_metric_value": r.primary_metric_value,
+                "secondary_metrics": r.secondary_metrics,
+                "compute_seconds": r.compute_seconds,
+            }
+            for r in results
+        ],
+        primary_metric=primary_metric,
+        meta_learning_insights=knowledge_store.generate_meta_learning_insights(registry),
+    )
+
+    report_path = out / "model_search_report.json"
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=2, default=str)
+
+    table = Table(title="Model Search Results")
+    table.add_column("Rank", style="cyan")
+    table.add_column("Family", style="green")
+    table.add_column(primary_metric.upper(), style="yellow")
+    table.add_column("Time (s)", style="blue")
+
+    for i, r in enumerate(results[:10]):
+        table.add_row(
+            str(i + 1),
+            r.model_spec.model_family,
+            f"{r.primary_metric_value:.4f}",
+            f"{r.compute_seconds:.1f}",
+        )
+
+    console.print(table)
+    console.print(f"[green]Report saved to {report_path}[/green]")
+
+
+@app.command()
+def ensemble_build(
+    problem_id: str = typer.Option("ensemble_search", help="Problem identifier"),
+    target_col: str = typer.Option("fwd_return_1d", help="Target column name"),
+    data_path: str = typer.Option("data/features.parquet", help="Path to feature data"),
+    search_dir: str = typer.Option("data/model_search", help="Model search output directory"),
+    output_dir: str = typer.Option("data/ensemble", help="Output directory"),
+    primary_metric: str = typer.Option("sharpe", help="Primary metric"),
+    train_size: int = typer.Option(252, help="Walk-forward training window"),
+    test_size: int = typer.Option(63, help="Walk-forward test window"),
+):
+    """Build ensemble from model search results (Section 8)."""
+    configure_logging()
+
+    from pipeline.ensemble import EnsembleBuilder, EnsembleComponent
+    from pipeline.experiment_registry import ExperimentRegistry
+    from pipeline.model_search import ModelSearcher, ModelSpec
+
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    registry = ExperimentRegistry(storage_path=out / "experiment_registry.json")
+
+    data_file = Path(data_path)
+    if not data_file.exists():
+        console.print(f"[red]Data file not found: {data_path}[/red]")
+        raise typer.Exit(1)
+
+    df = pd.read_parquet(data_file)
+    if not isinstance(df.index, pd.DatetimeIndex):
+        if "date" in df.columns:
+            df = df.set_index("date")
+        df.index = pd.DatetimeIndex(df.index)
+
+    search_registry_path = Path(search_dir) / "experiment_registry.json"
+    if not search_registry_path.exists():
+        console.print(f"[red]Search registry not found: {search_registry_path}[/red]")
+        console.print("Run 'mdw model-search' first.")
+        raise typer.Exit(1)
+
+    search_registry = ExperimentRegistry(storage_path=search_registry_path)
+    from pipeline.experiment_registry import ExperimentStatus
+    completed = search_registry.list_experiments(status=ExperimentStatus.COMPLETED)
+
+    if not completed:
+        console.print("[red]No completed experiments found in search registry.[/red]")
+        raise typer.Exit(1)
+
+    sorted_exps = sorted(
+        completed, key=lambda e: e.primary_metric_value or 0.0, reverse=True
+    )[:5]
+
+    searcher = ModelSearcher(registry=search_registry, problem_id=problem_id)
+    components = []
+    for exp in sorted_exps:
+        spec = ModelSpec(
+            model_family=exp.model_family,
+            hyperparameters=exp.hyperparameters,
+        )
+        train_fn, predict_fn = searcher.build_model(spec, target_col=target_col)
+        components.append(
+            EnsembleComponent(
+                component_id=exp.experiment_id[:8],
+                model_spec=spec,
+                train_fn=train_fn,
+                predict_fn=predict_fn,
+            )
+        )
+
+    builder = EnsembleBuilder(
+        registry=registry, primary_metric=primary_metric, problem_id=problem_id
+    )
+
+    def eval_fn(y_true, y_pred):
+        from pipeline.eval.metrics import hit_rate, sharpe_sortino
+        aligned_true, aligned_pred = y_true.align(y_pred, join="inner")
+        rmse = float(((aligned_true - aligned_pred) ** 2).mean() ** 0.5)
+        hr = hit_rate(aligned_true, aligned_pred)
+        sharpe, sortino = sharpe_sortino(aligned_true - aligned_pred)
+        return {"rmse": rmse, "hit_rate": hr, "sharpe": sharpe, "sortino": sortino}
+
+    result = builder.run_ensemble_search(
+        df, target_col, components, eval_fn,
+        train_size=train_size, test_size=test_size,
+    )
+
+    from pipeline.report_generators import generate_ensemble_report
+    report = generate_ensemble_report(
+        ensemble_method=result.method,
+        component_weights=[
+            {
+                "component_id": c.component_id,
+                "model_family": c.model_spec.model_family if c.model_spec else "unknown",
+                "weight": c.weight,
+            }
+            for c in result.components
+        ],
+        primary_metric=primary_metric,
+        primary_metric_value=result.primary_metric_value,
+    )
+
+    report_path = out / "ensemble_report.json"
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=2, default=str)
+
+    console.print(f"[green]Best ensemble method: {result.method}[/green]")
+    console.print(f"[green]{primary_metric}: {result.primary_metric_value:.4f}[/green]")
+    console.print(f"[green]Report saved to {report_path}[/green]")
+
+
 def main():
     """Entry point for CLI."""
     app()
