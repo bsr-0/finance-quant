@@ -786,3 +786,494 @@ class TestConflictResolution:
         summary = resolver.export_summary()
         assert summary["total_conflicts"] == 1
         assert summary["open"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Report Generators (Sections 4-12)
+# ---------------------------------------------------------------------------
+
+class TestReportGenerators:
+
+    def test_problem_summary(self):
+        from pipeline.report_generators import generate_problem_summary
+        report = generate_problem_summary(
+            problem_id="sp500", objective="Predict direction",
+            prediction_target="next_day_return", horizon="1d",
+        )
+        assert report["report_type"] == "problem_summary"
+        assert report["problem_id"] == "sp500"
+
+    def test_objective_verification(self):
+        from pipeline.report_generators import generate_objective_verification
+        report = generate_objective_verification(
+            problem_id="sp500", decision_metric="sharpe",
+            decision_metric_value=1.5,
+        )
+        assert report["verified"] is True
+
+    def test_constraints_register(self):
+        from pipeline.report_generators import generate_constraints_register
+        report = generate_constraints_register(
+            problem_id="sp500",
+            constraints=[{"name": "max_leverage", "type": "risk", "value": "1.0", "source": "config"}],
+        )
+        assert report["total"] == 1
+
+    def test_availability_matrix(self):
+        from pipeline.report_generators import generate_availability_matrix
+        report = generate_availability_matrix(
+            sources=[{"name": "FRED", "fields": ["GDP", "CPI"], "start_date": "2000-01-01"}],
+        )
+        assert report["total_sources"] == 1
+
+    def test_feature_catalog(self):
+        from pipeline.report_generators import generate_feature_catalog
+        report = generate_feature_catalog(
+            features=[{"name": "rsi_14", "family": "momentum"}, {"name": "sma_20", "family": "trend"}],
+        )
+        assert report["total_features"] == 2
+        assert "momentum" in report["families"]
+
+    def test_feature_importance_report(self):
+        from pipeline.report_generators import generate_feature_importance_report
+        report = generate_feature_importance_report(
+            importances={"rsi_14": 0.3, "sma_20": 0.2, "volume": 0.5},
+        )
+        assert list(report["top_10"].keys())[0] == "volume"
+
+    def test_feature_stability_report(self):
+        from pipeline.report_generators import generate_feature_stability_report
+        report = generate_feature_stability_report(
+            stability_scores={"rsi_14": 0.8, "bad_feature": 0.2},
+        )
+        assert "rsi_14" in report["stable_features"]
+        assert "bad_feature" in report["unstable_features"]
+
+    def test_feature_retirement_log(self, tmp_path):
+        from pipeline.report_generators import FeatureRetirementLog
+        log = FeatureRetirementLog(storage_path=tmp_path / "retirement.json")
+        log.retire("old_feature", reason="Unstable importance")
+        export = log.export()
+        assert export["total_retired"] == 1
+
+    def test_meta_learning_report(self):
+        from pipeline.report_generators import generate_meta_learning_report
+        experiments = [
+            {"model_family": "lgbm", "problem_id": "p1", "primary_metric_value": 1.5},
+            {"model_family": "lr", "problem_id": "p1", "primary_metric_value": 0.8},
+            {"model_family": "lgbm", "problem_id": "p1", "primary_metric_value": 1.2},
+        ]
+        report = generate_meta_learning_report(experiments)
+        assert report["best_by_problem"]["p1"]["best_family"] == "lgbm"
+
+    def test_probability_diagnostics(self):
+        from pipeline.report_generators import generate_probability_diagnostics
+        rng = np.random.default_rng(42)
+        y_true = pd.Series(rng.integers(0, 2, 200).astype(float))
+        y_prob = pd.Series(rng.uniform(0, 1, 200))
+        report = generate_probability_diagnostics(y_true, y_prob)
+        assert "brier_score" in report
+        assert "ece" in report
+        assert "brier_decomposition" in report
+
+    def test_threshold_sweep(self):
+        from pipeline.report_generators import generate_threshold_sweep
+        rng = np.random.default_rng(42)
+        y_true = pd.Series(rng.integers(0, 2, 100).astype(float))
+        y_score = pd.Series(rng.uniform(0, 1, 100))
+        report = generate_threshold_sweep(y_true, y_score)
+        assert len(report["results"]) > 0
+        assert "precision" in report["results"][0]
+
+    def test_abstention_report(self):
+        from pipeline.report_generators import generate_abstention_report
+        rng = np.random.default_rng(42)
+        y_true = pd.Series(rng.integers(0, 2, 100).astype(float))
+        y_score = pd.Series(rng.uniform(0, 1, 100))
+        report = generate_abstention_report(y_true, y_score)
+        assert len(report["results"]) > 0
+
+    def test_simulation_assumptions(self):
+        from pipeline.report_generators import generate_simulation_assumptions
+        report = generate_simulation_assumptions(spread_bps=15.0)
+        assert report["spread_bps"] == 15.0
+
+    def test_risk_path_report(self):
+        from pipeline.report_generators import generate_risk_path_report
+        rng = np.random.default_rng(42)
+        returns = pd.Series(rng.normal(0.001, 0.02, 252))
+        report = generate_risk_path_report(returns)
+        assert "max_drawdown" in report
+        assert "max_losing_streak" in report
+
+    def test_robustness_report(self):
+        from pipeline.report_generators import generate_robustness_report
+        rng = np.random.default_rng(42)
+        returns = pd.Series(rng.normal(0.001, 0.02, 252))
+        report = generate_robustness_report(
+            returns=returns, sharpe=1.5, n_obs=252,
+        )
+        assert "deflated_sharpe_probability" in report
+
+    def test_reproducibility_report(self):
+        from pipeline.report_generators import generate_reproducibility_report
+        experiments = [
+            {"reproducibility_hash": "abc123", "dataset_version": "v1", "hyperparameters": {"lr": 0.1}},
+            {"reproducibility_hash": "def456", "dataset_version": "v1", "hyperparameters": {"lr": 0.2}},
+        ]
+        report = generate_reproducibility_report(experiments)
+        assert report["total_experiments"] == 2
+        assert report["pct_captured"] == 1.0
+
+    def test_architecture_review(self):
+        from pipeline.report_generators import generate_architecture_review
+        report = generate_architecture_review(
+            modules=[{"name": "pipeline.extract", "type": "package"}],
+            issues=[{"location": "db.py", "severity": "low", "description": "Unused import"}],
+        )
+        assert report["total_modules"] == 1
+        assert report["total_issues"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Evaluation Matrix (Section 13)
+# ---------------------------------------------------------------------------
+
+class TestEvaluationMatrix:
+
+    def test_evaluate_with_returns(self):
+        from pipeline.evaluation_matrix import EvaluationMatrix
+        rng = np.random.default_rng(42)
+        returns = pd.Series(rng.normal(0.001, 0.02, 252))
+        matrix = EvaluationMatrix()
+        entry = matrix.evaluate(candidate_id="lgbm_v1", returns=returns)
+        assert entry.decision_utility.get("sharpe") is not None
+        assert entry.risk.get("max_drawdown") is not None
+
+    def test_evaluate_with_predictions(self):
+        from pipeline.evaluation_matrix import EvaluationMatrix
+        rng = np.random.default_rng(42)
+        y_true = pd.Series(rng.integers(0, 2, 200).astype(float))
+        y_prob = pd.Series(rng.uniform(0, 1, 200))
+        y_pred = (y_prob > 0.5).astype(float)
+        matrix = EvaluationMatrix()
+        entry = matrix.evaluate(
+            candidate_id="model_a", y_true=y_true, y_pred=y_pred, y_prob=y_prob,
+        )
+        assert "brier" in entry.predictive_accuracy
+        assert "ece" in entry.calibration
+
+    def test_compare_multiple(self):
+        from pipeline.evaluation_matrix import EvaluationMatrix
+        rng = np.random.default_rng(42)
+        matrix = EvaluationMatrix()
+        for i in range(3):
+            returns = pd.Series(rng.normal(0.001 * (i + 1), 0.02, 252))
+            matrix.evaluate(candidate_id=f"model_{i}", returns=returns)
+        comparison = matrix.compare()
+        assert comparison["total_candidates"] == 3
+
+    def test_get_best(self):
+        from pipeline.evaluation_matrix import EvaluationMatrix
+        rng = np.random.default_rng(42)
+        matrix = EvaluationMatrix()
+        matrix.evaluate(
+            candidate_id="weak",
+            returns=pd.Series(rng.normal(-0.001, 0.02, 252)),
+        )
+        matrix.evaluate(
+            candidate_id="strong",
+            returns=pd.Series(rng.normal(0.005, 0.02, 252)),
+        )
+        best = matrix.get_best("decision_utility.sharpe")
+        assert best == "strong"
+
+
+# ---------------------------------------------------------------------------
+# A/B Testing (Section 18.5)
+# ---------------------------------------------------------------------------
+
+class TestABTesting:
+
+    def test_power_analysis(self):
+        from pipeline.ab_testing import PowerAnalysis
+        n = PowerAnalysis.compute_sample_size(effect_size=0.5, power=0.80)
+        assert n > 0
+        assert n < 200  # ~63 for d=0.5
+
+    def test_power_computation(self):
+        from pipeline.ab_testing import PowerAnalysis
+        power = PowerAnalysis.compute_power(n=100, effect_size=0.5)
+        assert power > 0.8
+
+    def test_sequential_boundaries(self):
+        from pipeline.ab_testing import SequentialTestBoundary
+        boundary = SequentialTestBoundary(n_looks=4, alpha=0.05)
+        bounds = boundary.get_boundaries()
+        assert len(bounds) == 4
+        # Early looks should have stricter boundaries
+        assert bounds[0]["z_boundary"] > bounds[-1]["z_boundary"]
+
+    def test_sequential_should_stop(self):
+        from pipeline.ab_testing import SequentialTestBoundary
+        boundary = SequentialTestBoundary(n_looks=4, alpha=0.05)
+        # Very large z should trigger stop
+        assert boundary.should_stop(look=4, z_statistic=5.0)
+        # Small z at first look should not
+        assert not boundary.should_stop(look=1, z_statistic=1.0)
+
+    def test_design_test(self, tmp_path):
+        from pipeline.ab_testing import ABTestManager
+        manager = ABTestManager(storage_path=tmp_path / "ab.json")
+        config = manager.design_test(
+            candidate_id="v3", incumbent_id="v2", effect_size=0.3,
+        )
+        assert config.minimum_sample_size > 0
+        assert config.candidate_id == "v3"
+
+    def test_test_lifecycle(self, tmp_path):
+        from pipeline.ab_testing import ABTestManager, TestStatus
+        manager = ABTestManager(storage_path=tmp_path / "ab.json")
+        config = manager.design_test(
+            candidate_id="v3", incumbent_id="v2", effect_size=0.5,
+        )
+        manager.start_test(config.test_id)
+
+        rng = np.random.default_rng(42)
+        for i in range(50):
+            manager.record_observation(
+                config.test_id, group="candidate",
+                primary_value=rng.normal(0.05, 0.1), cycle=i,
+            )
+            manager.record_observation(
+                config.test_id, group="incumbent",
+                primary_value=rng.normal(0.0, 0.1), cycle=i,
+            )
+
+        result = manager.complete_test(config.test_id)
+        assert result.winner in ("candidate", "incumbent", "inconclusive")
+        assert result.p_value >= 0
+
+    def test_export_protocol(self, tmp_path):
+        from pipeline.ab_testing import ABTestManager
+        manager = ABTestManager(storage_path=tmp_path / "ab.json")
+        config = manager.design_test(
+            candidate_id="v3", incumbent_id="v2", effect_size=0.3,
+        )
+        protocol = manager.export_protocol(config.test_id)
+        assert protocol["report_type"] == "ab_test_protocol"
+        assert "boundaries" in protocol
+
+    def test_persistence(self, tmp_path):
+        from pipeline.ab_testing import ABTestManager
+        path = tmp_path / "ab.json"
+        m1 = ABTestManager(storage_path=path)
+        config = m1.design_test(candidate_id="v3", incumbent_id="v2")
+
+        m2 = ABTestManager(storage_path=path)
+        assert m2.get_test(config.test_id) is not None
+
+
+# ---------------------------------------------------------------------------
+# Knowledge Store (Section 14)
+# ---------------------------------------------------------------------------
+
+class TestKnowledgeStore:
+
+    def _make_store(self, tmp_path):
+        from pipeline.experiment_registry import KnowledgeStore
+        return KnowledgeStore(storage_path=tmp_path / "knowledge.json")
+
+    def test_store_and_query(self, tmp_path):
+        store = self._make_store(tmp_path)
+        store.store_finding(
+            domain="finance", horizon="daily", model_family="lgbm",
+            finding="LightGBM outperforms linear models on daily data",
+            works=True,
+        )
+        store.store_finding(
+            domain="finance", horizon="daily", model_family="lstm",
+            finding="LSTM overfits on small datasets",
+            works=False,
+        )
+        results = store.query_findings(domain="finance")
+        assert len(results) == 2
+        working = store.query_findings(domain="finance", works=True)
+        assert len(working) == 1
+
+    def test_persistence(self, tmp_path):
+        from pipeline.experiment_registry import KnowledgeStore
+        path = tmp_path / "knowledge.json"
+        s1 = KnowledgeStore(storage_path=path)
+        s1.store_finding(domain="test", finding="Something works")
+
+        s2 = KnowledgeStore(storage_path=path)
+        assert len(s2.query_findings()) == 1
+
+    def test_meta_learning_insights(self, tmp_path):
+        store = self._make_store(tmp_path)
+        store.store_finding(domain="finance", finding="A works", works=True)
+        store.store_finding(domain="finance", finding="B fails", works=False)
+        insights = store.generate_meta_learning_insights()
+        assert insights["report_type"] == "knowledge_retention_report"
+        assert insights["domains"]["finance"]["works"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Failure Mode Checks (Section 25.1)
+# ---------------------------------------------------------------------------
+
+class TestFailureModeChecks:
+
+    def test_all_pass(self):
+        from pipeline.failure_mode_checks import FailureModeChecker
+        checker = FailureModeChecker()
+        report = checker.run_all_checks(
+            deployment_history=["shadow", "canary", "graduated_25", "production"],
+        )
+        assert report.all_passed
+        assert len(report.checks) == 8
+
+    def test_shadow_bypass_fails(self):
+        from pipeline.failure_mode_checks import FailureModeChecker
+        checker = FailureModeChecker()
+        report = checker.run_all_checks(
+            deployment_history=["production"],  # skipped shadow/canary
+        )
+        assert not report.all_passed
+        assert "shadow_bypass" in report.failed_checks
+
+    def test_shadow_bypass_with_approval(self):
+        from pipeline.failure_mode_checks import FailureModeChecker
+        checker = FailureModeChecker()
+        report = checker.run_all_checks(
+            deployment_history=["production"],
+            human_approved_bypass=True,
+        )
+        # shadow_bypass should pass with human approval
+        shadow_check = [c for c in report.checks if c.check_name == "shadow_bypass"][0]
+        assert shadow_check.passed
+
+    def test_monitoring_failure(self):
+        from pipeline.failure_mode_checks import FailureModeChecker
+        check = FailureModeChecker.check_monitoring_active(False)
+        assert not check.passed
+
+    def test_budget_overrun(self):
+        from pipeline.failure_mode_checks import FailureModeChecker
+        check = FailureModeChecker.check_budget_overrun(
+            budget_exceeded=True, overrun_approved=False,
+        )
+        assert not check.passed
+        check2 = FailureModeChecker.check_budget_overrun(
+            budget_exceeded=True, overrun_approved=True,
+        )
+        assert check2.passed
+
+    def test_multiple_failures(self):
+        from pipeline.failure_mode_checks import FailureModeChecker
+        checker = FailureModeChecker()
+        report = checker.run_all_checks(
+            deployment_history=[],
+            monitoring_active=False,
+            ci_passed=False,
+        )
+        assert not report.all_passed
+        assert len(report.failed_checks) >= 3
+
+
+# ---------------------------------------------------------------------------
+# Domain Checklists (Section 24.5)
+# ---------------------------------------------------------------------------
+
+class TestDomainChecklists:
+
+    def test_risk_register(self):
+        from pipeline.domain_checklist import generate_domain_risk_register
+        report = generate_domain_risk_register("finance")
+        assert report["total_risks"] > 0
+        assert report["high_severity"] > 0
+
+    def test_data_quirks(self):
+        from pipeline.domain_checklist import generate_domain_data_quirks
+        report = generate_domain_data_quirks("finance")
+        assert report["total_quirks"] > 0
+
+    def test_regulatory_checklist(self):
+        from pipeline.domain_checklist import generate_regulatory_checklist
+        report = generate_regulatory_checklist("finance")
+        assert report["total_requirements"] > 0
+        assert report["compliant"] > 0
+
+    def test_unknown_domain(self):
+        from pipeline.domain_checklist import generate_domain_risk_register
+        report = generate_domain_risk_register("unknown")
+        assert report["total_risks"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Deployment Pipeline exports (Section 18.6)
+# ---------------------------------------------------------------------------
+
+class TestDeploymentPipelineExports:
+
+    def test_drift_report(self, tmp_path):
+        from pipeline.deployment_pipeline import DeploymentPipeline
+        dp = DeploymentPipeline(storage_path=tmp_path / "deploy.json")
+        dp.start_shadow("exp_1")
+        report = dp.export_drift_report("exp_1", drift_results={"concept": False})
+        assert report["report_type"] == "drift_detection_report"
+
+    def test_retraining_log(self, tmp_path):
+        from pipeline.deployment_pipeline import DeploymentPipeline
+        dp = DeploymentPipeline(storage_path=tmp_path / "deploy.json")
+        dp.start_shadow("exp_1")
+        report = dp.export_retraining_log()
+        assert report["report_type"] == "retraining_trigger_log"
+        assert len(report["configured_triggers"]) == 4
+
+
+# ---------------------------------------------------------------------------
+# Governance exports (Section 21.5)
+# ---------------------------------------------------------------------------
+
+class TestGovernanceExports:
+
+    def test_approval_request_log(self, tmp_path):
+        from pipeline.governance import GovernanceFramework
+        gov = GovernanceFramework(storage_path=tmp_path / "gov.json")
+        gov.submit_approval_request(action_summary="Deploy model v3")
+        log = gov.export_approval_request_log()
+        assert log["report_type"] == "approval_request_log"
+        assert log["total_requests"] == 1
+
+    def test_escalation_protocol(self, tmp_path):
+        from pipeline.governance import GovernanceFramework
+        gov = GovernanceFramework(storage_path=tmp_path / "gov.json")
+        protocol = gov.export_escalation_protocol()
+        assert protocol["report_type"] == "escalation_protocol"
+        assert len(protocol["authority_levels"]) == 3
+        assert len(protocol["escalation_path"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# Compute Budget exports (Section 20.4)
+# ---------------------------------------------------------------------------
+
+class TestComputeBudgetExports:
+
+    def test_pareto_frontier(self, tmp_path):
+        from pipeline.compute_budget import ComputeBudget
+        budget = ComputeBudget(total_budget_hours=1.0, storage_path=tmp_path / "budget.json")
+        for i in range(5):
+            with budget.track_experiment(f"exp_{i}", phase="model_search") as t:
+                t.primary_metric_value = 1.0 + i * 0.1
+        frontier = budget.generate_pareto_frontier()
+        assert frontier["report_type"] == "pareto_frontier_analysis"
+        assert len(frontier["frontier_points"]) > 0
+
+    def test_search_termination_justification(self, tmp_path):
+        from pipeline.compute_budget import ComputeBudget
+        budget = ComputeBudget(total_budget_hours=1.0, storage_path=tmp_path / "budget.json")
+        justification = budget.export_search_termination_justification()
+        assert justification["report_type"] == "search_termination_justification"

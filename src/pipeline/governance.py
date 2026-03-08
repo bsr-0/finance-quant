@@ -434,3 +434,66 @@ class GovernanceFramework:
     def export_decision_authority_matrix(self) -> list[dict[str, Any]]:
         """Export the decision authority matrix (Section 21.5)."""
         return [asdict(a) for a in self._authority_matrix.values()]
+
+    def export_approval_request_log(self) -> dict[str, Any]:
+        """<approval_request_log> — Section 21.5 required output."""
+        return {
+            "report_type": "approval_request_log",
+            "requests": [
+                {
+                    "request_id": r.request_id,
+                    "action_summary": r.action_summary,
+                    "status": r.status.value,
+                    "requested_by": r.requested_by,
+                    "requested_at": r.timestamp,
+                    "reviewed_by": r.reviewed_by,
+                    "review_timestamp": r.review_timestamp,
+                    "review_notes": r.review_notes,
+                }
+                for r in self._approval_requests.values()
+            ],
+            "total_requests": len(self._approval_requests),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def export_escalation_protocol(self) -> dict[str, Any]:
+        """<escalation_protocol> — Section 21.5 required output."""
+        return {
+            "report_type": "escalation_protocol",
+            "authority_levels": [
+                {
+                    "level": "autonomous",
+                    "description": "Routine research within guardrails",
+                    "examples": "Running experiments, training models, generating features",
+                    "approval_required": False,
+                },
+                {
+                    "level": "notify",
+                    "description": "Reversible live system changes",
+                    "examples": "Shadow deployment, adjusting thresholds, scheduled retrain",
+                    "approval_required": False,
+                    "notification_required": True,
+                },
+                {
+                    "level": "approve",
+                    "description": "Significant, potentially irreversible impact",
+                    "examples": "Production deploy, changing decision policy, increasing exposure",
+                    "approval_required": True,
+                    "required_evidence": [
+                        "risk_summary",
+                        "backtest_evidence",
+                        "rollback_plan",
+                    ],
+                },
+            ],
+            "escalation_path": [
+                "1. Agent identifies action requiring approval",
+                "2. Submit structured approval request with evidence",
+                "3. Human reviewer evaluates risk and evidence",
+                "4. Approve/deny with justification logged to audit trail",
+                "5. If denied, agent must revise approach and resubmit",
+                "6. For regulatory issues, escalate to compliance officer",
+            ],
+            "compliance_domains": [d.value for d in GovernanceDomain],
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }

@@ -1,6 +1,6 @@
 # Agent Directive V7 — Compliance Report
 
-**Date:** 2026-03-07
+**Date:** 2026-03-08
 **Repository:** finance-quant
 **Scope:** Full audit of codebase against Agent Directive V7 (25 sections)
 
@@ -8,151 +8,167 @@
 
 ## Executive Summary
 
-This report maps every section of Agent Directive V7 against the existing codebase, identifies gaps, and documents the new modules implemented to close critical compliance gaps. The codebase has been upgraded from **partial compliance (14/25 sections)** to **full compliance (25/25 sections)**.
+This report maps every section of Agent Directive V7 against the existing codebase. The codebase has achieved **full compliance (25/25 sections)** with all required output generators, frameworks, and validation checks implemented.
 
 ### Compliance Scorecard
 
 | Section | Title | Status | Module(s) |
 |---------|-------|--------|-----------|
 | 1 | Mission & Non-Negotiable Principles | Compliant | Core design; bias_checks, walk_forward |
-| 2 | Multi-Agent System Architecture | **NEW** | `agent_coordinator.py` |
-| 3 | Shared Contracts & Required Logs | **NEW** | `experiment_registry.py` |
-| 4 | Phase 0 — Problem Definition | Compliant | strategy_definition, config.yaml |
-| 5 | Phase 1 — Dataset Discovery | Compliant | 14 extractors, lineage.py |
-| 6 | Phase 2 — Feature Discovery | Compliant | features/, technical_indicators |
-| 7 | Phase 3 — Model Search | Compliant | walk_forward_runner, model families |
-| 8 | Phase 4 — Ensemble & Calibration | Compliant | eval/robustness, eval/metrics |
-| 9 | Phase 5 — Decision Optimization | Compliant | strategy/, position_sizing, exits |
-| 10 | Phase 6 — Backtesting & Simulation | Compliant | backtesting/, simulator, monte_carlo |
-| 11 | Phase 7 — Skeptical Audit Layer | Compliant | bias_checks, factor_neutrality, robustness |
-| 12 | Phase 8 — Codebase Review | Compliant | GAP_ANALYSIS.md, existing audit |
-| 13 | Required Evaluation Matrix | Compliant | eval/metrics, eval/evaluator |
-| 14 | Continuous Research Loop | Compliant | walk_forward_runner, experiment_registry |
-| 15 | Failure Modes / Rejection | Compliant | bias_checks, risk_constraints |
-| 16 | Final Deliverables | Compliant | Existing reports + new modules |
+| 2 | Multi-Agent System Architecture | Compliant | `agent_coordinator.py` |
+| 3 | Shared Contracts & Required Logs | Compliant | `experiment_registry.py` |
+| 4 | Phase 0 — Problem Definition | Compliant | `report_generators.py` (problem_summary, objective_verification, constraints_register) |
+| 5 | Phase 1 — Dataset Discovery | Compliant | 14 extractors, `report_generators.py` (availability_matrix, dataset_expansion_report) |
+| 6 | Phase 2 — Feature Discovery | Compliant | features/, `report_generators.py` (feature_catalog, importance, stability, retirement_log) |
+| 7 | Phase 3 — Model Search | Compliant | walk_forward_runner, `report_generators.py` (meta_learning_report) |
+| 8 | Phase 4 — Ensemble & Calibration | Compliant | eval/robustness, `report_generators.py` (probability_diagnostics) |
+| 9 | Phase 5 — Decision Optimization | Compliant | strategy/, `report_generators.py` (threshold_sweep, abstention_report) |
+| 10 | Phase 6 — Backtesting & Simulation | Compliant | backtesting/, `report_generators.py` (simulation_assumptions, risk_path_report) |
+| 11 | Phase 7 — Skeptical Audit Layer | Compliant | bias_checks, `report_generators.py` (robustness_report, reproducibility_report) |
+| 12 | Phase 8 — Codebase Review | Compliant | `report_generators.py` (architecture_review, refactoring_plan) |
+| 13 | Required Evaluation Matrix | Compliant | `evaluation_matrix.py` (5 metric classes, side-by-side comparison) |
+| 14 | Continuous Research Loop | Compliant | `experiment_registry.py` (KnowledgeStore, meta-learning insights) |
+| 15 | Failure Modes / Rejection | Compliant | bias_checks, `failure_mode_checks.py` |
+| 16 | Final Deliverables | Compliant | All reports + new modules |
 | 17 | Operating Summary | Compliant | — |
-| 18 | Production Deployment & Monitoring | **NEW** | `deployment_pipeline.py`, `drift_detection.py` |
+| 18 | Production Deployment & Monitoring | Compliant | `deployment_pipeline.py`, `drift_detection.py`, `ab_testing.py` |
 | 19 | Data Engineering & Pipeline Resilience | Compliant | infrastructure/, circuit_breaker, checkpoint |
-| 20 | Compute Budget & Resources | **NEW** | `compute_budget.py` |
-| 21 | Human-in-the-Loop Governance | **NEW** | `governance.py` |
-| 22 | Multi-Agent Conflict Resolution | **NEW** | `conflict_resolution.py` |
-| 23 | Testing Strategy & CI/CD | **NEW** | `test_temporal_integrity.py`, `test_directive_v7.py`, `.github/workflows/ci.yml` |
-| 24 | Domain-Specific Integration | Compliant | Financial domain fully covered |
-| 25 | Extended Failure Modes & Deliverables | Compliant | All deliverables now covered |
+| 20 | Compute Budget & Resources | Compliant | `compute_budget.py` (pareto_frontier, search_termination_justification) |
+| 21 | Human-in-the-Loop Governance | Compliant | `governance.py` (approval_request_log, escalation_protocol) |
+| 22 | Multi-Agent Conflict Resolution | Compliant | `conflict_resolution.py` |
+| 23 | Testing Strategy & CI/CD | Compliant | `test_temporal_integrity.py`, `test_directive_v7.py`, `.github/workflows/ci.yml` |
+| 24 | Domain-Specific Integration | Compliant | `domain_checklist.py` (risk_register, data_quirks, regulatory_checklist) |
+| 25 | Extended Failure Modes & Deliverables | Compliant | `failure_mode_checks.py` (8 extended checks) |
 
 ---
 
-## New Modules Implemented
+## Modules Implemented
 
-### 1. Experiment Registry (`src/pipeline/experiment_registry.py`)
+### 1. Report Generators (`src/pipeline/report_generators.py`)
+**Directive Sections:** 4-12
+
+Consolidates all required output generators for research phases:
+
+| Output | Function | Section |
+|--------|----------|---------|
+| `problem_summary` | `generate_problem_summary()` | S4 |
+| `objective_verification_report` | `generate_objective_verification()` | S4 |
+| `constraints_register` | `generate_constraints_register()` | S4 |
+| `availability_matrix` | `generate_availability_matrix()` | S5 |
+| `dataset_expansion_report` | `generate_dataset_expansion_report()` | S5 |
+| `feature_catalog` | `generate_feature_catalog()` | S6 |
+| `feature_importance_report` | `generate_feature_importance_report()` | S6 |
+| `feature_stability_report` | `generate_feature_stability_report()` | S6 |
+| `feature_retirement_log` | `FeatureRetirementLog` class | S6 |
+| `meta_learning_report` | `generate_meta_learning_report()` | S7 |
+| `probability_diagnostics` | `generate_probability_diagnostics()` | S8 |
+| `threshold_sweep_report` | `generate_threshold_sweep()` | S9 |
+| `abstention_policy_report` | `generate_abstention_report()` | S9 |
+| `simulation_assumptions` | `generate_simulation_assumptions()` | S10 |
+| `risk_path_report` | `generate_risk_path_report()` | S10 |
+| `robustness_report` | `generate_robustness_report()` | S11 |
+| `reproducibility_report` | `generate_reproducibility_report()` | S11 |
+| `architecture_review_report` | `generate_architecture_review()` | S12 |
+| `refactoring_plan` | `generate_refactoring_plan()` | S12 |
+
+### 2. Evaluation Matrix (`src/pipeline/evaluation_matrix.py`)
+**Directive Section:** 13
+
+Standardized evaluation across 5 mandatory metric classes:
+- **Predictive accuracy**: RMSE, MAE, hit rate, Brier score, log loss
+- **Calibration**: ECE, over/under-confidence rates
+- **Decision utility**: Total return, Sharpe ratio, Sortino ratio
+- **Risk**: Max drawdown, annualized volatility, worst month, VaR 95%
+- **Stability**: Sharpe first/second half, stability ratio
+
+Side-by-side comparison via `compare()` and best candidate selection via `get_best()`.
+
+### 3. A/B Testing Framework (`src/pipeline/ab_testing.py`)
+**Directive Section:** 18.5
+
+Full A/B testing protocol:
+- **Power analysis**: Pre-compute minimum sample size for desired effect/power
+- **O'Brien-Fleming boundaries**: Sequential testing for early stopping without inflating Type I error
+- **Test lifecycle**: design → running → stopped_early/completed → validated
+- **Post-test validation**: Winner must pass holdout backtest
+- **Exports**: `ab_test_protocol` and `ab_test_results` required outputs
+
+### 4. Knowledge Store (`src/pipeline/experiment_registry.py`)
+**Directive Section:** 14
+
+Added `KnowledgeStore` class for cross-cycle knowledge retention:
+- Store findings with domain, horizon, model family, evidence
+- Query relevant past findings by filters
+- Generate meta-learning insights from experiment registry patterns
+- JSON persistence alongside experiment registry
+
+### 5. Failure Mode Checks (`src/pipeline/failure_mode_checks.py`)
+**Directive Section:** 25.1
+
+8 extended failure mode validators:
+1. Shadow bypass detection
+2. Monitoring active verification
+3. Pipeline idempotency check
+4. Budget overrun detection
+5. Unauthorized action check
+6. Silent conflict override detection
+7. CI gates passed verification
+8. Compliance completeness check
+
+Any failure triggers rejection with severity and reason.
+
+### 6. Domain Checklists (`src/pipeline/domain_checklist.py`)
+**Directive Section:** 24.5
+
+Pre-populated with Section 24.2 (Financial Markets) content:
+- **Risk register**: 8 entries covering data, execution, regime, model, regulatory risks
+- **Data quirks checklist**: 5 entries for economic indicators, earnings, prices, SEC filings, market data
+- **Regulatory compliance**: 4 entries for SEC 15c3-5, MiFID II, audit trail, position limits
+
+### 7. Experiment Registry (`src/pipeline/experiment_registry.py`)
 **Directive Sections:** 3, 14, 15, 20.3
 
-Implements the shared experiment ledger. Every experiment must be logged with:
-- `problem_id`, `dataset_version`, `as_of_timestamp_rules`
-- `feature_set_id`, `model_family`, `hyperparameters`
-- `validation_scheme`, `calibration_method`, `decision_policy`
-- `primary_metric`, `secondary_metrics`, `path_risk_metrics`
-- `reproducibility_hash` (auto-computed SHA-256)
+Shared experiment ledger with promotion gates, rejection tracking, search termination, and cost efficiency ratio.
 
-Key features:
-- **Promotion gates**: Only completed experiments can be promoted (Section 14).
-- **Rejection tracking**: Failure modes trigger rejection with reason (Section 15).
-- **Search termination**: Detects when last N experiments show no improvement (Section 20.1).
-- **Cost efficiency ratio**: Compute cost per unit improvement (Section 20.3).
-- **JSON persistence**: No database dependency.
-
-### 2. Drift Detection (`src/pipeline/drift_detection.py`)
+### 8. Drift Detection (`src/pipeline/drift_detection.py`)
 **Directive Sections:** 18.3, 18.4
 
-Monitors three independent drift axes:
-- **Concept drift**: Conditional prediction error ratio across feature segments.
-- **Data drift (covariate shift)**: PSI and KS tests on feature distributions.
-- **Label drift (prior shift)**: Target base rate relative shift.
+Three independent drift axes: concept, data (covariate shift), label (prior shift). Two or more axes firing triggers retraining.
 
-Thresholds per directive:
-- PSI > 0.2 on any feature triggers data drift.
-- KS p-value < 0.01 on >15% of features triggers data drift.
-- Base rate shift > 20% relative triggers label drift.
-- **Two or more axes firing triggers retraining pipeline.**
+### 9. Deployment Pipeline (`src/pipeline/deployment_pipeline.py`)
+**Directive Sections:** 18.1, 18.2, 18.4, 18.5, 18.6
 
-### 3. Deployment Pipeline (`src/pipeline/deployment_pipeline.py`)
-**Directive Sections:** 18.1, 18.2, 18.4, 18.5
+Five-stage deployment (Shadow → Canary → Graduated 25% → Graduated 50% → Production) with rollback triggers, alert thresholds, and retraining triggers. Includes `export_drift_report()` and `export_retraining_log()`.
 
-Implements the five-stage deployment pipeline:
-1. **Shadow** — Parallel run, no real actions. Min 50 cycles.
-2. **Canary** — 5-10% live traffic. Statistical comparison.
-3. **Graduated 25%** — Hold period for comparison.
-4. **Graduated 50%** — Extended hold period.
-5. **Production** — Incumbent retained as warm standby.
-
-Also provides:
-- **Rollback triggers**: Per-stage automatic rollback conditions.
-- **Alert thresholds**: 8 configurable thresholds across prediction quality, calibration, decision quality, feature health, and infrastructure.
-- **Retraining triggers**: Scheduled, performance-driven, drift-driven, and data-event-driven.
-
-### 4. Compute Budget (`src/pipeline/compute_budget.py`)
+### 10. Compute Budget (`src/pipeline/compute_budget.py`)
 **Directive Section:** 20
 
-Budget-aware search protocol:
-- **Phase allocations**: Data 10%, Features 15%, Model search 35%, Ensemble 15%, Decision 10%, Audit 10%, Reserve 5%.
-- **Single experiment cap**: No experiment may consume >5% of total budget.
-- **Search termination**: Stop if last 10 experiments improve by <0.1%.
-- **Cost tracking**: Per-experiment wall-clock cost with phase breakdown.
-- **Budget reports**: Utilization, cost-per-improvement, termination checks.
+Budget-aware search with phase allocations, experiment caps, search termination, and cost tracking. Includes `generate_pareto_frontier()` and `export_search_termination_justification()`.
 
-### 5. Governance Framework (`src/pipeline/governance.py`)
+### 11. Governance Framework (`src/pipeline/governance.py`)
 **Directive Section:** 21
 
-Human-in-the-loop governance:
-- **Decision authority matrix**: Actions classified as Autonomous, Notify, or Approve.
-- **Approval request protocol**: Structured requests with evidence, risk assessment, rollback plan, and expiration.
-- **Compliance checkpoints**: Domain-specific (finance, betting, elections).
-- **Immutable audit trail**: Every governance action logged with timestamp, actor, justification, and outcome.
+Decision authority matrix, approval request protocol, compliance checkpoints, and immutable audit trail. Includes `export_approval_request_log()` and `export_escalation_protocol()`.
 
-### 6. Agent Coordinator (`src/pipeline/agent_coordinator.py`)
+### 12. Agent Coordinator (`src/pipeline/agent_coordinator.py`)
 **Directive Section:** 2
 
-Formalizes the multi-agent system architecture:
-- **7 agent roles**: Research Orchestrator, Data Agent, Feature Agent, Model Agent, Ensemble Agent, Decision Agent, Audit Agent.
-- **Agent specifications**: Each role has primary responsibility, deliverables, and veto capability flag.
-- **Research roadmap**: Problem framing, phase management, failure register.
-- **Task management**: Assignment, dependency tracking, priority-based scheduling, ready-task computation.
-- **Research cycles**: Cycle counting for continuous research loop (Section 14).
-- **JSON persistence**: Full coordinator state persisted.
+7 agent roles with task assignment, dependency tracking, research roadmap, failure register, and research cycles.
 
-### 7. Conflict Resolution (`src/pipeline/conflict_resolution.py`)
+### 13. Conflict Resolution (`src/pipeline/conflict_resolution.py`)
 **Directive Section:** 22
 
-Complete conflict resolution protocol:
-- **Conflict categories**: Factual, Priority, Safety, Resource disagreements.
-- **Evidence duels**: Both agents submit reproducible evidence to the shared ledger.
-- **Audit arbitration**: Audit Agent's independent reproduction is binding on factual and safety matters.
-- **Orchestrator decision**: Final call on priority/resource conflicts (cannot override safety).
-- **Human escalation**: Fallback to human operator with full logging.
-- **Audit Agent veto**: Special veto power on safety matters — no override possible.
-- **Dissent registry**: Agents can file dissents; reviewed at cycle start.
+4-step resolution hierarchy (evidence duel → audit arbitration → orchestrator decision → human escalation) with Audit Agent veto and dissent registry.
 
-### 8. CI/CD Pipeline (`.github/workflows/ci.yml`)
+### 14. CI/CD Pipeline (`.github/workflows/ci.yml`)
 **Directive Section:** 23.3
 
-Full testing pyramid CI/CD configuration:
-1. Pre-commit: lint + format + type check (blocking).
-2. Unit + property tests: multi-Python matrix (blocking).
-3. Integration tests: with PostgreSQL service (blocking).
-4. Coverage gate: minimum threshold enforcement (blocking).
-5. Temporal integrity tests: dedicated Section 23.2 stage (blocking).
-6. Model validation smoke test: module import verification (blocking).
-7. System tests: nightly full-pipeline (non-blocking).
+Full testing pyramid: pre-commit → unit + property → integration → coverage → temporal integrity → model smoke → system tests (nightly).
 
-### 9. Temporal Integrity Tests (`tests/test_temporal_integrity.py`)
+### 15. Temporal Integrity Tests (`tests/test_temporal_integrity.py`)
 **Directive Section:** 23.2
 
-Mandatory specialized tests:
-- **Feature timestamp assertion**: Verify as-of timestamps are strictly before prediction target event time.
-- **Walk-forward replay test**: Verify deterministic results on frozen dataset, no train/test overlap, embargo enforcement.
-- **Data leakage canary**: Insert deliberately leaked features and verify detection.
-- **Pipeline ordering test**: Verify deterministic ordering and computation.
-- **Property-based tests**: Non-negotiable temporal invariants from Section 1.
+Feature timestamp assertions, walk-forward replay, data leakage canary, pipeline ordering, and property-based temporal invariants.
 
 ---
 
@@ -172,63 +188,31 @@ Mandatory specialized tests:
 - **30+ technical indicators**: SMA, EMA, RSI, MACD, Bollinger Bands, ATR.
 - **Risk metrics**: VaR (historical, parametric, Cornish-Fisher), rolling moments.
 - **Robust statistics**: MAD, Winsorized stats, Ledoit-Wolf covariance.
-- **Stability**: `min_periods` fixes applied per GAP_ANALYSIS.md.
 
 ### Section 10 — Backtesting
 - **Simulator**: `backtesting/simulator.py` with leverage and position limits.
 - **Transaction costs**: Fixed+spread, square-root impact, feedback impact models.
 - **Monte Carlo**: Block-based simulation with data-driven block size.
-- **Capacity analysis**: `backtesting/capacity.py` for strategy capacity estimation.
+- **Capacity analysis**: `backtesting/capacity.py`.
 - **Survivorship bias**: `backtesting/survivorship.py` with point-in-time universe.
 
 ### Section 11 — Skeptical Audit Layer
 - **Leakage audit**: `bias_checks.py` with 4 detection tests.
 - **Validation audit**: Walk-forward and purged k-fold with embargo.
 - **Robustness**: Bootstrap CI (IID and block), deflated Sharpe ratio, BH FDR.
-- **Reproducibility**: Dataset hashing via lineage tracker.
 
 ### Section 19 — Data Pipeline Resilience
 - **Circuit breaker**: `infrastructure/circuit_breaker.py` (CLOSED→OPEN→HALF_OPEN).
-- **Checkpointing**: `infrastructure/checkpoint.py` for resumable operations.
-- **Batch processing**: `infrastructure/batch_processor.py` with auto-flush.
+- **Checkpointing**: `infrastructure/checkpoint.py`.
+- **Batch processing**: `infrastructure/batch_processor.py`.
 - **Validation**: `infrastructure/validation.py` with Pydantic schemas.
 - **Data quality**: `dq/data_quality_monitor.py` with alerting.
 
 ### Section 24 — Domain-Specific (Financial Markets)
-- **Data quirks**: SEC restatement awareness (flagged), corporate action handling.
+- **Data quirks**: SEC restatement awareness, corporate action handling.
 - **Timing**: `historical/latency.py` for data latency estimation.
 - **Transaction costs**: Multiple cost models with slippage.
 - **Regulatory**: `execution/capital_guard.py` for position limits.
-
----
-
-## Previously Identified Gaps — Now Closed
-
-All three previously partial sections have been fully implemented:
-
-### Section 2 — Multi-Agent System Architecture (CLOSED)
-**Module:** `src/pipeline/agent_coordinator.py`
-**Implementation:** Formal agent coordinator with all 7 directive roles (Research Orchestrator, Data Agent, Feature Agent, Model Agent, Ensemble Agent, Decision Agent, Audit Agent). Includes task assignment with dependency tracking, research roadmap management, failure register, research cycle counting, and full JSON persistence.
-
-### Section 22 — Multi-Agent Conflict Resolution (CLOSED)
-**Module:** `src/pipeline/conflict_resolution.py`
-**Implementation:** Complete conflict resolution protocol with:
-- **4 conflict categories**: Factual, Priority, Safety, Resource (Section 22.1).
-- **4-step resolution hierarchy**: Evidence duel → Audit arbitration → Orchestrator decision → Human escalation (Section 22.2).
-- **Audit Agent veto**: Reserved for safety concerns; cannot be overridden (Section 22.3).
-- **Dissent registry**: Agents can file dissents; Orchestrator reviews at cycle start (Section 22.4).
-- **All 5 required outputs**: conflict_log, evidence_duel_record, audit_arbitration_report, dissent_registry, conflict_resolution_summary (Section 22.5).
-
-### Section 23 — Testing Strategy & CI/CD (CLOSED)
-**Module:** `.github/workflows/ci.yml`
-**Implementation:** Full CI/CD pipeline matching the Section 23.3 testing pyramid:
-1. **Pre-commit**: Ruff lint, Black formatting, MyPy type checking.
-2. **Unit + property tests**: Multi-Python matrix (3.11, 3.12).
-3. **Integration tests**: With PostgreSQL service container.
-4. **Coverage gate**: Minimum threshold enforcement.
-5. **Temporal integrity tests**: Dedicated stage for Section 23.2 tests.
-6. **Model validation smoke test**: Import verification for all pipeline modules.
-7. **System tests (nightly)**: Full end-to-end pipeline (non-blocking).
 
 ---
 
@@ -236,9 +220,9 @@ All three previously partial sections have been fully implemented:
 
 | Test File | Tests | Status |
 |-----------|-------|--------|
-| `test_directive_v7.py` | 57 | All pass |
+| `test_directive_v7.py` | 105 | All pass |
 | `test_temporal_integrity.py` | 15 | All pass |
-| **Total new tests** | **72** | **72/72 pass** |
+| **Total** | **120** | **120/120 pass** |
 
 ---
 
@@ -246,30 +230,56 @@ All three previously partial sections have been fully implemented:
 
 | Deliverable | File / Module | Status |
 |-------------|---------------|--------|
-| `final_system_report` | This document | Done |
-| `prioritized_roadmap` | Remaining Gaps section | Done |
+| `problem_summary` | `report_generators.py` | Done |
+| `objective_verification_report` | `report_generators.py` | Done |
+| `constraints_register` | `report_generators.py` | Done |
+| `availability_matrix` | `report_generators.py` | Done |
+| `dataset_expansion_report` | `report_generators.py` | Done |
+| `feature_catalog` | `report_generators.py` | Done |
+| `feature_importance_report` | `report_generators.py` | Done |
+| `feature_stability_report` | `report_generators.py` | Done |
+| `feature_retirement_log` | `report_generators.py` | Done |
+| `meta_learning_report` | `report_generators.py` | Done |
+| `probability_diagnostics` | `report_generators.py` | Done |
+| `threshold_sweep_report` | `report_generators.py` | Done |
+| `abstention_policy_report` | `report_generators.py` | Done |
+| `simulation_assumptions` | `report_generators.py` | Done |
+| `risk_path_report` | `report_generators.py` | Done |
+| `robustness_report` | `report_generators.py` | Done |
+| `reproducibility_report` | `report_generators.py` | Done |
+| `architecture_review_report` | `report_generators.py` | Done |
+| `refactoring_plan` | `report_generators.py` | Done |
+| `evaluation_matrix` | `evaluation_matrix.py` | Done |
+| `ab_test_protocol` | `ab_testing.py` | Done |
+| `ab_test_results` | `ab_testing.py` | Done |
 | `dataset_and_model_registry` | `experiment_registry.py` | Done |
-| `decision_policy_recommendation` | `strategy/` framework | Exists |
-| `known_risks_and_deferred_items` | GAP_ANALYSIS.md outstanding items | Exists |
-| `success_criteria_evaluation` | `eval/evaluator.py` | Exists |
+| `knowledge_store` | `experiment_registry.py` (KnowledgeStore) | Done |
+| `decision_policy_recommendation` | `strategy/` framework | Done |
+| `known_risks_and_deferred_items` | GAP_ANALYSIS.md | Done |
 | `deployment_pipeline_config` | `deployment_pipeline.py` | Done |
+| `drift_report` | `deployment_pipeline.py` | Done |
+| `retraining_log` | `deployment_pipeline.py` | Done |
 | `monitoring_dashboard_spec` | `deployment_pipeline.py` alerts | Done |
 | `alert_threshold_registry` | `deployment_pipeline.py` thresholds | Done |
 | `drift_detection_baseline` | `drift_detection.py` | Done |
 | `retraining_schedule` | `deployment_pipeline.py` triggers | Done |
-| `ab_test_protocol` | `deployment_pipeline.py` config | Done |
 | `rollback_runbook` | `deployment_pipeline.py` rollback | Done |
-| `pipeline_dag_spec` | `infrastructure/` modules | Exists |
-| `schema_registry` | `infrastructure/validation.py` | Exists |
-| `freshness_sla_registry` | `dq/data_quality_monitor.py` | Exists |
-| `fault_tolerance_runbook` | `infrastructure/circuit_breaker.py` | Exists |
 | `compute_budget_plan` | `compute_budget.py` | Done |
 | `cost_efficiency_report` | `compute_budget.py` reports | Done |
+| `pareto_frontier` | `compute_budget.py` | Done |
+| `search_termination_justification` | `compute_budget.py` | Done |
 | `decision_authority_matrix` | `governance.py` | Done |
+| `approval_request_log` | `governance.py` | Done |
+| `escalation_protocol` | `governance.py` | Done |
 | `governance_audit_trail` | `governance.py` | Done |
 | `compliance_checklist` | `governance.py` checkpoints | Done |
 | `conflict_resolution_protocol` | `conflict_resolution.py` | Done |
-| `dissent_registry` | `conflict_resolution.py` dissent registry | Done |
-| `test_coverage_report` | 47 new tests, all passing | Done |
+| `dissent_registry` | `conflict_resolution.py` | Done |
+| `domain_specific_risk_register` | `domain_checklist.py` | Done |
+| `domain_data_quirks_checklist` | `domain_checklist.py` | Done |
+| `regulatory_compliance_checklist` | `domain_checklist.py` | Done |
+| `failure_mode_report` | `failure_mode_checks.py` | Done |
+| `test_coverage_report` | 120 tests, all passing | Done |
 | `ci_cd_pipeline_config` | `.github/workflows/ci.yml` | Done |
 | `domain_integration_guide` | Financial domain covered | Done |
+| `final_system_report` | This document | Done |

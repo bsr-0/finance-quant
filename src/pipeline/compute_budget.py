@@ -269,6 +269,62 @@ class ComputeBudget:
         )
 
 
+    def generate_pareto_frontier(self) -> dict[str, Any]:
+        """<pareto_frontier_analysis> — Section 20.4 required output.
+
+        Shows the trade-off between compute invested and performance achieved.
+        """
+        completed = [c for c in self._costs if c.primary_metric_value is not None]
+        if not completed:
+            return {
+                "report_type": "pareto_frontier_analysis",
+                "frontier_points": [],
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        sorted_by_time = sorted(completed, key=lambda c: c.start_time)
+        cumulative_cost = 0.0
+        best_so_far = float("-inf")
+        frontier_points = []
+
+        for cost in sorted_by_time:
+            cumulative_cost += cost.cost_seconds
+            val = cost.primary_metric_value or 0.0
+            if val > best_so_far:
+                best_so_far = val
+                frontier_points.append({
+                    "experiment_id": cost.experiment_id,
+                    "cumulative_cost_seconds": round(cumulative_cost, 2),
+                    "best_metric": round(best_so_far, 6),
+                })
+
+        return {
+            "report_type": "pareto_frontier_analysis",
+            "frontier_points": frontier_points,
+            "total_experiments": len(completed),
+            "total_cost_seconds": round(cumulative_cost, 2),
+            "final_best_metric": round(best_so_far, 6),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def export_search_termination_justification(self) -> dict[str, Any]:
+        """<search_termination_justification> — Section 20.4 required output."""
+        should_terminate, reason = self.check_search_termination()
+        report = self.get_report()
+        return {
+            "report_type": "search_termination_justification",
+            "should_terminate": should_terminate,
+            "reason": reason,
+            "total_budget_seconds": self.total_budget_seconds,
+            "total_consumed_seconds": report.total_consumed_seconds,
+            "budget_utilization_pct": round(
+                report.total_consumed_seconds / max(self.total_budget_seconds, 1), 4
+            ),
+            "cost_per_improvement": report.cost_per_improvement,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+
 class _ExperimentTracker:
     """Context manager for tracking experiment compute cost."""
 
