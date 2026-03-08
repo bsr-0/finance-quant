@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import csv
-from datetime import datetime, timezone
-from pathlib import Path
-
-import pytest
+from datetime import UTC, datetime
 
 from pipeline.execution.broker import (
     BaseBroker,
@@ -20,7 +16,6 @@ from pipeline.execution.broker import (
 from pipeline.execution.capital_guard import AccountSnapshot, CapitalGuardConfig
 from pipeline.execution.signal_executor import SignalExecutor
 from pipeline.execution.trade_journal import TradeJournal
-
 
 # ---------------------------------------------------------------------------
 # Trade journal tests
@@ -115,7 +110,7 @@ class TestTradeJournal:
 
     def test_journal_dir_created(self, tmp_path):
         new_dir = tmp_path / "nested" / "journal"
-        journal = TradeJournal(journal_dir=new_dir)
+        TradeJournal(journal_dir=new_dir)
         assert new_dir.exists()
 
 
@@ -145,7 +140,7 @@ class MockBroker(BaseBroker):
     def submit_order(self, order: Order) -> Order:
         order.order_id = f"mock-{len(self.submitted_orders)}"
         order.status = OrderStatus.SUBMITTED
-        order.submitted_at = datetime.now(timezone.utc)
+        order.submitted_at = datetime.now(UTC)
         self.submitted_orders.append(order)
         return order
 
