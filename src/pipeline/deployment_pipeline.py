@@ -512,3 +512,38 @@ class DeploymentPipeline:
                 asdict(t) for t in default_retraining_triggers()
             ],
         }
+
+    def export_drift_report(
+        self,
+        experiment_id: str,
+        drift_results: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """<drift_detection_report> — Section 18.6 required output."""
+        return {
+            "report_type": "drift_detection_report",
+            "experiment_id": experiment_id,
+            "current_stage": self.get_current_stage(experiment_id).value,
+            "drift_results": drift_results or {},
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def export_retraining_log(self) -> dict[str, Any]:
+        """<retraining_trigger_log> — Section 18.6 required output."""
+        triggers = default_retraining_triggers()
+        return {
+            "report_type": "retraining_trigger_log",
+            "configured_triggers": [asdict(t) for t in triggers],
+            "deployment_history": {
+                exp_id: [
+                    {
+                        "from": r.from_stage.value,
+                        "to": r.to_stage.value,
+                        "timestamp": r.timestamp,
+                        "notes": r.notes,
+                    }
+                    for r in records
+                ]
+                for exp_id, records in self._deployments.items()
+            },
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }

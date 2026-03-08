@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from collections import defaultdict
+
 logger = logging.getLogger(__name__)
 
 
@@ -300,3 +302,144 @@ class ExperimentRegistry:
             return False
         improvement = (best_recent - best_before) / abs(best_before)
         return improvement < min_improvement_pct
+
+
+# ---------------------------------------------------------------------------
+# Knowledge Retention (Section 14)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class KnowledgeFinding:
+    """A finding stored for future agent learning."""
+
+    finding_id: str = field(default_factory=lambda: str(uuid4()))
+    domain: str = ""
+    horizon: str = ""
+    model_family: str = ""
+    finding: str = ""
+    evidence: dict[str, Any] = field(default_factory=dict)
+    experiment_ids: list[str] = field(default_factory=list)
+    works: bool = True  # True = this approach works; False = doesn't work
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> KnowledgeFinding:
+        return cls(**d)
+
+
+class KnowledgeStore:
+    """Persistent knowledge store for cross-cycle learning (Section 14).
+
+    Stores findings so future agents learn what tends to work by domain,
+    horizon, and data regime.
+
+    Usage::
+
+        store = KnowledgeStore()
+        store.store_finding(
+            domain="finance",
+            horizon="daily",
+            model_family="lightgbm",
+            finding="LightGBM with rolling_std features outperforms linear models",
+            evidence={"sharpe_improvement": 0.3},
+            works=True,
+        )
+        relevant = store.query_findings(domain="finance", horizon="daily")
+    """
+
+    def __init__(self, storage_path: str | Path = "data/knowledge_store.json"):
+        self.storage_path = Path(storage_path)
+        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        self._findings: list[KnowledgeFinding] = []
+        self._load()
+
+    def _load(self) -> None:
+        if self.storage_path.exists():
+            with open(self.storage_path) as f:
+                for d in json.load(f):
+                    self._findings.append(KnowledgeFinding.from_dict(d))
+
+    def _save(self) -> None:
+        with open(self.storage_path, "w") as f:
+            json.dump([f.to_dict() for f in self._findings], f, indent=2, default=str)
+
+    def store_finding(
+        self,
+        domain: str,
+        finding: str,
+        horizon: str = "",
+        model_family: str = "",
+        evidence: dict[str, Any] | None = None,
+        experiment_ids: list[str] | None = None,
+        works: bool = True,
+    ) -> KnowledgeFinding:
+        """Store a finding for future reference."""
+        entry = KnowledgeFinding(
+            domain=domain,
+            horizon=horizon,
+            model_family=model_family,
+            finding=finding,
+            evidence=evidence or {},
+            experiment_ids=experiment_ids or [],
+            works=works,
+        )
+        self._findings.append(entry)
+        self._save()
+        logger.info("Knowledge stored: %s (works=%s)", finding[:80], works)
+        return entry
+
+    def query_findings(
+        self,
+        domain: str | None = None,
+        horizon: str | None = None,
+        model_family: str | None = None,
+        works: bool | None = None,
+    ) -> list[KnowledgeFinding]:
+        """Query findings with optional filters."""
+        results = list(self._findings)
+        if domain is not None:
+            results = [f for f in results if f.domain == domain]
+        if horizon is not None:
+            results = [f for f in results if f.horizon == horizon]
+        if model_family is not None:
+            results = [f for f in results if f.model_family == model_family]
+        if works is not None:
+            results = [f for f in results if f.works == works]
+        return results
+
+    def generate_meta_learning_insights(
+        self,
+        registry: ExperimentRegistry | None = None,
+    ) -> dict[str, Any]:
+        """Analyse stored findings and experiment history to generate insights."""
+        by_domain: dict[str, list[KnowledgeFinding]] = defaultdict(list)
+        for f in self._findings:
+            by_domain[f.domain].append(f)
+
+        domain_summaries = {}
+        for domain, findings in by_domain.items():
+            works = [f for f in findings if f.works]
+            fails = [f for f in findings if not f.works]
+            domain_summaries[domain] = {
+                "total_findings": len(findings),
+                "works": len(works),
+                "doesnt_work": len(fails),
+                "top_working_approaches": [f.finding for f in works[:5]],
+                "top_failures": [f.finding for f in fails[:5]],
+            }
+
+        return {
+            "report_type": "knowledge_retention_report",
+            "domains": domain_summaries,
+            "total_findings": len(self._findings),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def export(self) -> list[dict[str, Any]]:
+        """Export all findings."""
+        return [f.to_dict() for f in self._findings]
