@@ -405,6 +405,37 @@ class EvaluationSettings(BaseSettings):
     pm_fee_bps: float = 10.0
 
 
+class ModelSearchSettings(BaseSettings):
+    """Model search and meta-learning settings (Section 7)."""
+
+    model_config = SettingsConfigDict(env_prefix="MODEL_SEARCH_")
+
+    max_candidates_per_family: int = 20
+    task_type: str = "regression"
+    primary_metric: str = "sharpe"
+    train_sizes: list[int] = Field(default_factory=lambda: [252, 504])
+    test_size: int = 63
+    embargo_size: int = 5
+    expanding: bool = True
+    random_seed: int = 42
+    enable_lightgbm: bool = False
+    enable_xgboost: bool = False
+
+
+class EnsembleSettings(BaseSettings):
+    """Ensemble optimization and calibration settings (Section 8)."""
+
+    model_config = SettingsConfigDict(env_prefix="ENSEMBLE_")
+
+    top_n_models: int = 5
+    methods: list[str] = Field(
+        default_factory=lambda: ["weighted_average", "greedy", "stacking"]
+    )
+    meta_learner_family: str = "ridge"
+    calibration_method: str = "isotonic"
+    calibration_fraction: float = 0.2
+
+
 class HistoricalFixesSettings(BaseSettings):
     """Statistical corrections for historical data limitations."""
 
@@ -475,6 +506,10 @@ class PipelineSettings(BaseSettings):
     factors: FactorSettings = Field(default_factory=FactorSettings)
     evaluation: EvaluationSettings = Field(default_factory=EvaluationSettings)
     historical_fixes: HistoricalFixesSettings = Field(default_factory=HistoricalFixesSettings)
+
+    # Model search & ensemble
+    model_search: ModelSearchSettings = Field(default_factory=ModelSearchSettings)
+    ensemble: EnsembleSettings = Field(default_factory=EnsembleSettings)
 
     # Pipeline behavior
     default_start_date: str = "2020-01-01"
