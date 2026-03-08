@@ -6,6 +6,8 @@ Covers:
 - Deployment Pipeline (Section 18.1)
 - Compute Budget (Section 20)
 - Governance Framework (Section 21)
+- Agent Coordinator (Section 2)
+- Conflict Resolution (Section 22)
 """
 
 from __future__ import annotations
@@ -414,3 +416,373 @@ class TestGovernanceFramework:
         gov2 = GovernanceFramework(storage_path=path)
         assert len(gov2.get_audit_trail()) > 0
         assert len(gov2._approval_requests) > 0
+
+
+# ---------------------------------------------------------------------------
+# Agent Coordinator (Section 2)
+# ---------------------------------------------------------------------------
+
+class TestAgentCoordinator:
+
+    def _make_coordinator(self, tmp_path: Path):
+        from pipeline.agent_coordinator import AgentCoordinator
+        return AgentCoordinator(storage_path=tmp_path / "coordinator.json")
+
+    def test_default_agents(self, tmp_path):
+        from pipeline.agent_coordinator import AgentRole
+        coord = self._make_coordinator(tmp_path)
+        agents = coord.list_agents()
+        assert len(agents) == 7
+        roles = {a.role for a in agents}
+        assert AgentRole.RESEARCH_ORCHESTRATOR in roles
+        assert AgentRole.AUDIT_AGENT in roles
+
+    def test_audit_agent_has_veto(self, tmp_path):
+        from pipeline.agent_coordinator import AgentRole
+        coord = self._make_coordinator(tmp_path)
+        audit = coord.get_agent(AgentRole.AUDIT_AGENT)
+        assert audit.can_veto is True
+        # Other agents should not have veto
+        data = coord.get_agent(AgentRole.DATA_AGENT)
+        assert data.can_veto is False
+
+    def test_set_and_get_roadmap(self, tmp_path):
+        coord = self._make_coordinator(tmp_path)
+        roadmap = coord.set_roadmap(
+            problem_id="sp500",
+            objective="Predict direction",
+            phases=["data", "features", "model", "audit"],
+        )
+        assert roadmap.problem_id == "sp500"
+        assert roadmap.current_phase == "data"
+        assert coord.get_roadmap() is not None
+
+    def test_advance_phase(self, tmp_path):
+        coord = self._make_coordinator(tmp_path)
+        coord.set_roadmap(
+            problem_id="test",
+            objective="test",
+            phases=["a", "b", "c"],
+        )
+        assert coord.advance_phase() == "b"
+        assert coord.advance_phase() == "c"
+        with pytest.raises(ValueError):
+            coord.advance_phase()
+
+    def test_register_failure(self, tmp_path):
+        coord = self._make_coordinator(tmp_path)
+        coord.set_roadmap(problem_id="test", objective="test")
+        coord.register_failure("Leakage detected in feature F7")
+        roadmap = coord.get_roadmap()
+        assert len(roadmap.failure_register) == 1
+        assert "F7" in roadmap.failure_register[0]
+
+    def test_assign_and_complete_task(self, tmp_path):
+        from pipeline.agent_coordinator import AgentRole, TaskStatus
+        coord = self._make_coordinator(tmp_path)
+        task = coord.assign_task(
+            role=AgentRole.DATA_AGENT,
+            description="Build dataset",
+            priority=1,
+        )
+        assert task.status == TaskStatus.PENDING
+
+        coord.start_task(task.task_id)
+        assert coord.get_task(task.task_id).status == TaskStatus.IN_PROGRESS
+
+        coord.complete_task(task.task_id, result={"rows": 1000})
+        assert coord.get_task(task.task_id).status == TaskStatus.COMPLETED
+
+    def test_task_dependency_enforcement(self, tmp_path):
+        from pipeline.agent_coordinator import AgentRole
+        coord = self._make_coordinator(tmp_path)
+        t1 = coord.assign_task(
+            role=AgentRole.DATA_AGENT,
+            description="Build dataset",
+        )
+        t2 = coord.assign_task(
+            role=AgentRole.FEATURE_AGENT,
+            description="Generate features",
+            depends_on=[t1.task_id],
+        )
+        # t2 depends on t1 — cannot start while t1 is pending
+        with pytest.raises(ValueError):
+            coord.start_task(t2.task_id)
+
+        # Complete t1, then t2 should be startable
+        coord.start_task(t1.task_id)
+        coord.complete_task(t1.task_id)
+        coord.start_task(t2.task_id)  # should not raise
+
+    def test_get_ready_tasks(self, tmp_path):
+        from pipeline.agent_coordinator import AgentRole
+        coord = self._make_coordinator(tmp_path)
+        t1 = coord.assign_task(role=AgentRole.DATA_AGENT, description="t1")
+        t2 = coord.assign_task(
+            role=AgentRole.FEATURE_AGENT,
+            description="t2",
+            depends_on=[t1.task_id],
+        )
+
+        ready = coord.get_ready_tasks()
+        assert len(ready) == 1
+        assert ready[0].task_id == t1.task_id
+
+    def test_list_tasks_by_role(self, tmp_path):
+        from pipeline.agent_coordinator import AgentRole
+        coord = self._make_coordinator(tmp_path)
+        coord.assign_task(role=AgentRole.DATA_AGENT, description="d1")
+        coord.assign_task(role=AgentRole.DATA_AGENT, description="d2")
+        coord.assign_task(role=AgentRole.MODEL_AGENT, description="m1")
+
+        data_tasks = coord.list_tasks(role=AgentRole.DATA_AGENT)
+        assert len(data_tasks) == 2
+
+    def test_research_cycle(self, tmp_path):
+        coord = self._make_coordinator(tmp_path)
+        assert coord.cycle_count == 0
+        assert coord.start_research_cycle() == 1
+        assert coord.start_research_cycle() == 2
+
+    def test_persistence(self, tmp_path):
+        from pipeline.agent_coordinator import AgentCoordinator, AgentRole
+        path = tmp_path / "coord.json"
+        c1 = AgentCoordinator(storage_path=path)
+        c1.set_roadmap(problem_id="persist", objective="test")
+        t = c1.assign_task(role=AgentRole.DATA_AGENT, description="task")
+        c1.start_research_cycle()
+
+        c2 = AgentCoordinator(storage_path=path)
+        assert c2.get_roadmap().problem_id == "persist"
+        assert c2.get_task(t.task_id) is not None
+        assert c2.cycle_count == 1
+
+    def test_export_state(self, tmp_path):
+        from pipeline.agent_coordinator import AgentRole
+        coord = self._make_coordinator(tmp_path)
+        coord.set_roadmap(problem_id="test", objective="test")
+        coord.assign_task(role=AgentRole.DATA_AGENT, description="t1")
+        state = coord.export_state()
+        assert "agents" in state
+        assert state["tasks"]["total"] == 1
+        assert state["tasks"]["pending"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Conflict Resolution (Section 22)
+# ---------------------------------------------------------------------------
+
+class TestConflictResolution:
+
+    def _make_resolver(self, tmp_path: Path):
+        from pipeline.conflict_resolution import ConflictResolver
+        return ConflictResolver(storage_path=tmp_path / "conflicts.json")
+
+    def test_raise_conflict(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+        resolver = self._make_resolver(tmp_path)
+        conflict = resolver.raise_conflict(
+            category=ConflictCategory.FACTUAL,
+            description="Model vs Audit disagreement",
+            agents_involved=["model_agent", "audit_agent"],
+        )
+        assert conflict.status == ConflictStatus.OPEN
+        assert len(conflict.agents_involved) == 2
+
+    def test_evidence_duel(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+        resolver = self._make_resolver(tmp_path)
+        conflict = resolver.raise_conflict(
+            category=ConflictCategory.FACTUAL,
+            description="Brier score dispute",
+            agents_involved=["model_agent", "audit_agent"],
+        )
+        resolver.submit_evidence(
+            conflict.conflict_id,
+            agent="model_agent",
+            claim="3% improvement is real",
+            evidence={"brier_delta": -0.03},
+        )
+        resolver.submit_evidence(
+            conflict.conflict_id,
+            agent="audit_agent",
+            claim="No improvement after leakage fix",
+            evidence={"brier_delta": 0.0},
+        )
+        updated = resolver.get_conflict(conflict.conflict_id)
+        assert updated.status == ConflictStatus.EVIDENCE_DUEL
+        assert len(updated.evidence_submissions) == 2
+
+    def test_audit_arbitration_resolves_factual(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+        resolver = self._make_resolver(tmp_path)
+        conflict = resolver.raise_conflict(
+            category=ConflictCategory.FACTUAL,
+            description="Factual disagreement",
+            agents_involved=["model_agent", "audit_agent"],
+        )
+        resolver.audit_arbitrate(
+            conflict.conflict_id,
+            result="No improvement confirmed",
+        )
+        updated = resolver.get_conflict(conflict.conflict_id)
+        assert updated.status == ConflictStatus.RESOLVED
+        assert "audit_agent" == updated.resolved_by
+
+    def test_audit_arbitration_resolves_safety(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+        resolver = self._make_resolver(tmp_path)
+        conflict = resolver.raise_conflict(
+            category=ConflictCategory.SAFETY,
+            description="Temporal leakage dispute",
+            agents_involved=["feature_agent", "audit_agent"],
+        )
+        resolver.audit_arbitrate(
+            conflict.conflict_id,
+            result="Leakage confirmed in feature F7",
+        )
+        updated = resolver.get_conflict(conflict.conflict_id)
+        assert updated.status == ConflictStatus.RESOLVED
+
+    def test_orchestrator_decides_priority(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+        resolver = self._make_resolver(tmp_path)
+        conflict = resolver.raise_conflict(
+            category=ConflictCategory.PRIORITY,
+            description="Feature expansion vs stabilization",
+            agents_involved=["feature_agent", "research_orchestrator"],
+        )
+        resolver.orchestrator_decide(
+            conflict.conflict_id,
+            decision="Stabilize first",
+            justification="Current feature set needs validation before expansion",
+        )
+        updated = resolver.get_conflict(conflict.conflict_id)
+        assert updated.status == ConflictStatus.RESOLVED
+        assert "research_orchestrator" == updated.resolved_by
+
+    def test_orchestrator_cannot_override_safety(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory
+        resolver = self._make_resolver(tmp_path)
+        conflict = resolver.raise_conflict(
+            category=ConflictCategory.SAFETY,
+            description="Safety issue",
+            agents_involved=["audit_agent"],
+        )
+        with pytest.raises(ValueError, match="safety"):
+            resolver.orchestrator_decide(
+                conflict.conflict_id,
+                decision="Override",
+                justification="I want to",
+            )
+
+    def test_audit_veto(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+        resolver = self._make_resolver(tmp_path)
+        conflict = resolver.raise_conflict(
+            category=ConflictCategory.SAFETY,
+            description="Validation contamination",
+            agents_involved=["model_agent", "audit_agent"],
+        )
+        resolver.audit_veto(
+            conflict.conflict_id,
+            reason="Confirmed validation contamination — test data leaked into training",
+        )
+        updated = resolver.get_conflict(conflict.conflict_id)
+        assert updated.status == ConflictStatus.RESOLVED
+        assert "VETO" in updated.resolution
+
+    def test_audit_veto_only_for_safety(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory
+        resolver = self._make_resolver(tmp_path)
+        conflict = resolver.raise_conflict(
+            category=ConflictCategory.RESOURCE,
+            description="Compute allocation dispute",
+            agents_involved=["model_agent", "ensemble_agent"],
+        )
+        with pytest.raises(ValueError, match="safety"):
+            resolver.audit_veto(conflict.conflict_id, reason="Not safety")
+
+    def test_human_escalation(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+        resolver = self._make_resolver(tmp_path)
+        conflict = resolver.raise_conflict(
+            category=ConflictCategory.SAFETY,
+            description="Regulatory compliance issue",
+            agents_involved=["audit_agent", "decision_agent"],
+        )
+        resolver.escalate_to_human(conflict.conflict_id, reason="Regulatory")
+        updated = resolver.get_conflict(conflict.conflict_id)
+        assert updated.status == ConflictStatus.ESCALATED_TO_HUMAN
+
+        resolver.resolve_human_escalation(
+            conflict.conflict_id,
+            decision="Proceed with additional safeguards",
+            decided_by="compliance_officer",
+        )
+        updated = resolver.get_conflict(conflict.conflict_id)
+        assert updated.status == ConflictStatus.RESOLVED
+
+    def test_file_and_review_dissent(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory
+        resolver = self._make_resolver(tmp_path)
+        conflict = resolver.raise_conflict(
+            category=ConflictCategory.FACTUAL,
+            description="Disagreement",
+            agents_involved=["model_agent", "audit_agent"],
+        )
+        resolver.audit_arbitrate(conflict.conflict_id, result="No improvement")
+
+        dissent = resolver.file_dissent(
+            conflict.conflict_id,
+            agent="model_agent",
+            reasoning="Feature uses published data",
+            insufficiently_weighted_evidence="Publication timestamps",
+        )
+        assert len(resolver.get_open_dissents()) == 1
+
+        resolver.review_dissent(dissent.dissent_id, notes="Will revisit next cycle")
+        assert len(resolver.get_open_dissents()) == 0
+
+    def test_list_conflicts_by_category(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory
+        resolver = self._make_resolver(tmp_path)
+        resolver.raise_conflict(
+            category=ConflictCategory.FACTUAL,
+            description="f1",
+            agents_involved=["a"],
+        )
+        resolver.raise_conflict(
+            category=ConflictCategory.RESOURCE,
+            description="r1",
+            agents_involved=["b"],
+        )
+        factual = resolver.list_conflicts(category=ConflictCategory.FACTUAL)
+        assert len(factual) == 1
+
+    def test_persistence(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory, ConflictResolver
+        path = tmp_path / "conflicts.json"
+        r1 = ConflictResolver(storage_path=path)
+        c = r1.raise_conflict(
+            category=ConflictCategory.FACTUAL,
+            description="test",
+            agents_involved=["a", "b"],
+        )
+        r1.file_dissent(c.conflict_id, agent="a", reasoning="disagree")
+
+        r2 = ConflictResolver(storage_path=path)
+        assert r2.get_conflict(c.conflict_id) is not None
+        assert len(r2.get_open_dissents()) == 1
+
+    def test_export_summary(self, tmp_path):
+        from pipeline.conflict_resolution import ConflictCategory
+        resolver = self._make_resolver(tmp_path)
+        resolver.raise_conflict(
+            category=ConflictCategory.FACTUAL,
+            description="test",
+            agents_involved=["a"],
+        )
+        summary = resolver.export_summary()
+        assert summary["total_conflicts"] == 1
+        assert summary["open"] == 1
