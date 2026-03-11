@@ -12,9 +12,12 @@ be trusted. The registry provides:
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import logging
+import os
+import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -130,20 +133,40 @@ class ExperimentRegistry:
     def _load(self) -> None:
         if self.storage_path.exists():
             with open(self.storage_path) as f:
-                data = json.load(f)
+                fcntl.flock(f, fcntl.LOCK_SH)
+                try:
+                    data = json.load(f)
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
             for d in data:
                 rec = ExperimentRecord.from_dict(d)
                 self._records[rec.experiment_id] = rec
             logger.info("Loaded %d experiments from registry", len(self._records))
 
     def _save(self) -> None:
-        with open(self.storage_path, "w") as f:
-            json.dump(
-                [r.to_dict() for r in self._records.values()],
-                f,
-                indent=2,
-                default=str,
-            )
+        # Atomic write: write to temp file, then rename (Section 3 concurrency safety)
+        content = json.dumps(
+            [r.to_dict() for r in self._records.values()],
+            indent=2,
+            default=str,
+        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(self.storage_path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                try:
+                    f.write(content)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+            os.replace(tmp_path, str(self.storage_path))
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def create_experiment(self, **kwargs: Any) -> ExperimentRecord:
         """Create and register a new experiment."""
@@ -248,9 +271,7 @@ class ExperimentRegistry:
         self, problem_id: str, metric: str | None = None
     ) -> ExperimentRecord | None:
         """Get the best promoted experiment for a problem."""
-        promoted = self.list_experiments(
-            status=ExperimentStatus.PROMOTED, problem_id=problem_id
-        )
+        promoted = self.list_experiments(status=ExperimentStatus.PROMOTED, problem_id=problem_id)
         if not promoted:
             return None
         if metric:
@@ -294,9 +315,11 @@ class ExperimentRegistry:
             return False
         sorted_by_time = sorted(completed, key=lambda e: e.experiment_timestamp)
         recent = sorted_by_time[-n_recent:]
-        best_before = max(
-            e.primary_metric_value or 0.0 for e in sorted_by_time[:-n_recent]
-        ) if len(sorted_by_time) > n_recent else 0.0
+        best_before = (
+            max(e.primary_metric_value or 0.0 for e in sorted_by_time[:-n_recent])
+            if len(sorted_by_time) > n_recent
+            else 0.0
+        )
         best_recent = max(e.primary_metric_value or 0.0 for e in recent)
         if best_before == 0:
             return False
@@ -307,6 +330,7 @@ class ExperimentRegistry:
 # ---------------------------------------------------------------------------
 # Knowledge Retention (Section 14)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class KnowledgeFinding:
@@ -320,9 +344,7 @@ class KnowledgeFinding:
     evidence: dict[str, Any] = field(default_factory=dict)
     experiment_ids: list[str] = field(default_factory=list)
     works: bool = True  # True = this approach works; False = doesn't work
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -361,12 +383,33 @@ class KnowledgeStore:
     def _load(self) -> None:
         if self.storage_path.exists():
             with open(self.storage_path) as f:
-                for d in json.load(f):
+                fcntl.flock(f, fcntl.LOCK_SH)
+                try:
+                    data = json.load(f)
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+                for d in data:
                     self._findings.append(KnowledgeFinding.from_dict(d))
 
     def _save(self) -> None:
-        with open(self.storage_path, "w") as f:
-            json.dump([f.to_dict() for f in self._findings], f, indent=2, default=str)
+        content = json.dumps([f.to_dict() for f in self._findings], indent=2, default=str)
+        fd, tmp_path = tempfile.mkstemp(dir=str(self.storage_path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as tf:
+                fcntl.flock(tf, fcntl.LOCK_EX)
+                try:
+                    tf.write(content)
+                    tf.flush()
+                    os.fsync(tf.fileno())
+                finally:
+                    fcntl.flock(tf, fcntl.LOCK_UN)
+            os.replace(tmp_path, str(self.storage_path))
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def store_finding(
         self,

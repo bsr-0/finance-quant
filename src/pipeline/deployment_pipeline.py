@@ -115,9 +115,7 @@ class DeploymentRecord:
     experiment_id: str
     from_stage: DeploymentStage
     to_stage: DeploymentStage
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     approved_by: str = ""
     notes: str = ""
     metrics_at_transition: dict[str, float] = field(default_factory=dict)
@@ -211,8 +209,7 @@ def default_stage_configs() -> list[StageConfig]:
             min_duration_cycles=0,
             traffic_pct=1.0,
             gate_criteria=(
-                "Full production. Incumbent retained as warm standby "
-                "for instant rollback."
+                "Full production. Incumbent retained as warm standby " "for instant rollback."
             ),
             rollback_triggers=[
                 RollbackTrigger(
@@ -358,9 +355,7 @@ class DeploymentPipeline:
     ):
         self.storage_path = Path(storage_path)
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-        self.stage_configs = {
-            c.stage: c for c in (stage_configs or default_stage_configs())
-        }
+        self.stage_configs = {c.stage: c for c in (stage_configs or default_stage_configs())}
         self._deployments: dict[str, list[DeploymentRecord]] = {}
         self._current_stages: dict[str, DeploymentStage] = {}
         self._load()
@@ -390,17 +385,21 @@ class DeploymentPipeline:
             for r in records:
                 all_records.append(asdict(r))
         for rec in all_records:
-            rec["from_stage"] = rec["from_stage"].value if hasattr(rec["from_stage"], "value") else rec["from_stage"]
-            rec["to_stage"] = rec["to_stage"].value if hasattr(rec["to_stage"], "value") else rec["to_stage"]
+            rec["from_stage"] = (
+                rec["from_stage"].value
+                if hasattr(rec["from_stage"], "value")
+                else rec["from_stage"]
+            )
+            rec["to_stage"] = (
+                rec["to_stage"].value if hasattr(rec["to_stage"], "value") else rec["to_stage"]
+            )
         with open(self.storage_path, "w") as f:
             json.dump(all_records, f, indent=2, default=str)
 
     def get_current_stage(self, experiment_id: str) -> DeploymentStage:
         return self._current_stages.get(experiment_id, DeploymentStage.RESEARCH)
 
-    def start_shadow(
-        self, experiment_id: str, approved_by: str = "system"
-    ) -> DeploymentRecord:
+    def start_shadow(self, experiment_id: str, approved_by: str = "system") -> DeploymentRecord:
         """Start shadow deployment for an experiment."""
         return self._transition(
             experiment_id,
@@ -422,9 +421,7 @@ class DeploymentPipeline:
         if idx >= len(self.STAGE_ORDER) - 1:
             raise ValueError(f"Already at final stage: {current.value}")
         next_stage = self.STAGE_ORDER[idx + 1]
-        return self._transition(
-            experiment_id, current, next_stage, approved_by, metrics, notes
-        )
+        return self._transition(experiment_id, current, next_stage, approved_by, metrics, notes)
 
     def rollback(
         self,
@@ -464,6 +461,24 @@ class DeploymentPipeline:
                     )
         return fired
 
+    def auto_rollback_if_triggered(
+        self, experiment_id: str, current_metrics: dict[str, float]
+    ) -> DeploymentRecord | None:
+        """Automatically roll back if any trigger fires.
+
+        Per Section 18.1, rollback triggers should be enforced
+        automatically without requiring manual intervention.
+
+        Returns the rollback DeploymentRecord if triggered, else None.
+        """
+        fired = self.check_rollback_triggers(experiment_id, current_metrics)
+        if not fired:
+            return None
+        trigger_names = [t.name for t in fired]
+        reason = f"Auto-rollback: triggers fired: {', '.join(trigger_names)}"
+        logger.warning("Auto-rollback for %s: %s", experiment_id, reason)
+        return self.rollback(experiment_id, reason=reason, approved_by="auto_rollback_system")
+
     def _transition(
         self,
         experiment_id: str,
@@ -496,21 +511,15 @@ class DeploymentPipeline:
         )
         return record
 
-    def get_deployment_history(
-        self, experiment_id: str
-    ) -> list[DeploymentRecord]:
+    def get_deployment_history(self, experiment_id: str) -> list[DeploymentRecord]:
         return self._deployments.get(experiment_id, [])
 
     def export_config(self) -> dict[str, Any]:
         """Export full deployment pipeline config (Section 18.6)."""
         return {
             "stage_configs": [c.to_dict() for c in self.stage_configs.values()],
-            "alert_thresholds": [
-                asdict(t) for t in default_alert_thresholds()
-            ],
-            "retraining_triggers": [
-                asdict(t) for t in default_retraining_triggers()
-            ],
+            "alert_thresholds": [asdict(t) for t in default_alert_thresholds()],
+            "retraining_triggers": [asdict(t) for t in default_retraining_triggers()],
         }
 
     def export_drift_report(

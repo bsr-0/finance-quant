@@ -75,9 +75,7 @@ class AgentTask:
     priority: int = 0  # lower = higher priority
     status: TaskStatus = TaskStatus.PENDING
     depends_on: list[str] = field(default_factory=list)
-    created_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     completed_at: str = ""
     result: dict[str, Any] = field(default_factory=dict)
     notes: str = ""
@@ -105,9 +103,7 @@ class ResearchRoadmap:
     phases: list[str] = field(default_factory=list)
     current_phase: str = ""
     failure_register: list[str] = field(default_factory=list)
-    updated_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -117,13 +113,13 @@ class ResearchRoadmap:
 # Default agent definitions per Section 2
 # ---------------------------------------------------------------------------
 
+
 def _default_agents() -> dict[AgentRole, AgentSpec]:
     return {
         AgentRole.RESEARCH_ORCHESTRATOR: AgentSpec(
             role=AgentRole.RESEARCH_ORCHESTRATOR,
             primary_responsibility=(
-                "Sets problem framing, constraints, output schema, "
-                "experiment priorities."
+                "Sets problem framing, constraints, output schema, " "experiment priorities."
             ),
             deliverables=[
                 "problem_summary",
@@ -134,8 +130,7 @@ def _default_agents() -> dict[AgentRole, AgentSpec]:
         AgentRole.DATA_AGENT: AgentSpec(
             role=AgentRole.DATA_AGENT,
             primary_responsibility=(
-                "Builds point-in-time datasets and lineage; searches "
-                "for new historical data."
+                "Builds point-in-time datasets and lineage; searches " "for new historical data."
             ),
             deliverables=[
                 "dataset_catalog",
@@ -145,9 +140,7 @@ def _default_agents() -> dict[AgentRole, AgentSpec]:
         ),
         AgentRole.FEATURE_AGENT: AgentSpec(
             role=AgentRole.FEATURE_AGENT,
-            primary_responsibility=(
-                "Generates, filters, and stress-tests feature families."
-            ),
+            primary_responsibility=("Generates, filters, and stress-tests feature families."),
             deliverables=[
                 "feature_catalog",
                 "feature_stability_report",
@@ -156,8 +149,7 @@ def _default_agents() -> dict[AgentRole, AgentSpec]:
         AgentRole.MODEL_AGENT: AgentSpec(
             role=AgentRole.MODEL_AGENT,
             primary_responsibility=(
-                "Searches model families and hyperparameters under "
-                "temporal validation."
+                "Searches model families and hyperparameters under " "temporal validation."
             ),
             deliverables=[
                 "model_search_report",
@@ -167,8 +159,7 @@ def _default_agents() -> dict[AgentRole, AgentSpec]:
         AgentRole.ENSEMBLE_AGENT: AgentSpec(
             role=AgentRole.ENSEMBLE_AGENT,
             primary_responsibility=(
-                "Combines models, calibrates outputs, and tests "
-                "stacked systems."
+                "Combines models, calibrates outputs, and tests " "stacked systems."
             ),
             deliverables=[
                 "ensemble_report",
@@ -178,8 +169,7 @@ def _default_agents() -> dict[AgentRole, AgentSpec]:
         AgentRole.DECISION_AGENT: AgentSpec(
             role=AgentRole.DECISION_AGENT,
             primary_responsibility=(
-                "Turns probabilities/forecasts into choices, sizing, "
-                "rankings, allocations."
+                "Turns probabilities/forecasts into choices, sizing, " "rankings, allocations."
             ),
             deliverables=[
                 "decision_policy_report",
@@ -189,8 +179,7 @@ def _default_agents() -> dict[AgentRole, AgentSpec]:
         AgentRole.AUDIT_AGENT: AgentSpec(
             role=AgentRole.AUDIT_AGENT,
             primary_responsibility=(
-                "Attempts to break everything: leakage, drift, "
-                "overfitting, invalid backtests."
+                "Attempts to break everything: leakage, drift, " "overfitting, invalid backtests."
             ),
             deliverables=[
                 "leakage_audit",
@@ -265,9 +254,7 @@ class AgentCoordinator:
         with open(self.storage_path, "w") as f:
             json.dump(
                 {
-                    "agents": {
-                        k.value: v.to_dict() for k, v in self._agents.items()
-                    },
+                    "agents": {k.value: v.to_dict() for k, v in self._agents.items()},
                     "tasks": [t.to_dict() for t in self._tasks.values()],
                     "roadmap": self._roadmap.to_dict() if self._roadmap else None,
                     "cycle_count": self._cycle_count,
@@ -366,9 +353,7 @@ class AgentCoordinator:
         )
         self._tasks[task.task_id] = task
         self._save()
-        logger.info(
-            "Task %s assigned to %s: %s", task.task_id, role.value, description
-        )
+        logger.info("Task %s assigned to %s: %s", task.task_id, role.value, description)
         return task
 
     def start_task(self, task_id: str) -> AgentTask:
@@ -378,9 +363,7 @@ class AgentCoordinator:
         for dep_id in task.depends_on:
             dep = self._tasks.get(dep_id)
             if dep and dep.status != TaskStatus.COMPLETED:
-                raise ValueError(
-                    f"Dependency {dep_id} not completed (status: {dep.status.value})"
-                )
+                raise ValueError(f"Dependency {dep_id} not completed (status: {dep.status.value})")
         task.status = TaskStatus.IN_PROGRESS
         self._save()
         return task
@@ -461,6 +444,144 @@ class AgentCoordinator:
     @property
     def cycle_count(self) -> int:
         return self._cycle_count
+
+    # ---- Hypothesis generation (Section 14) ----------------------------------
+
+    def generate_hypotheses(
+        self,
+        knowledge_findings: list[dict[str, Any]] | None = None,
+        current_metrics: dict[str, float] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Auto-generate experiment hypotheses from knowledge and metrics.
+
+        Per Section 14, the research loop should propose new data sources,
+        features, architectures, or policy changes.
+
+        Parameters
+        ----------
+        knowledge_findings : list[dict] | None
+            Past findings from KnowledgeStore.export().
+        current_metrics : dict[str, float] | None
+            Current system metrics for gap identification.
+
+        Returns
+        -------
+        list[dict]
+            Hypothesis objects with type, description, rationale, and
+            suggested agent assignment.
+        """
+        hypotheses: list[dict[str, Any]] = []
+        findings = knowledge_findings or []
+
+        # Generate hypotheses from failed approaches (try alternatives)
+        failed = [f for f in findings if not f.get("works", True)]
+        for f in failed[:3]:
+            hypotheses.append(
+                {
+                    "type": "alternative_approach",
+                    "description": f"Revisit failed approach: {f.get('finding', '')}",
+                    "rationale": "Previous attempt failed; try with modified parameters or data",
+                    "assigned_to": AgentRole.MODEL_AGENT.value,
+                    "priority": 3,
+                }
+            )
+
+        # Suggest feature expansion if metrics are stagnant
+        if current_metrics:
+            sharpe = current_metrics.get("sharpe", 0)
+            if sharpe < 1.0:
+                hypotheses.append(
+                    {
+                        "type": "feature_expansion",
+                        "description": "Expand feature set with interaction and seasonal features",
+                        "rationale": f"Current Sharpe ({sharpe:.2f}) suggests room for improvement",
+                        "assigned_to": AgentRole.FEATURE_AGENT.value,
+                        "priority": 1,
+                    }
+                )
+
+            hit_rate = current_metrics.get("hit_rate", 0)
+            if hit_rate < 0.55:
+                hypotheses.append(
+                    {
+                        "type": "model_architecture",
+                        "description": "Try ensemble stacking with diverse base models",
+                        "rationale": f"Hit rate ({hit_rate:.2f}) may benefit from model diversity",
+                        "assigned_to": AgentRole.ENSEMBLE_AGENT.value,
+                        "priority": 2,
+                    }
+                )
+
+        # Standard hypotheses for each cycle
+        hypotheses.append(
+            {
+                "type": "data_source",
+                "description": "Search for new data sources not yet integrated",
+                "rationale": "Broader data universe may contain untapped signal",
+                "assigned_to": AgentRole.DATA_AGENT.value,
+                "priority": 4,
+            }
+        )
+        hypotheses.append(
+            {
+                "type": "calibration",
+                "description": "Re-calibrate probability outputs with latest data",
+                "rationale": "Calibration can drift over time; periodic refresh needed",
+                "assigned_to": AgentRole.ENSEMBLE_AGENT.value,
+                "priority": 5,
+            }
+        )
+
+        return hypotheses
+
+    def schedule_research_cycle(self) -> list[AgentTask]:
+        """Schedule the standard research cycle as tasks (Section 14).
+
+        Creates a full cycle: data refresh → feature search → model search
+        → ensemble → decision optimization → audit → promote/reject.
+        """
+        if not self._roadmap:
+            raise ValueError("No roadmap configured; call set_roadmap() first")
+
+        cycle_num = self._cycle_count + 1
+        prefix = f"cycle_{cycle_num}"
+
+        phases = [
+            (AgentRole.DATA_AGENT, "Refresh datasets and validate lineage", []),
+            (AgentRole.FEATURE_AGENT, "Search and filter feature families", []),
+            (AgentRole.MODEL_AGENT, "Search model architectures and hyperparameters", []),
+            (AgentRole.ENSEMBLE_AGENT, "Optimize ensemble and calibrate outputs", []),
+            (AgentRole.DECISION_AGENT, "Optimize decision policy and thresholds", []),
+            (AgentRole.AUDIT_AGENT, "Audit for leakage, drift, and overfitting", []),
+        ]
+
+        tasks: list[AgentTask] = []
+        prev_id: str | None = None
+        for i, (role, desc, _) in enumerate(phases):
+            depends = [prev_id] if prev_id else []
+            task = self.assign_task(
+                role=role,
+                description=f"[{prefix}] {desc}",
+                priority=i + 1,
+                depends_on=depends,
+            )
+            tasks.append(task)
+            prev_id = task.task_id
+
+        return tasks
+
+    def review_dissents(
+        self,
+        dissent_registry: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Review open dissents before starting a new cycle (Section 22.4).
+
+        Returns dissents that should be revisited.
+        """
+        if not dissent_registry:
+            return []
+        open_dissents = [d for d in dissent_registry if d.get("status", "open") == "open"]
+        return open_dissents
 
     # ---- Export -------------------------------------------------------------
 

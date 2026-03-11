@@ -68,9 +68,7 @@ class ApprovalRequest:
     reviewed_by: str = ""
     review_timestamp: str = ""
     review_notes: str = ""
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 @dataclass
@@ -94,9 +92,7 @@ class GovernanceAuditEntry:
     actor: str = ""
     justification: str = ""
     outcome: str = ""
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     related_request_id: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -247,9 +243,7 @@ class GovernanceFramework:
         self.storage_path = Path(storage_path)
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self._authority_matrix = {
-            a.action_type: a for a in default_decision_authority_matrix()
-        }
+        self._authority_matrix = {a.action_type: a for a in default_decision_authority_matrix()}
         self._compliance_checkpoints = default_compliance_checkpoints(domain)
         self._approval_requests: dict[str, ApprovalRequest] = {}
         self._audit_trail: list[GovernanceAuditEntry] = []
@@ -285,15 +279,11 @@ class GovernanceFramework:
         """Look up the authority level for an action type."""
         classification = self._authority_matrix.get(action_type)
         if classification is None:
-            logger.warning(
-                "Unknown action type '%s' — defaulting to APPROVE", action_type
-            )
+            logger.warning("Unknown action type '%s' — defaulting to APPROVE", action_type)
             return AuthorityLevel.APPROVE
         return classification.authority_level
 
-    def check_action_allowed(
-        self, action_type: str, actor: str = "agent"
-    ) -> tuple[bool, str]:
+    def check_action_allowed(self, action_type: str, actor: str = "agent") -> tuple[bool, str]:
         """Check whether an action can proceed.
 
         Returns (allowed, reason).
@@ -312,8 +302,7 @@ class GovernanceFramework:
         pending = [
             r
             for r in self._approval_requests.values()
-            if r.status == ApprovalStatus.APPROVED
-            and action_type in r.action_summary.lower()
+            if r.status == ApprovalStatus.APPROVED and action_type in r.action_summary.lower()
         ]
         if pending:
             return True, f"approved via request {pending[0].request_id}"
@@ -349,9 +338,7 @@ class GovernanceFramework:
         logger.info("Approval request submitted: %s", request.request_id)
         return request
 
-    def approve_request(
-        self, request_id: str, reviewed_by: str, notes: str = ""
-    ) -> bool:
+    def approve_request(self, request_id: str, reviewed_by: str, notes: str = "") -> bool:
         """Approve a pending request."""
         req = self._approval_requests.get(request_id)
         if not req or req.status != ApprovalStatus.PENDING:
@@ -371,9 +358,7 @@ class GovernanceFramework:
         logger.info("Request %s approved by %s", request_id, reviewed_by)
         return True
 
-    def deny_request(
-        self, request_id: str, reviewed_by: str, reason: str = ""
-    ) -> bool:
+    def deny_request(self, request_id: str, reviewed_by: str, reason: str = "") -> bool:
         """Deny a pending request."""
         req = self._approval_requests.get(request_id)
         if not req or req.status != ApprovalStatus.PENDING:
@@ -407,6 +392,42 @@ class GovernanceFramework:
         )
         self._save()
         return self._compliance_checkpoints
+
+    def enforce_expirations(self) -> list[str]:
+        """Expire pending approval requests past their expiration time.
+
+        Per Section 21.2, an expired request is void and the agent must
+        resubmit with updated evidence.
+
+        Returns a list of expired request IDs.
+        """
+        now = datetime.now(timezone.utc)
+        expired_ids: list[str] = []
+        for req in self._approval_requests.values():
+            if req.status != ApprovalStatus.PENDING:
+                continue
+            if not req.expiration:
+                continue
+            try:
+                exp_dt = datetime.fromisoformat(req.expiration)
+                if exp_dt.tzinfo is None:
+                    exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                continue
+            if now > exp_dt:
+                req.status = ApprovalStatus.EXPIRED
+                expired_ids.append(req.request_id)
+                self._log_audit(
+                    "approval_expired",
+                    "system",
+                    "expired",
+                    f"Request {req.request_id} expired at {req.expiration}",
+                    related_request_id=req.request_id,
+                )
+        if expired_ids:
+            self._save()
+            logger.info("Expired %d approval requests", len(expired_ids))
+        return expired_ids
 
     def get_audit_trail(self) -> list[GovernanceAuditEntry]:
         """Get the full immutable audit trail (Section 21.4)."""

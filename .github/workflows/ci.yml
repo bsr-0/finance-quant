@@ -116,7 +116,7 @@ jobs:
           --cov=pipeline
           --cov-report=xml:reports/coverage.xml
           --cov-report=term-missing
-          --cov-fail-under=50
+          --cov-fail-under=70
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         if: always()
@@ -181,7 +181,23 @@ jobs:
           from pipeline.backtesting.simulator import BacktestSimulator
           from pipeline.backtesting.walk_forward import WalkForwardRunner
           from pipeline.features.technical_indicators import TechnicalIndicators
+          from pipeline.features.feature_families import SeasonalFeatures, select_features
+          from pipeline.infrastructure.pipeline_dag import PipelineDAG
+          from pipeline.infrastructure.freshness_sla import FreshnessMonitor
+          from pipeline.infrastructure.code_quality import check_circular_imports
           print('Core pipeline modules import successfully')
+          "
+      - name: Check for circular imports (Section 12)
+        run: |
+          python -c "
+          from pipeline.infrastructure.code_quality import check_circular_imports
+          issues = check_circular_imports()
+          if issues:
+              print('Circular import warnings:')
+              for i in issues:
+                  print(f'  {i}')
+          else:
+              print('No circular imports detected')
           "
 
   # Nightly: Full system tests (Section 23.3 — no merge block)

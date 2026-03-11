@@ -26,9 +26,8 @@ env/
 *.pem
 *.key
 
-# Data (raw lake, checkpoints)
-data/raw/
-data/checkpoints/
+# Data (raw lake, checkpoints, runtime databases)
+data/
 
 # Test / coverage
 .coverage
