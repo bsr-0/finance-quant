@@ -7,13 +7,11 @@ capital limits, and that legitimate orders pass through.
 from __future__ import annotations
 
 import pytest
-from datetime import datetime, timezone
 
 from pipeline.execution.capital_guard import (
     AccountSnapshot,
     CapitalGuard,
     CapitalGuardConfig,
-    GuardVerdict,
 )
 
 

@@ -25,12 +25,11 @@ from __future__ import annotations
 
 import csv
 import logging
-from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pipeline.execution.broker import Order, OrderStatus
+from pipeline.execution.broker import Order
 
 logger = logging.getLogger(__name__)
 

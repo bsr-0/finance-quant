@@ -7,13 +7,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 
-from pipeline.strategy.signals import SignalEngine, SignalScore, compute_indicators
+from pipeline.strategy.signals import SignalScore, compute_indicators
 from pipeline.strategy.signal_output import format_signals, write_signal_csv
 from pipeline.strategy.pre_trade_checks import (
-    CheckDetail,
-    PreTradeCheckResult,
     filter_signals,
     run_pre_trade_checks,
 )

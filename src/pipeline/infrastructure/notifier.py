@@ -25,7 +25,6 @@ no dependencies on strategy/execution code.
 
 from __future__ import annotations
 
-import json
 import logging
 import smtplib
 import threading

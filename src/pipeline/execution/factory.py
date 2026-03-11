@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 
 from pipeline.settings import ExecutionSettings, get_settings
 
@@ -72,7 +71,6 @@ def create_signal_executor(settings: ExecutionSettings | None = None, broker=Non
     """
     from pipeline.execution.capital_guard import CapitalGuardConfig
     from pipeline.execution.signal_executor import SignalExecutor
-    from pipeline.execution.trade_journal import TradeJournal
     from pipeline.strategy.sizing import SizingConfig
 
     if settings is None:
@@ -114,7 +112,6 @@ def create_trading_runner(
     Returns:
         A configured TradingRunner.
     """
-    from pipeline.execution.alpaca_broker import AlpacaBroker
     from pipeline.execution.runner import RunnerConfig, TradingRunner
 
     if settings is None:

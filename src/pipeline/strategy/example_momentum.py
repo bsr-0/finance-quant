@@ -18,7 +18,6 @@ import numpy as np
 import pandas as pd
 
 from pipeline.strategy.backtest_harness import BacktestConfig, BacktestHarness
-from pipeline.strategy.benchmark import US_EQUITY_BENCHMARKS
 from pipeline.strategy.memo_generator import generate_memo
 from pipeline.strategy.position_sizing import create_sizer
 from pipeline.strategy.signal_library import SignalPipeline

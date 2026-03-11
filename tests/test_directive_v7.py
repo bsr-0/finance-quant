@@ -12,8 +12,6 @@ Covers:
 
 from __future__ import annotations
 
-import json
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -1032,7 +1030,7 @@ class TestABTesting:
         assert config.candidate_id == "v3"
 
     def test_test_lifecycle(self, tmp_path):
-        from pipeline.ab_testing import ABTestManager, TestStatus
+        from pipeline.ab_testing import ABTestManager
         manager = ABTestManager(storage_path=tmp_path / "ab.json")
         config = manager.design_test(
             candidate_id="v3", incumbent_id="v2", effect_size=0.5,

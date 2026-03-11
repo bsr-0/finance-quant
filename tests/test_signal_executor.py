@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pandas as pd
-import pytest
 
 from pipeline.execution.broker import (
     BaseBroker,

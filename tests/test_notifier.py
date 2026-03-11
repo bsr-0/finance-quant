@@ -5,7 +5,6 @@ from __future__ import annotations
 import threading
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from pipeline.infrastructure.notifier import (
     AlertSeverity,
@@ -306,7 +305,7 @@ class TestReconcilerNotifications:
 
     def test_critical_discrepancy_sends_notification(self):
         from unittest.mock import MagicMock
-        from pipeline.execution.reconciler import PositionReconciler, SystemPosition
+        from pipeline.execution.reconciler import PositionReconciler
 
         mock_broker = MagicMock()
         # Broker has AAPL, system doesn't

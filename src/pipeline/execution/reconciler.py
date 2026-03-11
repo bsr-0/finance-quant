@@ -15,7 +15,6 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
 
 from pipeline.execution.broker import BaseBroker, Position
 from pipeline.infrastructure.notifier import AlertSeverity, notify

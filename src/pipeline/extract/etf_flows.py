@@ -13,7 +13,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
-from pipeline.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
