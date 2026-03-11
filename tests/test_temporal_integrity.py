@@ -109,7 +109,7 @@ class TestWalkForwardReplay:
         splits_2 = list(walk_forward_splits(idx, train_size=200, test_size=50))
 
         assert len(splits_1) == len(splits_2)
-        for (tr1, te1), (tr2, te2) in zip(splits_1, splits_2):
+        for (tr1, te1), (tr2, te2) in zip(splits_1, splits_2, strict=True):
             np.testing.assert_array_equal(tr1, tr2)
             np.testing.assert_array_equal(te1, te2)
 
