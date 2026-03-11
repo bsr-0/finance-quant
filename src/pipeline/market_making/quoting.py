@@ -31,7 +31,7 @@ from enum import Enum
 
 import numpy as np
 
-from pipeline.market_making.spread import SpreadCalculator, SpreadConfig, QuotedSpread
+from pipeline.market_making.spread import SpreadCalculator, SpreadConfig
 from pipeline.market_making.inventory import InventoryManager, InventoryConfig, InventoryLevel
 
 logger = logging.getLogger(__name__)

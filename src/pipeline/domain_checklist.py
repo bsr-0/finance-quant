@@ -14,7 +14,7 @@ Pre-populated for four domains per V7 Sections 24.1–24.4:
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any
 

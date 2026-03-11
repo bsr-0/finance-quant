@@ -13,10 +13,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
-from pipeline.strategy.signals import SignalScore, compute_indicators
+from pipeline.strategy.signals import SignalScore
 
 logger = logging.getLogger(__name__)
 

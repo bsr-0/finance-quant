@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from pipeline.strategy.signals import SignalEngine, compute_indicators
-from pipeline.strategy.sizing import PositionSizer, SizingConfig, SizeResult
+from pipeline.strategy.sizing import PositionSizer
 from pipeline.strategy.exits import ExitEngine, ExitReason, PositionState
 from pipeline.strategy.risk import SwingRiskManager, DrawdownLevel
 from pipeline.strategy.edge_decay import EdgeDecayMonitor, AlertLevel

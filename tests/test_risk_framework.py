@@ -18,7 +18,6 @@ from pipeline.infrastructure.risk_dashboard import (
     report_to_dict,
 )
 from pipeline.eval.stress import (
-    DEFAULT_HYPOTHETICAL_SHOCKS,
     DEFAULT_SCENARIOS,
     HypotheticalShock,
     apply_hypothetical_shock,

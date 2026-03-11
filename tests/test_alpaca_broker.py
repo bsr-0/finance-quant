@@ -6,8 +6,7 @@ account snapshots without requiring real API keys or network access.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,7 +16,6 @@ from pipeline.execution.broker import (
     OrderSide,
     OrderStatus,
     OrderType,
-    Position,
 )
 from pipeline.execution.capital_guard import AccountSnapshot
 

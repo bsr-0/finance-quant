@@ -29,13 +29,11 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-import numpy as np
 
 from pipeline.market_making.spread import SpreadCalculator, SpreadConfig
 from pipeline.market_making.inventory import (
     InventoryConfig,
     InventoryManager,
-    InventoryLevel,
 )
 from pipeline.market_making.quoting import (
     EventType,

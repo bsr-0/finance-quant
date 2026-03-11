@@ -33,10 +33,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pandas as pd
 
 from pipeline.execution.alpaca_broker import AlpacaBroker
-from pipeline.execution.broker import BaseBroker, BrokerError, Position
+from pipeline.execution.broker import BaseBroker, BrokerError
 from pipeline.execution.capital_guard import AccountSnapshot, CapitalGuardConfig
 from pipeline.execution.reconciler import PositionReconciler, SystemPosition
 from pipeline.execution.signal_executor import (

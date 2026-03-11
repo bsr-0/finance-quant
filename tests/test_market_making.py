@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 import pytest
 
-from pipeline.market_making.spread import SpreadCalculator, SpreadConfig, QuotedSpread
+from pipeline.market_making.spread import SpreadCalculator, SpreadConfig
 from pipeline.market_making.inventory import (
     InventoryConfig,
     InventoryLevel,

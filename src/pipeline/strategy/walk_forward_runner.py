@@ -17,14 +17,13 @@ Usage::
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
 from pipeline.backtesting.walk_forward import (
     FoldResult,
-    ValidationResult,
     walk_forward_splits,
 )
 from pipeline.strategy.signal_library import SignalPipeline

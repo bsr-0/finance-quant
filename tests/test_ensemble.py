@@ -5,9 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from pipeline.ensemble import DiversityMetrics, EnsembleBuilder, EnsembleComponent
+from pipeline.ensemble import EnsembleBuilder, EnsembleComponent
 from pipeline.experiment_registry import ExperimentRegistry
-from pipeline.model_search import ModelSearcher, ModelSpec, SearchSpace
+from pipeline.model_search import ModelSearcher, ModelSpec
 
 
 def _make_synthetic_data(n: int = 600, n_features: int = 5, seed: int = 42) -> pd.DataFrame:

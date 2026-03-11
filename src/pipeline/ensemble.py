@@ -17,14 +17,14 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from pipeline.backtesting.walk_forward import ValidationResult, walk_forward_validate
-from pipeline.calibration import CalibrationMethod, CalibratedModelWrapper, Calibrator
+from pipeline.calibration import CalibrationMethod, CalibratedModelWrapper
 from pipeline.compute_budget import ComputeBudget
 from pipeline.experiment_registry import ExperimentRegistry
 from pipeline.model_search import ModelSpec

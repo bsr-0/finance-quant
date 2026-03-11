@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
 # ---------------------------------------------------------------------------
 # Synthetic data helpers
@@ -705,7 +704,7 @@ class TestBacktestHarness:
 
     def test_harness_empty_data(self):
         from pipeline.strategy.backtest_harness import (
-            BacktestConfig, BacktestHarness,
+            BacktestHarness,
         )
         from pipeline.strategy.entry_rules import EntryRuleSet
         from pipeline.strategy.exits import ExitEngine
@@ -733,7 +732,7 @@ class TestBacktestHarness:
         from pipeline.strategy.entry_rules import institutional_entry_rules
         from pipeline.strategy.exits import ExitEngine
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, SizingMethod, create_sizer,
+            InstitutionalSizingConfig, create_sizer,
         )
         from pipeline.strategy.risk_constraints import institutional_constraints
         from pipeline.strategy.signal_library import SignalPipeline, momentum_signal
@@ -869,7 +868,7 @@ class TestMemoGenerator:
         from pipeline.strategy.exits import ExitEngine
         from pipeline.strategy.memo_generator import generate_memo
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, SizingMethod, create_sizer,
+            InstitutionalSizingConfig, create_sizer,
         )
         from pipeline.strategy.risk_constraints import institutional_constraints
         from pipeline.strategy.signal_library import SignalPipeline, momentum_signal
