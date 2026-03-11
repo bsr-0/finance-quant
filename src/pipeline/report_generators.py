@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Section 4 — Phase 0: Problem Definition outputs
 # ---------------------------------------------------------------------------
 
+
 def generate_problem_summary(
     problem_id: str,
     objective: str,
@@ -96,6 +97,7 @@ def generate_constraints_register(
 # Section 5 — Phase 1: Dataset Discovery outputs
 # ---------------------------------------------------------------------------
 
+
 def generate_availability_matrix(
     sources: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -130,6 +132,7 @@ def generate_dataset_expansion_report(
 # ---------------------------------------------------------------------------
 # Section 6 — Phase 2: Feature Discovery outputs
 # ---------------------------------------------------------------------------
+
 
 def generate_feature_catalog(
     features: list[dict[str, Any]],
@@ -191,9 +194,7 @@ def generate_feature_stability_report(
 class FeatureRetirementEntry:
     feature_name: str
     reason: str
-    retired_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    retired_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     replacement: str = ""
 
 
@@ -240,6 +241,7 @@ class FeatureRetirementLog:
 # Section 7 — Phase 3: Model Search outputs
 # ---------------------------------------------------------------------------
 
+
 def generate_meta_learning_report(
     experiments: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -268,13 +270,15 @@ def generate_meta_learning_report(
 
     insights = []
     for family, values in by_family.items():
-        insights.append({
-            "model_family": family,
-            "n_experiments": len(values),
-            "mean_metric": float(np.mean(values)),
-            "std_metric": float(np.std(values)) if len(values) > 1 else 0.0,
-            "best_metric": float(max(values)),
-        })
+        insights.append(
+            {
+                "model_family": family,
+                "n_experiments": len(values),
+                "mean_metric": float(np.mean(values)),
+                "std_metric": float(np.std(values)) if len(values) > 1 else 0.0,
+                "best_metric": float(max(values)),
+            }
+        )
 
     best_by_problem = {}
     for problem, families in by_problem.items():
@@ -296,6 +300,7 @@ def generate_meta_learning_report(
 # ---------------------------------------------------------------------------
 # Section 8 — Phase 4: Ensemble & Calibration outputs
 # ---------------------------------------------------------------------------
+
 
 def generate_probability_diagnostics(
     y_true: pd.Series,
@@ -321,11 +326,13 @@ def generate_probability_diagnostics(
     for _, grp in df.groupby("bin"):
         if grp.empty:
             continue
-        reliability.append({
-            "mean_predicted": float(grp["p"].mean()),
-            "mean_observed": float(grp["y"].mean()),
-            "count": len(grp),
-        })
+        reliability.append(
+            {
+                "mean_predicted": float(grp["p"].mean()),
+                "mean_observed": float(grp["y"].mean()),
+                "count": len(grp),
+            }
+        )
 
     # Brier decomposition: reliability, resolution, uncertainty
     overall_base_rate = float(y_true.mean())
@@ -360,6 +367,7 @@ def generate_probability_diagnostics(
 # Section 9 — Phase 5: Decision Optimization outputs
 # ---------------------------------------------------------------------------
 
+
 def generate_threshold_sweep(
     y_true: pd.Series,
     y_score: pd.Series,
@@ -380,14 +388,24 @@ def generate_threshold_sweep(
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         n_actions = int(preds.sum())
-        results.append({
-            "threshold": t,
-            "precision": round(precision, 4),
-            "recall": round(recall, 4),
-            "n_actions": n_actions,
-            "pct_acted": round(n_actions / len(preds), 4) if len(preds) > 0 else 0.0,
-            "tp": tp, "fp": fp, "fn": fn, "tn": tn,
-        })
+        # Expected value: assumes +1 for correct action, -1 for incorrect
+        ev = (tp - fp) / max(n_actions, 1) if n_actions > 0 else 0.0
+        f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+        results.append(
+            {
+                "threshold": t,
+                "precision": round(precision, 4),
+                "recall": round(recall, 4),
+                "f1_score": round(f1, 4),
+                "expected_value_per_action": round(ev, 4),
+                "n_actions": n_actions,
+                "pct_acted": round(n_actions / len(preds), 4) if len(preds) > 0 else 0.0,
+                "tp": tp,
+                "fp": fp,
+                "fn": fn,
+                "tn": tn,
+            }
+        )
 
     return {
         "report_type": "threshold_sweep_report",
@@ -425,13 +443,15 @@ def generate_abstention_report(
         else:
             accuracy = float("nan")
 
-        results.append({
-            "min_confidence": min_conf,
-            "n_acted": n_acted,
-            "n_abstained": n_abstained,
-            "pct_abstained": round(n_abstained / len(y_true), 4) if len(y_true) > 0 else 0.0,
-            "accuracy_on_acted": round(accuracy, 4) if np.isfinite(accuracy) else None,
-        })
+        results.append(
+            {
+                "min_confidence": min_conf,
+                "n_acted": n_acted,
+                "n_abstained": n_abstained,
+                "pct_abstained": round(n_abstained / len(y_true), 4) if len(y_true) > 0 else 0.0,
+                "accuracy_on_acted": round(accuracy, 4) if np.isfinite(accuracy) else None,
+            }
+        )
 
     return {
         "report_type": "abstention_policy_report",
@@ -444,6 +464,7 @@ def generate_abstention_report(
 # ---------------------------------------------------------------------------
 # Section 10 — Phase 6: Backtesting outputs
 # ---------------------------------------------------------------------------
+
 
 def generate_simulation_assumptions(
     transaction_cost_model: str = "fixed_plus_spread",
@@ -516,6 +537,7 @@ def generate_risk_path_report(
 # Section 11 — Phase 7: Skeptical Audit outputs
 # ---------------------------------------------------------------------------
 
+
 def generate_robustness_report(
     returns: pd.Series,
     sharpe: float,
@@ -553,8 +575,7 @@ def generate_reproducibility_report(
     duplicates = len(hashes) - len(unique_hashes) if unique_hashes else 0
 
     configs_captured = sum(
-        1 for e in experiments
-        if e.get("dataset_version") and e.get("hyperparameters")
+        1 for e in experiments if e.get("dataset_version") and e.get("hyperparameters")
     )
 
     return {
@@ -571,6 +592,7 @@ def generate_reproducibility_report(
 # ---------------------------------------------------------------------------
 # Section 12 — Phase 8: Codebase Review outputs
 # ---------------------------------------------------------------------------
+
 
 def generate_architecture_review(
     modules: list[dict[str, Any]],
@@ -679,5 +701,113 @@ def generate_ensemble_report(
         "primary_metric": primary_metric,
         "primary_metric_value": primary_metric_value,
         "raw_vs_calibrated_comparison": comparison,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 16 — Final System Report (synthesizes all outputs)
+# ---------------------------------------------------------------------------
+
+
+def generate_final_system_report(
+    problem_id: str,
+    sections: dict[str, Any] | None = None,
+    overall_status: str = "complete",
+    executive_summary: str = "",
+) -> dict[str, Any]:
+    """<final_system_report> — Section 16 required output.
+
+    Consolidates all phase outputs into a single deliverable that another
+    agent or engineer can directly execute against.
+
+    Parameters
+    ----------
+    problem_id : str
+        Identifier for the prediction problem.
+    sections : dict[str, Any] | None
+        Pre-computed report sections keyed by report_type (e.g.,
+        "problem_summary", "model_search_report", etc.).
+    overall_status : str
+        Overall system status (e.g., "complete", "in_progress", "failed").
+    executive_summary : str
+        High-level summary of findings and recommendations.
+    """
+    sections = sections or {}
+
+    # Count how many required deliverables are present
+    required_deliverables = [
+        "problem_summary",
+        "dataset_catalog",
+        "feature_catalog",
+        "model_search_report",
+        "ensemble_report",
+        "decision_policy_report",
+        "backtest_report",
+        "leakage_audit",
+        "robustness_report",
+        "deployment_pipeline_config",
+        "monitoring_dashboard_spec",
+    ]
+    present = [d for d in required_deliverables if d in sections]
+
+    return {
+        "report_type": "final_system_report",
+        "problem_id": problem_id,
+        "overall_status": overall_status,
+        "executive_summary": executive_summary,
+        "deliverables_present": len(present),
+        "deliverables_total": len(required_deliverables),
+        "deliverables_missing": [d for d in required_deliverables if d not in sections],
+        "sections": sections,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Section 17 — Operating Summary
+# ---------------------------------------------------------------------------
+
+
+def generate_operating_summary(
+    problem_id: str = "",
+    agent_roles: list[str] | None = None,
+    cycle_cadence: str = "per_research_cycle",
+    validation_standard: str = "walk_forward_temporal",
+    decision_policy: str = "",
+) -> dict[str, Any]:
+    """<operating_summary> — Section 17 required output.
+
+    Documents the agent coordination cadence and operating protocol.
+    """
+    if agent_roles is None:
+        agent_roles = [
+            "research_orchestrator",
+            "data_agent",
+            "feature_agent",
+            "model_agent",
+            "ensemble_agent",
+            "decision_agent",
+            "audit_agent",
+        ]
+
+    return {
+        "report_type": "operating_summary",
+        "problem_id": problem_id,
+        "protocol": (
+            "Build systems that are point-in-time valid, empirically tested, "
+            "decision-relevant, calibrated, reproducible, robust, "
+            "production-hardened, monitored, governed, budget-aware, "
+            "rigorously tested, and domain-informed."
+        ),
+        "agent_roles": agent_roles,
+        "coordination_cadence": cycle_cadence,
+        "research_loop": (
+            "Research → Data expansion → Feature search → Model search → "
+            "Ensemble + calibration → Decision optimization → Audit → "
+            "Promotion or rejection → Knowledge update → Repeat"
+        ),
+        "validation_standard": validation_standard,
+        "decision_policy": decision_policy,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }

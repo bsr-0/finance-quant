@@ -126,10 +126,12 @@ def extract(
     source: str = typer.Argument(
         ...,
         help="Source to extract (fred, gdelt, polymarket, prices, factors, "
-             "sec-fundamentals, sec-insider, sec-13f, options, earnings, "
-             "reddit-sentiment, short-interest, etf-flows)",
+        "sec-fundamentals, sec-insider, sec-13f, options, earnings, "
+        "reddit-sentiment, short-interest, etf-flows)",
     ),
-    start: str | None = typer.Option(None, "--start", "-s", help="Start date (YYYY-MM-DD)"),  # noqa: B008
+    start: str | None = typer.Option(
+        None, "--start", "-s", help="Start date (YYYY-MM-DD)"
+    ),  # noqa: B008
     end: str | None = typer.Option(None, "--end", "-e", help="End date (YYYY-MM-DD)"),  # noqa: B008
     output_dir: Path | None = typer.Option(  # noqa: B008
         None, "--output", "-o", help="Output directory"
@@ -158,7 +160,9 @@ def extract(
         elif source == "factors":
             files = extract_factors_ff(raw_path, run_id=run_id)
         elif source == "sec-fundamentals":
-            files = extract_sec_fundamentals(raw_path, start_date=start, end_date=end, run_id=run_id)
+            files = extract_sec_fundamentals(
+                raw_path, start_date=start, end_date=end, run_id=run_id
+            )
         elif source == "sec-insider":
             files = extract_sec_insider(raw_path, start_date=start, end_date=end, run_id=run_id)
         elif source == "sec-13f":
@@ -192,8 +196,8 @@ def load_raw(
     source: str = typer.Argument(
         ...,
         help="Source to load (fred, gdelt, polymarket, prices, factors, "
-             "sec_fundamentals, sec_insider, sec_13f, options, earnings, "
-             "reddit_sentiment, short_interest, etf_flows)",
+        "sec_fundamentals, sec_insider, sec_13f, options, earnings, "
+        "reddit_sentiment, short_interest, etf_flows)",
     ),
     raw_dir: Path | None = typer.Option(  # noqa: B008
         None, "--raw-dir", "-r", help="Raw data directory"
@@ -236,7 +240,9 @@ def transform_curated():
         # DQ gating: fail on any CRITICAL alert
         monitor = DataQualityMonitor()
         report = monitor.generate_quality_report()
-        critical = [a for a in report.get("alerts", []) if a.get("severity") == Severity.CRITICAL.value]
+        critical = [
+            a for a in report.get("alerts", []) if a.get("severity") == Severity.CRITICAL.value
+        ]
         if critical:
             update_pipeline_run(run_id, "failed", errors="Critical data quality alerts")
             console.print(f"[red]✗ {len(critical)} CRITICAL data quality alerts detected[/red]")
@@ -286,10 +292,14 @@ def build_snapshots(
 
 @app.command()
 def build_symbol_snapshots(
-    symbols: list[str] | None = typer.Option(None, "--symbol", "-s", help="Symbol IDs"),  # noqa: B008
+    symbols: list[str] | None = typer.Option(
+        None, "--symbol", "-s", help="Symbol IDs"
+    ),  # noqa: B008
     start: str | None = typer.Option(None, "--start", help="Start timestamp"),  # noqa: B008
     end: str | None = typer.Option(None, "--end", help="End timestamp"),  # noqa: B008
-    freq: str = typer.Option("1d", "--freq", help="Snapshot frequency (1h, 1d, 15min)"),  # noqa: B008
+    freq: str = typer.Option(
+        "1d", "--freq", help="Snapshot frequency (1h, 1d, 15min)"
+    ),  # noqa: B008
 ):
     """Build training snapshots for equity symbols."""
     run_id = record_pipeline_run(
@@ -313,11 +323,21 @@ def build_symbol_snapshots(
 
 @app.command()
 def orderbook_snapshots(
-    interval: str | None = typer.Option(None, "--interval", "-i", help="Snapshot interval (e.g., 1m, 5m, 1h, off)"),  # noqa: B008
-    iterations: int = typer.Option(1, "--iterations", "-n", help="Number of iterations (0 = forever)"),  # noqa: B008
-    retention_days: int = typer.Option(30, "--retention-days", help="Retention window in days"),  # noqa: B008
-    transform: bool = typer.Option(True, "--transform/--no-transform", help="Transform snapshots to curated"),  # noqa: B008
-    max_markets: int | None = typer.Option(None, "--max-markets", help="Override market count"),  # noqa: B008
+    interval: str | None = typer.Option(
+        None, "--interval", "-i", help="Snapshot interval (e.g., 1m, 5m, 1h, off)"
+    ),  # noqa: B008
+    iterations: int = typer.Option(
+        1, "--iterations", "-n", help="Number of iterations (0 = forever)"
+    ),  # noqa: B008
+    retention_days: int = typer.Option(
+        30, "--retention-days", help="Retention window in days"
+    ),  # noqa: B008
+    transform: bool = typer.Option(
+        True, "--transform/--no-transform", help="Transform snapshots to curated"
+    ),  # noqa: B008
+    max_markets: int | None = typer.Option(
+        None, "--max-markets", help="Override market count"
+    ),  # noqa: B008
 ):
     """Capture Polymarket orderbook snapshots on a schedule."""
     settings = get_settings()
@@ -414,7 +434,9 @@ def _read_data(path: Path) -> pd.DataFrame:
 def evaluate(
     scope: str = typer.Option("equity", "--scope", "-s", help="equity or prediction"),
     signals_path: Path | None = typer.Option(None, "--signals", help="Signals file path"),
-    probs_path: Path | None = typer.Option(None, "--probs", help="Prediction market probs file path"),
+    probs_path: Path | None = typer.Option(
+        None, "--probs", help="Prediction market probs file path"
+    ),
     prices_path: Path | None = typer.Option(None, "--prices", help="Prices file path"),
     outcomes_path: Path | None = typer.Option(None, "--outcomes", help="Outcomes file path"),
     factors_from_db: bool = typer.Option(True, "--factors-from-db", help="Load factors from DB"),
@@ -435,7 +457,9 @@ def evaluate(
     if factors_from_db:
         db = get_db_manager()
         if db.table_exists("cur_factor_returns"):
-            factors_df = pd.DataFrame(db.run_query("SELECT * FROM cur_factor_returns ORDER BY date"))
+            factors_df = pd.DataFrame(
+                db.run_query("SELECT * FROM cur_factor_returns ORDER BY date")
+            )
             if not factors_df.empty:
                 factors_df["date"] = pd.to_datetime(factors_df["date"])
                 factors_df = factors_df.set_index("date")[
@@ -560,7 +584,9 @@ def inventory():
 
 @app.command()
 def init_db(
-    ddl_dir: Path | None = typer.Option(None, "--ddl-dir", "-d", help="DDL directory"),  # noqa: B008
+    ddl_dir: Path | None = typer.Option(
+        None, "--ddl-dir", "-d", help="DDL directory"
+    ),  # noqa: B008
     force: bool = typer.Option(False, "--force", help="Force re-initialization"),  # noqa: B008
 ):
     """Initialize database schema."""
@@ -612,12 +638,24 @@ def run_pipeline(
 
 @app.command()
 def generate_signals(
-    date: str | None = typer.Option(None, "--date", "-d", help="Signal date (YYYY-MM-DD). Default: latest in data."),  # noqa: B008
-    prices_dir: Path | None = typer.Option(None, "--prices-dir", help="Directory with per-ticker CSV/parquet files"),  # noqa: B008
-    spy_path: Path | None = typer.Option(None, "--spy", help="SPY prices CSV/parquet for regime classification"),  # noqa: B008
-    output_dir: Path = typer.Option(Path("data/signals"), "--output", "-o", help="Output directory for signal CSV"),  # noqa: B008
-    threshold: int = typer.Option(60, "--threshold", "-t", help="Minimum signal score"),  # noqa: B008
-    min_volume: float = typer.Option(50_000, "--min-volume", help="Minimum average daily volume"),  # noqa: B008
+    date: str | None = typer.Option(
+        None, "--date", "-d", help="Signal date (YYYY-MM-DD). Default: latest in data."
+    ),  # noqa: B008
+    prices_dir: Path | None = typer.Option(
+        None, "--prices-dir", help="Directory with per-ticker CSV/parquet files"
+    ),  # noqa: B008
+    spy_path: Path | None = typer.Option(
+        None, "--spy", help="SPY prices CSV/parquet for regime classification"
+    ),  # noqa: B008
+    output_dir: Path = typer.Option(
+        Path("data/signals"), "--output", "-o", help="Output directory for signal CSV"
+    ),  # noqa: B008
+    threshold: int = typer.Option(
+        60, "--threshold", "-t", help="Minimum signal score"
+    ),  # noqa: B008
+    min_volume: float = typer.Option(
+        50_000, "--min-volume", help="Minimum average daily volume"
+    ),  # noqa: B008
 ):
     """Generate trading signals for the current universe.
 
@@ -636,7 +674,9 @@ def generate_signals(
 
     # Load price data
     if prices_dir is None:
-        console.print("[red]--prices-dir is required (directory of per-ticker CSV/parquet files)[/red]")
+        console.print(
+            "[red]--prices-dir is required (directory of per-ticker CSV/parquet files)[/red]"
+        )
         raise typer.Exit(1)
 
     if not prices_dir.exists():
@@ -701,7 +741,9 @@ def generate_signals(
     scores = engine.score_universe(indicator_data, spy_prices=spy_prices, date=signal_date)
     eligible = [s for s in scores if s.entry_eligible]
 
-    console.print(f"  Scored {len(scores)} symbols, {len(eligible)} eligible (score >= {threshold})")
+    console.print(
+        f"  Scored {len(scores)} symbols, {len(eligible)} eligible (score >= {threshold})"
+    )
 
     # Pre-trade checks
     passed_signals, check_results = filter_signals(
@@ -755,7 +797,9 @@ def execute_signals(
     signal_csv: Path = typer.Argument(..., help="Path to signal CSV file from generate-signals"),
     max_capital: float = typer.Option(300.0, "--max-capital", help="Maximum capital to deploy ($)"),
     max_positions: int = typer.Option(2, "--max-positions", help="Maximum simultaneous positions"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Validate everything but don't submit orders"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Validate everything but don't submit orders"
+    ),
     paper: bool = typer.Option(True, "--paper/--live", help="Use paper trading (default) or live"),
 ):
     """Execute trading signals through Alpaca broker.
@@ -817,9 +861,9 @@ def execute_signals(
         status_table.add_row("Equity", f"${status.get('account_equity', 0):.2f}")
         status_table.add_row("Cash", f"${status.get('account_cash', 0):.2f}")
         status_table.add_row("Buying Power", f"${status.get('buying_power', 0):.2f}")
-        status_table.add_row("Open Positions", str(status.get('positions_count', 0)))
+        status_table.add_row("Open Positions", str(status.get("positions_count", 0)))
         status_table.add_row("Max Capital", f"${max_capital:.2f}")
-        status_table.add_row("Margin Account", "YES ⚠️" if status.get('is_margin') else "NO ✓")
+        status_table.add_row("Margin Account", "YES ⚠️" if status.get("is_margin") else "NO ✓")
         console.print(status_table)
 
         # Execute
@@ -847,7 +891,9 @@ def execute_signals(
                 action = d.get("action", "—")
                 extra = ""
                 if "shares" in d:
-                    extra = f"{d['shares']:.4f} shares @ ${d.get('limit_price', d.get('price', 0)):.2f}"
+                    extra = (
+                        f"{d['shares']:.4f} shares @ ${d.get('limit_price', d.get('price', 0)):.2f}"
+                    )
                 elif "reason" in d:
                     extra = d["reason"]
                 elif "summary" in d:
@@ -935,10 +981,14 @@ def trading_status(
 
 @app.command()
 def monitor_prices(
-    symbols: list[str] | None = typer.Option(None, "--symbol", "-s", help="Symbols to monitor"),  # noqa: B008
+    symbols: list[str] | None = typer.Option(
+        None, "--symbol", "-s", help="Symbols to monitor"
+    ),  # noqa: B008
     mode: str = typer.Option("websocket", "--mode", "-m", help="Feed mode: websocket or polling"),
     interval: int = typer.Option(5, "--interval", "-i", help="Display refresh interval (seconds)"),
-    duration: int = typer.Option(0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)"),
+    duration: int = typer.Option(
+        0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)"
+    ),
     paper: bool = typer.Option(True, "--paper/--live", help="Use paper or live API keys"),
 ):
     """Monitor real-time prices via Alpaca WebSocket or polling.
@@ -1001,8 +1051,10 @@ def monitor_prices(
                     q = quotes.get(sym)
                     if q:
                         age = f"{q.age_seconds:.0f}s"
-                        age_style = "green" if q.age_seconds < 60 else (
-                            "yellow" if q.age_seconds < 120 else "red"
+                        age_style = (
+                            "green"
+                            if q.age_seconds < 60
+                            else ("yellow" if q.age_seconds < 120 else "red")
                         )
                         table.add_row(
                             sym,
@@ -1039,9 +1091,13 @@ def monitor_prices(
 @app.command()
 def monitor_positions(
     poll_seconds: int = typer.Option(60, "--poll", "-p", help="Check interval in seconds"),
-    duration: int = typer.Option(0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)"),
+    duration: int = typer.Option(
+        0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)"
+    ),
     paper: bool = typer.Option(True, "--paper/--live", help="Use paper or live keys"),
-    realtime: bool = typer.Option(True, "--realtime/--no-realtime", help="Use real-time prices for stop checks"),
+    realtime: bool = typer.Option(
+        True, "--realtime/--no-realtime", help="Use real-time prices for stop checks"
+    ),
 ):
     """Continuously monitor open positions with real-time stop enforcement.
 
@@ -1173,6 +1229,7 @@ def model_search(
 
     def eval_fn(y_true, y_pred):
         from pipeline.eval.metrics import hit_rate, sharpe_sortino
+
         aligned_true, aligned_pred = y_true.align(y_pred, join="inner")
         rmse = float(((aligned_true - aligned_pred) ** 2).mean() ** 0.5)
         hr = hit_rate(aligned_true, aligned_pred)
@@ -1192,6 +1249,7 @@ def model_search(
     searcher.update_meta_knowledge(results)
 
     from pipeline.report_generators import generate_model_search_report
+
     report = generate_model_search_report(
         results=[
             {
@@ -1271,15 +1329,14 @@ def ensemble_build(
 
     search_registry = ExperimentRegistry(storage_path=search_registry_path)
     from pipeline.experiment_registry import ExperimentStatus
+
     completed = search_registry.list_experiments(status=ExperimentStatus.COMPLETED)
 
     if not completed:
         console.print("[red]No completed experiments found in search registry.[/red]")
         raise typer.Exit(1)
 
-    sorted_exps = sorted(
-        completed, key=lambda e: e.primary_metric_value or 0.0, reverse=True
-    )[:5]
+    sorted_exps = sorted(completed, key=lambda e: e.primary_metric_value or 0.0, reverse=True)[:5]
 
     searcher = ModelSearcher(registry=search_registry, problem_id=problem_id)
     components = []
@@ -1304,6 +1361,7 @@ def ensemble_build(
 
     def eval_fn(y_true, y_pred):
         from pipeline.eval.metrics import hit_rate, sharpe_sortino
+
         aligned_true, aligned_pred = y_true.align(y_pred, join="inner")
         rmse = float(((aligned_true - aligned_pred) ** 2).mean() ** 0.5)
         hr = hit_rate(aligned_true, aligned_pred)
@@ -1311,11 +1369,16 @@ def ensemble_build(
         return {"rmse": rmse, "hit_rate": hr, "sharpe": sharpe, "sortino": sortino}
 
     result = builder.run_ensemble_search(
-        df, target_col, components, eval_fn,
-        train_size=train_size, test_size=test_size,
+        df,
+        target_col,
+        components,
+        eval_fn,
+        train_size=train_size,
+        test_size=test_size,
     )
 
     from pipeline.report_generators import generate_ensemble_report
+
     report = generate_ensemble_report(
         ensemble_method=result.method,
         component_weights=[
