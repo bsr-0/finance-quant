@@ -248,14 +248,14 @@ None.
 | M2 | No dependency lock file | `pyproject.toml` | FIXED — `requirements.lock` and `requirements-dev.lock` generated via `pip-compile --generate-hashes` |
 | M3 | No PR-triggered CI pipeline | `.github/workflows/` | FIXED — `ci.yml` runs lint, test (3.11 + 3.12), and typecheck on PRs and pushes to main |
 
-### Low Priority (4)
+### Low Priority (4) — RESOLVED
 
-| # | Finding | Location | Recommendation |
-|---|---------|----------|----------------|
-| L1 | No numeric range validation on CLI params | `cli.py` | Add bounds checking for numeric inputs |
-| L2 | API response schema validation | `extract/*.py` | Add Pydantic models for API responses |
-| L3 | Broker error messages may leak auth details | `execution/alpaca_broker.py` | Sanitize error messages before display |
-| L4 | No automated security scanning | `.github/workflows/` | Add Dependabot or equivalent |
+| # | Finding | Location | Status |
+|---|---------|----------|--------|
+| L1 | No numeric range validation on CLI params | `cli.py` | FIXED — `_validate_range` callback on 11 numeric parameters |
+| L2 | API response schema validation | `extract/*.py` | FIXED — Defensive guards on crash-prone dict indexing and ZIP access |
+| L3 | Broker error messages may leak auth details | `execution/alpaca_broker.py` | FIXED — `_sanitize_error` strips secrets and truncates messages |
+| L4 | No automated security scanning | `.github/workflows/` | FIXED — Dependabot config + `pip-audit` CI job |
 
 ---
 
@@ -281,14 +281,15 @@ None.
 ### Short-term (next sprint) — DONE
 - [x] Add dependency lock file (M2)
 - [x] Add PR-triggered CI workflow with tests and linting (M3)
-- [ ] Add numeric range validation to CLI (L1)
+- [x] Add numeric range validation to CLI (L1)
+- [x] Add defensive API response validation (L2)
+- [x] Sanitize broker error messages (L3)
+- [x] Set up automated dependency scanning (L4)
 
 ### Medium-term (next quarter)
-- [ ] Add API response schema validation (L2)
-- [ ] Set up automated dependency scanning (L4)
 - [ ] Document disaster recovery and rollback procedures
 - [ ] Add database migration tooling (Alembic)
 
 ---
 
-*Report generated for the finance-quant repository at commit `c7ade47`.*
+*All audit findings (H1, M1–M3, L1–L4) have been resolved.*

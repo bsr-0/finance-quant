@@ -107,6 +107,9 @@ class GDELTExtractor:
 
             # Extract ZIP file
             with zipfile.ZipFile(BytesIO(response.content)) as z:
+                if not z.namelist():
+                    logger.warning(f"Empty ZIP file for {target_date}")
+                    return None
                 csv_name = z.namelist()[0]
                 with z.open(csv_name) as f:
                     df = pd.read_csv(

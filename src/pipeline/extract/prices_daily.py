@@ -155,7 +155,12 @@ class YahooFinanceExtractor:
 
         # Extract OHLCV data
         timestamps = result["timestamp"]
-        quote = result["indicators"]["quote"][0]
+        indicators = result.get("indicators", {})
+        quotes = indicators.get("quote", [])
+        if not quotes:
+            logger.warning(f"No quote data in response for {ticker}")
+            return pd.DataFrame()
+        quote = quotes[0]
 
         df = pd.DataFrame(
             {

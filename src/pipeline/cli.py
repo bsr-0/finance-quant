@@ -49,6 +49,19 @@ app = typer.Typer(help="Market Data Warehouse Pipeline CLI")
 console = Console()
 
 
+def _validate_range(min_val=None, max_val=None):
+    """Create a Typer callback that enforces numeric bounds."""
+    def _check(value):
+        if value is None:
+            return value
+        if min_val is not None and value < min_val:
+            raise typer.BadParameter(f"Must be >= {min_val}, got {value}")
+        if max_val is not None and value > max_val:
+            raise typer.BadParameter(f"Must be <= {max_val}, got {value}")
+        return value
+    return _check
+
+
 def get_git_sha() -> str | None:
     """Get current git SHA."""
     try:
@@ -327,16 +340,19 @@ def orderbook_snapshots(
         None, "--interval", "-i", help="Snapshot interval (e.g., 1m, 5m, 1h, off)"
     ),  # noqa: B008
     iterations: int = typer.Option(
-        1, "--iterations", "-n", help="Number of iterations (0 = forever)"
+        1, "--iterations", "-n", help="Number of iterations (0 = forever)",
+        callback=_validate_range(min_val=0),
     ),  # noqa: B008
     retention_days: int = typer.Option(
-        30, "--retention-days", help="Retention window in days"
+        30, "--retention-days", help="Retention window in days",
+        callback=_validate_range(min_val=1),
     ),  # noqa: B008
     transform: bool = typer.Option(
         True, "--transform/--no-transform", help="Transform snapshots to curated"
     ),  # noqa: B008
     max_markets: int | None = typer.Option(
-        None, "--max-markets", help="Override market count"
+        None, "--max-markets", help="Override market count",
+        callback=_validate_range(min_val=1),
     ),  # noqa: B008
 ):
     """Capture Polymarket orderbook snapshots on a schedule."""
@@ -651,10 +667,12 @@ def generate_signals(
         Path("data/signals"), "--output", "-o", help="Output directory for signal CSV"
     ),  # noqa: B008
     threshold: int = typer.Option(
-        60, "--threshold", "-t", help="Minimum signal score"
+        60, "--threshold", "-t", help="Minimum signal score",
+        callback=_validate_range(min_val=0, max_val=100),
     ),  # noqa: B008
     min_volume: float = typer.Option(
-        50_000, "--min-volume", help="Minimum average daily volume"
+        50_000, "--min-volume", help="Minimum average daily volume",
+        callback=_validate_range(min_val=0),
     ),  # noqa: B008
 ):
     """Generate trading signals for the current universe.
@@ -795,8 +813,14 @@ def generate_signals(
 @app.command()
 def execute_signals(
     signal_csv: Path = typer.Argument(..., help="Path to signal CSV file from generate-signals"),
-    max_capital: float = typer.Option(300.0, "--max-capital", help="Maximum capital to deploy ($)"),
-    max_positions: int = typer.Option(2, "--max-positions", help="Maximum simultaneous positions"),
+    max_capital: float = typer.Option(
+        300.0, "--max-capital", help="Maximum capital to deploy ($)",
+        callback=_validate_range(min_val=0),
+    ),
+    max_positions: int = typer.Option(
+        2, "--max-positions", help="Maximum simultaneous positions",
+        callback=_validate_range(min_val=1),
+    ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Validate everything but don't submit orders"
     ),
@@ -985,9 +1009,13 @@ def monitor_prices(
         None, "--symbol", "-s", help="Symbols to monitor"
     ),  # noqa: B008
     mode: str = typer.Option("websocket", "--mode", "-m", help="Feed mode: websocket or polling"),
-    interval: int = typer.Option(5, "--interval", "-i", help="Display refresh interval (seconds)"),
+    interval: int = typer.Option(
+        5, "--interval", "-i", help="Display refresh interval (seconds)",
+        callback=_validate_range(min_val=1),
+    ),
     duration: int = typer.Option(
-        0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)"
+        0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)",
+        callback=_validate_range(min_val=0),
     ),
     paper: bool = typer.Option(True, "--paper/--live", help="Use paper or live API keys"),
 ):
@@ -1090,9 +1118,13 @@ def monitor_prices(
 
 @app.command()
 def monitor_positions(
-    poll_seconds: int = typer.Option(60, "--poll", "-p", help="Check interval in seconds"),
+    poll_seconds: int = typer.Option(
+        60, "--poll", "-p", help="Check interval in seconds",
+        callback=_validate_range(min_val=1),
+    ),
     duration: int = typer.Option(
-        0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)"
+        0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)",
+        callback=_validate_range(min_val=0),
     ),
     paper: bool = typer.Option(True, "--paper/--live", help="Use paper or live keys"),
     realtime: bool = typer.Option(

@@ -74,7 +74,7 @@ class ShortInterestExtractor:
 
             settlement = (
                 datetime.fromtimestamp(short_date, tz=timezone.utc).date()
-                if short_date
+                if isinstance(short_date, (int, float))
                 else date.today()
             )
 
