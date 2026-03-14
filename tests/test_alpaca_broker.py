@@ -359,3 +359,70 @@ class TestAlpacaBrokerOrderStatusMapping:
             broker._is_paper = True
 
         assert broker.cancel_order("abc-123") is False
+
+
+class TestSanitizeError:
+    """Tests for _sanitize_error helper that strips sensitive data."""
+
+    def test_strips_api_key(self):
+        from pipeline.execution.alpaca_broker import _sanitize_error
+
+        e = Exception("connection failed api_key=sk-12345abc timeout")
+        result = _sanitize_error(e)
+        assert "sk-12345abc" not in result
+        assert "api_key=***" in result
+
+    def test_strips_secret(self):
+        from pipeline.execution.alpaca_broker import _sanitize_error
+
+        e = Exception("error secret=mysecret123 occurred")
+        result = _sanitize_error(e)
+        assert "mysecret123" not in result
+        assert "secret=***" in result
+
+    def test_strips_token(self):
+        from pipeline.execution.alpaca_broker import _sanitize_error
+
+        e = Exception("auth token=abc123xyz failed")
+        result = _sanitize_error(e)
+        assert "abc123xyz" not in result
+        assert "token=***" in result
+
+    def test_strips_authorization_header(self):
+        from pipeline.execution.alpaca_broker import _sanitize_error
+
+        e = Exception("authorization: Bearer eyJhbGciOiJIUzI1NiJ9 denied")
+        result = _sanitize_error(e)
+        assert "eyJhbGciOiJIUzI1NiJ9" not in result
+        assert "authorization=***" in result
+
+    def test_truncates_long_message(self):
+        from pipeline.execution.alpaca_broker import _sanitize_error
+
+        long_msg = "x" * 300
+        e = Exception(long_msg)
+        result = _sanitize_error(e)
+        assert len(result) == 203  # 200 + "..."
+        assert result.endswith("...")
+
+    def test_passthrough_safe_message(self):
+        from pipeline.execution.alpaca_broker import _sanitize_error
+
+        e = Exception("Order rejected: insufficient funds")
+        result = _sanitize_error(e)
+        assert result == "Order rejected: insufficient funds"
+
+    def test_broker_error_uses_sanitized_message(self):
+        from pipeline.execution.alpaca_broker import AlpacaBroker
+
+        mock_client = MagicMock()
+        mock_client.get_account.side_effect = Exception(
+            "HTTP 401 api_key=AKXYZ12345 unauthorized"
+        )
+        with patch("pipeline.execution.alpaca_broker.AlpacaBroker.__init__", return_value=None):
+            broker = AlpacaBroker.__new__(AlpacaBroker)
+            broker._client = mock_client
+            broker._is_paper = True
+
+        with pytest.raises(BrokerError, match=r"api_key=\*\*\*"):
+            broker.get_account_snapshot()

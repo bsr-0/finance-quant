@@ -59,7 +59,7 @@ _STATUS_MAP = {
 }
 
 _SENSITIVE_RE = re.compile(
-    r"(api[_-]?key|secret|token|authorization|password|credential)[=:]\s*\S+",
+    r"(api[_-]?key|secret|token|authorization|password|credential)[=:]\s*\S+(\s+\S+)?",
     re.IGNORECASE,
 )
 

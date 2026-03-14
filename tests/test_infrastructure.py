@@ -366,3 +366,72 @@ class TestMetricsCollector:
 
         summary = pm.metrics.get_summary()
         assert summary["counters"]["mdw.errors"] == 1
+
+
+class TestValidateRange:
+    """Tests for CLI _validate_range callback factory."""
+
+    def test_returns_value_within_bounds(self):
+        from pipeline.cli import _validate_range
+
+        check = _validate_range(min_val=0, max_val=100)
+        assert check(50) == 50
+
+    def test_returns_min_boundary(self):
+        from pipeline.cli import _validate_range
+
+        check = _validate_range(min_val=0)
+        assert check(0) == 0
+
+    def test_returns_max_boundary(self):
+        from pipeline.cli import _validate_range
+
+        check = _validate_range(max_val=100)
+        assert check(100) == 100
+
+    def test_none_passthrough(self):
+        from pipeline.cli import _validate_range
+
+        check = _validate_range(min_val=1, max_val=100)
+        assert check(None) is None
+
+    def test_raises_below_min(self):
+        import typer
+
+        from pipeline.cli import _validate_range
+
+        check = _validate_range(min_val=1)
+        with pytest.raises(typer.BadParameter, match="Must be >= 1"):
+            check(0)
+
+    def test_raises_above_max(self):
+        import typer
+
+        from pipeline.cli import _validate_range
+
+        check = _validate_range(max_val=100)
+        with pytest.raises(typer.BadParameter, match="Must be <= 100"):
+            check(101)
+
+    def test_raises_negative(self):
+        import typer
+
+        from pipeline.cli import _validate_range
+
+        check = _validate_range(min_val=0)
+        with pytest.raises(typer.BadParameter, match="Must be >= 0"):
+            check(-1)
+
+    def test_min_only(self):
+        from pipeline.cli import _validate_range
+
+        check = _validate_range(min_val=5)
+        assert check(5) == 5
+        assert check(100) == 100
+
+    def test_max_only(self):
+        from pipeline.cli import _validate_range
+
+        check = _validate_range(max_val=10)
+        assert check(10) == 10
+        assert check(-5) == -5
