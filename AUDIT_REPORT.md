@@ -188,7 +188,9 @@ All dependencies use minimum version pinning (`>=`). No lock file (`requirements
 | alpaca-py | >=0.21.0 | 0.3x.x | Current |
 | scikit-learn | >=1.3.0 | 1.5.x | Current |
 
-**Recommendation:** Add a lock file (`pip-compile` or `poetry.lock`) for production deployments.
+**Resolution:** Lock files added via `pip-compile --generate-hashes`:
+- `requirements.lock` — pinned production dependencies with integrity hashes
+- `requirements-dev.lock` — pinned dev dependencies with integrity hashes
 
 ### 6.2 Supply Chain Risk — LOW
 
@@ -200,14 +202,15 @@ All dependencies use minimum version pinning (`>=`). No lock file (`requirements
 
 ## 7. Operational Readiness
 
-### 7.1 CI/CD — BASIC
+### 7.1 CI/CD — IMPROVED
 
-- GitHub Actions workflow runs weekly (Sunday 06:00 UTC)
-- Pipeline: extract → transform → snapshots → DQ
-- Auto-commits data updates
+- GitHub Actions weekly pipeline (Sunday 06:00 UTC): extract → transform → snapshots → DQ
+- GitHub Actions CI on PRs and pushes to main (`.github/workflows/ci.yml`):
+  - Lint job: ruff + black format check
+  - Test job: pytest on Python 3.11 and 3.12
+  - Type check job: mypy
 
-**Gaps:**
-- No PR-triggered test pipeline defined
+**Remaining gaps:**
 - No automated security scanning (Dependabot, Snyk)
 - No staging environment validation
 
@@ -231,19 +234,19 @@ All dependencies use minimum version pinning (`>=`). No lock file (`requirements
 ### Critical (0)
 None.
 
-### High Priority (1)
+### High Priority (1) — RESOLVED
 
-| # | Finding | Location | Recommendation |
-|---|---------|----------|----------------|
-| H1 | Circuit breaker lacks thread safety | `infrastructure/circuit_breaker.py` | Add `threading.Lock()` around state modifications |
+| # | Finding | Location | Status |
+|---|---------|----------|--------|
+| H1 | Circuit breaker lacks thread safety | `infrastructure/circuit_breaker.py` | FIXED — `threading.Lock` added to instance state and global registry |
 
-### Medium Priority (3)
+### Medium Priority (3) — RESOLVED
 
-| # | Finding | Location | Recommendation |
-|---|---------|----------|----------------|
-| M1 | Unvalidated `query_filter` in SQL | `infrastructure/lineage.py:121` | Validate or parameterize before concatenation |
-| M2 | No dependency lock file | `pyproject.toml` | Add `pip-compile` output or `poetry.lock` |
-| M3 | No PR-triggered CI pipeline | `.github/workflows/` | Add test/lint workflow on pull requests |
+| # | Finding | Location | Status |
+|---|---------|----------|--------|
+| M1 | Unvalidated `query_filter` in SQL | `infrastructure/lineage.py` | FIXED — `_validate_query_filter()` rejects dangerous keywords and injection patterns |
+| M2 | No dependency lock file | `pyproject.toml` | FIXED — `requirements.lock` and `requirements-dev.lock` generated via `pip-compile --generate-hashes` |
+| M3 | No PR-triggered CI pipeline | `.github/workflows/` | FIXED — `ci.yml` runs lint, test (3.11 + 3.12), and typecheck on PRs and pushes to main |
 
 ### Low Priority (4)
 
@@ -271,13 +274,13 @@ None.
 
 ## 10. Recommendations Roadmap
 
-### Immediate (before any live trading)
-- [ ] Fix circuit breaker thread safety (H1)
-- [ ] Validate `query_filter` parameter (M1)
+### Immediate (before any live trading) — DONE
+- [x] Fix circuit breaker thread safety (H1)
+- [x] Validate `query_filter` parameter (M1)
 
-### Short-term (next sprint)
-- [ ] Add dependency lock file (M2)
-- [ ] Add PR-triggered CI workflow with tests and linting (M3)
+### Short-term (next sprint) — DONE
+- [x] Add dependency lock file (M2)
+- [x] Add PR-triggered CI workflow with tests and linting (M3)
 - [ ] Add numeric range validation to CLI (L1)
 
 ### Medium-term (next quarter)
