@@ -1,6 +1,7 @@
 """Circuit breaker pattern for fault tolerance."""
 
 import logging
+import threading
 import time
 from collections.abc import Callable
 from enum import Enum
@@ -37,20 +38,22 @@ class CircuitBreaker:
         self._failure_count = 0
         self._success_count = 0
         self._last_failure_time: float | None = None
+        self._lock = threading.Lock()
 
     @property
     def state(self) -> CircuitState:
         """Get current circuit state."""
-        if (
-            self._state == CircuitState.OPEN
-            and self._last_failure_time
-            and time.time() - self._last_failure_time >= self.recovery_timeout
-        ):
+        with self._lock:
+            if (
+                self._state == CircuitState.OPEN
+                and self._last_failure_time
+                and time.time() - self._last_failure_time >= self.recovery_timeout
+            ):
                 self._state = CircuitState.HALF_OPEN
                 self._success_count = 0
                 logger.info(f"Circuit {self.name} entering HALF_OPEN state")
 
-        return self._state
+            return self._state
 
     def call(self, func: Callable, *args, **kwargs) -> Any:
         """Call function with circuit breaker protection."""
@@ -59,10 +62,12 @@ class CircuitBreaker:
 
         try:
             result = func(*args, **kwargs)
-            self._on_success()
+            with self._lock:
+                self._on_success()
             return result
         except self.expected_exception:
-            self._on_failure()
+            with self._lock:
+                self._on_failure()
             raise
 
     async def call_async(self, func: Callable, *args, **kwargs) -> Any:
@@ -72,10 +77,12 @@ class CircuitBreaker:
 
         try:
             result = await func(*args, **kwargs)
-            self._on_success()
+            with self._lock:
+                self._on_success()
             return result
         except self.expected_exception:
-            self._on_failure()
+            with self._lock:
+                self._on_failure()
             raise
 
     def _on_success(self):
@@ -116,10 +123,15 @@ class CircuitBreakerOpenError(Exception):
 
 # Registry of circuit breakers
 _circuit_breakers: dict[str, CircuitBreaker] = {}
+_circuit_breakers_lock = threading.Lock()
 
 
 def get_circuit_breaker(name: str, **kwargs) -> CircuitBreaker:
     """Get or create circuit breaker."""
-    if name not in _circuit_breakers:
-        _circuit_breakers[name] = CircuitBreaker(name, **kwargs)
-    return _circuit_breakers[name]
+    if name in _circuit_breakers:
+        return _circuit_breakers[name]
+
+    with _circuit_breakers_lock:
+        if name not in _circuit_breakers:
+            _circuit_breakers[name] = CircuitBreaker(name, **kwargs)
+        return _circuit_breakers[name]

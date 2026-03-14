@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,22 @@ from sqlalchemy import text
 from pipeline.db import _validate_identifier, get_db_manager
 
 logger = logging.getLogger(__name__)
+
+_DANGEROUS_SQL_RE = re.compile(
+    r"\b(DROP|DELETE|INSERT|UPDATE|CREATE|ALTER|TRUNCATE|EXEC|EXECUTE|GRANT|REVOKE)\b",
+    re.IGNORECASE,
+)
+
+
+def _validate_query_filter(query_filter: str) -> str:
+    """Validate a SQL filter clause to prevent injection."""
+    if not query_filter or not query_filter.strip():
+        return ""
+    if _DANGEROUS_SQL_RE.search(query_filter):
+        raise ValueError(f"Dangerous SQL keyword detected in query filter: {query_filter!r}")
+    if any(pattern in query_filter for pattern in ("--", "/*", "*/", ";")):
+        raise ValueError(f"Suspicious SQL pattern detected in query filter: {query_filter!r}")
+    return query_filter
 
 
 @dataclass
@@ -101,6 +118,7 @@ class LineageTracker:
         """Compute hash of table contents for versioning."""
         try:
             table_name = _validate_identifier(table_name)
+            query_filter = _validate_query_filter(query_filter)
             query = f"""
                 SELECT md5(string_agg(row_hash, ',' ORDER BY row_hash)) as table_hash
                 FROM (
@@ -118,6 +136,7 @@ class LineageTracker:
     def get_table_count(self, table_name: str, query_filter: str = "") -> int:
         """Get row count for a table."""
         table_name = _validate_identifier(table_name)
+        query_filter = _validate_query_filter(query_filter)
         query = f"SELECT COUNT(*) as cnt FROM {table_name} {query_filter}"
         result = self.db.run_query(query)
         return result[0]["cnt"] if result else 0
