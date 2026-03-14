@@ -1,9 +1,12 @@
 """Unit tests for data extractors (no database required)."""
 
+import io
+import zipfile
 from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pytest
 
 
 class TestFredExtractor:
@@ -159,6 +162,28 @@ class TestYahooFinanceExtractor:
         extractor.client.get.return_value = mock_response
 
         df = extractor.get_ticker_data("INVALID", date(2024, 1, 1), date(2024, 1, 2))
+
+        assert df.empty
+
+    @patch("pipeline.extract.prices_daily.get_settings")
+    def test_get_ticker_data_missing_quotes(self, mock_settings):
+        """Response with timestamps but no quote data returns empty DataFrame."""
+        mock_settings.return_value.prices.source = "yahoo"
+        mock_settings.return_value.prices.universe = ["SPY"]
+
+        from pipeline.extract.prices_daily import YahooFinanceExtractor
+
+        extractor = YahooFinanceExtractor()
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "chart": {"result": [{"timestamp": [1704067200], "indicators": {}}]}
+        }
+        mock_response.raise_for_status = MagicMock()
+        extractor.client = MagicMock()
+        extractor.client.get.return_value = mock_response
+
+        df = extractor.get_ticker_data("SPY", date(2024, 1, 1), date(2024, 1, 2))
 
         assert df.empty
 
@@ -526,3 +551,78 @@ class TestSettingsDefaults:
         assert len(settings.cusip_mapping) > 0
         assert settings.cusip_mapping.get("AAPL") == "037833100"
         assert settings.cusip_mapping.get("MSFT") == "594918104"
+
+
+class TestFactorsFFDefensiveGuards:
+    """Tests for factors_ff.py defensive guards."""
+
+    def test_read_zip_csv_empty_zip(self):
+        """Empty ZIP raises ValueError."""
+        from pipeline.extract.factors_ff import _read_zip_csv
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w"):
+            pass  # empty ZIP
+
+        with pytest.raises(ValueError, match="Empty ZIP file"):
+            _read_zip_csv(buf.getvalue())
+
+
+class TestGDELTDefensiveGuards:
+    """Tests for gdelt.py empty ZIP guard."""
+
+    def test_empty_zip_returns_none(self):
+        from pipeline.extract.gdelt import GDELTExtractor
+
+        extractor = GDELTExtractor()
+
+        # Create empty ZIP
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w"):
+            pass
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.content = buf.getvalue()
+        mock_response.raise_for_status = MagicMock()
+        extractor.client = MagicMock()
+        extractor.client.get.return_value = mock_response
+
+        result = extractor.download_day(date(2024, 1, 15))
+        assert result is None
+
+
+class TestShortInterestDefensiveGuards:
+    """Tests for short_interest.py type guard on settlement date."""
+
+    @patch("pipeline.extract.short_interest.get_settings")
+    def test_non_numeric_short_date_uses_today(self, mock_settings):
+        mock_settings.return_value.short_interest.base_url = "https://test.com"
+
+        from pipeline.extract.short_interest import ShortInterestExtractor
+
+        extractor = ShortInterestExtractor()
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "quoteSummary": {
+                "result": [{
+                    "defaultKeyStatistics": {
+                        "sharesShort": {"raw": 1000000},
+                        "dateShortInterest": {"raw": "not-a-number"},
+                        "averageDailyVolume10Day": {"raw": 5000000},
+                        "floatShares": {"raw": 50000000},
+                        "shortRatio": {"raw": 2.5},
+                        "shortPercentOfFloat": {"raw": 0.02},
+                    }
+                }]
+            }
+        }
+        mock_response.raise_for_status = MagicMock()
+        extractor.client = MagicMock()
+        extractor.client.get.return_value = mock_response
+
+        rows = extractor._fetch_short_interest("AAPL")
+
+        assert len(rows) == 1
+        assert rows[0]["settlement_date"] == date.today()

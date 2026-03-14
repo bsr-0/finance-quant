@@ -27,6 +27,8 @@ _MOM_URL = (
 
 def _read_zip_csv(content: bytes) -> pd.DataFrame:
     with zipfile.ZipFile(io.BytesIO(content)) as zf:
+        if not zf.namelist():
+            raise ValueError("Empty ZIP file — no CSV found")
         name = zf.namelist()[0]
         with zf.open(name) as f:
             df = pd.read_csv(f, skiprows=3)
