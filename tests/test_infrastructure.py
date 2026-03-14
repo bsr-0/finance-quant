@@ -1,6 +1,7 @@
 """Unit tests for infrastructure modules (no database required)."""
 
 import json
+import threading
 import time
 
 import pytest
@@ -10,6 +11,7 @@ from pipeline.infrastructure.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerOpenError,
     CircuitState,
+    get_circuit_breaker,
 )
 from pipeline.infrastructure.metrics import MetricsCollector, PipelineMetrics
 
@@ -76,6 +78,134 @@ class TestCircuitBreaker:
             return 42
 
         assert success_fn() == 42
+
+    def test_thread_safety_concurrent_failures(self):
+        """Concurrent failures don't corrupt state or lose counts."""
+        cb = CircuitBreaker("thread_test_failures", failure_threshold=1000)
+        errors = []
+        num_threads = 8
+        calls_per_thread = 50
+
+        def hammer_failures():
+            for _ in range(calls_per_thread):
+                try:
+                    cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+                except (ValueError, CircuitBreakerOpenError):
+                    pass
+                except Exception as e:
+                    errors.append(str(e))
+
+        threads = [threading.Thread(target=hammer_failures) for _ in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(errors) == 0
+        assert cb._failure_count == num_threads * calls_per_thread
+
+    def test_thread_safety_concurrent_successes(self):
+        """Concurrent successes don't corrupt state."""
+        cb = CircuitBreaker("thread_test_success", failure_threshold=100)
+        errors = []
+        num_threads = 8
+        calls_per_thread = 50
+
+        def hammer_successes():
+            for _ in range(calls_per_thread):
+                try:
+                    cb.call(lambda: 42)
+                except Exception as e:
+                    errors.append(str(e))
+
+        threads = [threading.Thread(target=hammer_successes) for _ in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(errors) == 0
+        assert cb.state == CircuitState.CLOSED
+        assert cb._failure_count == 0
+
+    def test_thread_safety_mixed_success_and_failure(self):
+        """Mixed concurrent calls maintain consistent state."""
+        cb = CircuitBreaker("thread_test_mixed", failure_threshold=1000)
+        errors = []
+
+        def do_successes():
+            for _ in range(100):
+                try:
+                    cb.call(lambda: "ok")
+                except Exception as e:
+                    errors.append(str(e))
+
+        def do_failures():
+            for _ in range(100):
+                try:
+                    cb.call(lambda: (_ for _ in ()).throw(ValueError))
+                except (ValueError, CircuitBreakerOpenError):
+                    pass
+                except Exception as e:
+                    errors.append(str(e))
+
+        threads = []
+        for _ in range(4):
+            threads.append(threading.Thread(target=do_successes))
+            threads.append(threading.Thread(target=do_failures))
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(errors) == 0
+        # State should be valid (one of the three states)
+        assert cb.state in (CircuitState.CLOSED, CircuitState.OPEN, CircuitState.HALF_OPEN)
+
+    def test_thread_safety_state_transition(self):
+        """Circuit opens correctly under concurrent pressure."""
+        cb = CircuitBreaker("thread_test_transition", failure_threshold=10)
+
+        def do_failures():
+            for _ in range(20):
+                try:
+                    cb.call(lambda: (_ for _ in ()).throw(ValueError))
+                except (ValueError, CircuitBreakerOpenError):
+                    pass
+
+        threads = [threading.Thread(target=do_failures) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert cb.state == CircuitState.OPEN
+
+    def test_get_circuit_breaker_thread_safety(self):
+        """Concurrent registry access returns the same instance."""
+        import pipeline.infrastructure.circuit_breaker as cb_mod
+
+        # Clear registry for this test
+        cb_mod._circuit_breakers.clear()
+
+        results = []
+
+        def get_breaker():
+            breaker = get_circuit_breaker("shared_test", failure_threshold=5)
+            results.append(id(breaker))
+
+        threads = [threading.Thread(target=get_breaker) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # All threads should get the same instance
+        assert len(set(results)) == 1
+
+        # Cleanup
+        cb_mod._circuit_breakers.pop("shared_test", None)
 
 
 class TestCheckpointManager:
