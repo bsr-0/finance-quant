@@ -1,25 +1,46 @@
 """Tests for snapshot builder."""
 
+import os
+import tempfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.exc import OperationalError
 
-from pipeline.db import get_db_manager, reset_db_manager
+from pipeline.db import DatabaseManager, reset_db_manager
 from pipeline.snapshot.contract_snapshots import ContractSnapshotBuilder
+
+
+@pytest.fixture(autouse=True)
+def _isolate_db(tmp_path, monkeypatch):
+    """Use a fresh temporary DuckDB for each test."""
+    db_path = str(tmp_path / "test.duckdb")
+    monkeypatch.setenv("DB_BACKEND", "duckdb")
+    monkeypatch.setenv("DB_PATH", db_path)
+    reset_db_manager()
+    yield
+    reset_db_manager()
 
 
 @pytest.fixture
 def db():
-    """Provide database manager for tests."""
+    """Provide database manager for tests with schema initialized."""
     reset_db_manager()
+    from pipeline.db import get_db_manager
+
     db_manager = get_db_manager()
     try:
         with db_manager.engine.connect():
             pass
     except OperationalError as exc:
         pytest.skip(f"Database not available: {exc}")
+
+    # Initialize schema so dim_source, dim_contract, cur_* tables exist
+    ddl_dir = Path(__file__).resolve().parents[1] / "src" / "sql" / "ddl"
+    db_manager.init_schema(ddl_dir)
+
     return db_manager
 
 
@@ -27,6 +48,7 @@ def db():
 def sample_contract(db):
     """Create a sample contract for testing."""
     contract_id = uuid4()
+    market_id = f"test_market_{uuid4().hex[:8]}"
 
     with db.engine.connect() as conn:
         from sqlalchemy import text
@@ -51,11 +73,15 @@ def sample_contract(db):
             (contract_id, venue, venue_market_id, title,
              outcome_type, outcomes, status, created_time,
              available_time, source_id)
-            VALUES (:contract_id, 'polymarket', 'test_market_1',
+            VALUES (:contract_id, 'polymarket', :market_id,
              'Test Market', 'binary', '["YES", "NO"]', 'active',
              NOW(), NOW(), :source_id)
         """),
-            {"contract_id": str(contract_id), "source_id": str(source_id)},
+            {
+                "contract_id": str(contract_id),
+                "market_id": market_id,
+                "source_id": str(source_id),
+            },
         )
 
         conn.commit()
@@ -160,7 +186,7 @@ class TestContractSnapshotBuilder:
         snapshot_ts = now - timedelta(minutes=5)
         snapshot = builder.build_contract_snapshot(contract_id=sample_contract, asof_ts=snapshot_ts)
 
-        assert snapshot["implied_p_yes"] == 0.60  # Latest available at that time
+        assert float(snapshot["implied_p_yes"]) == pytest.approx(0.60)  # Latest available
 
     def test_snapshot_trade_aggregation(self, db, sample_contract):
         """Test that trade statistics are correctly aggregated."""

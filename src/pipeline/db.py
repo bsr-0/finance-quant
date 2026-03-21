@@ -95,7 +95,7 @@ class DatabaseManager:
     def _split_sql(sql: str) -> list[str]:
         """Split SQL into individual statements, respecting $$ blocks."""
         statements = []
-        current = []
+        current: list[str] = []
         in_dollar_block = False
 
         for line in sql.split("\n"):
@@ -109,14 +109,25 @@ class DatabaseManager:
 
             if not in_dollar_block and stripped.endswith(";"):
                 stmt = "\n".join(current).strip()
-                if stmt and not stmt.startswith("--"):
+                # Strip leading comment-only and blank lines to find actual SQL
+                sql_lines = [
+                    ln
+                    for ln in stmt.split("\n")
+                    if ln.strip() and not ln.strip().startswith("--")
+                ]
+                if sql_lines:
                     statements.append(stmt)
                 current = []
 
         # Leftover
         if current:
             stmt = "\n".join(current).strip()
-            if stmt and not stmt.startswith("--"):
+            sql_lines = [
+                ln
+                for ln in stmt.split("\n")
+                if ln.strip() and not ln.strip().startswith("--")
+            ]
+            if sql_lines:
                 statements.append(stmt)
 
         return statements
