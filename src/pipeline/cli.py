@@ -1434,6 +1434,164 @@ def ensemble_build(
     console.print(f"[green]Report saved to {report_path}[/green]")
 
 
+@app.command()
+def daily_predictions(
+    date: str | None = typer.Option(
+        None, "--date", "-d", help="Signal date (YYYY-MM-DD). Default: today."
+    ),  # noqa: B008
+    threshold: int = typer.Option(
+        60, "--threshold", "-t", help="Minimum signal score",
+        callback=_validate_range(min_val=0, max_val=100),
+    ),  # noqa: B008
+):
+    """Run the full daily predictions pipeline: generate signals, track outcomes, build static site.
+
+    This is the main command used by the daily GitHub Actions workflow. It:
+    1. Loads price data from the database for the ETF universe
+    2. Generates trading signals via the strategy engine
+    3. Updates the prediction history with new signals and resolves past outcomes
+    4. Builds a static HTML site for GitHub Pages deployment
+    """
+    import yaml as _yaml
+
+    from pipeline.strategy.signals import SignalEngine, compute_indicators
+    from pipeline.web.performance_tracker import PerformanceTracker
+    from pipeline.web.static_builder import build_static_site
+
+    console.print("[bold blue]Running daily predictions pipeline...[/bold blue]")
+
+    # Load config
+    config_path = Path("config.yaml")
+    config = _yaml.safe_load(config_path.read_text()) if config_path.exists() else {}
+    dp_config = config.get("daily_predictions", {})
+    universe = dp_config.get("universe", ["SPY", "QQQ", "IWM"])
+    signals_dir = Path(dp_config.get("signals_dir", "data/signals"))
+    history_path = Path(dp_config.get("history_file", "data/prediction_history.json"))
+    output_dir = Path(dp_config.get("output_dir", "site"))
+    lookback = dp_config.get("lookback_days", 252)
+
+    signals_dir.mkdir(parents=True, exist_ok=True)
+
+    # Determine signal date
+    if date:
+        signal_date = pd.Timestamp(date)
+    else:
+        signal_date = pd.Timestamp.now().normalize()
+
+    console.print(f"  Signal date: {signal_date.date()}")
+    console.print(f"  Universe: {len(universe)} ETFs")
+
+    # Load price data from database
+    db = get_db_manager()
+    price_data: dict[str, pd.DataFrame] = {}
+
+    for ticker in universe:
+        try:
+            rows = db.run_query(
+                f"SELECT date, open, high, low, close, volume FROM cur_prices_daily "
+                f"WHERE symbol = '{ticker}' ORDER BY date DESC LIMIT {lookback}"
+            )
+            if rows:
+                df = pd.DataFrame(rows)
+                df["date"] = pd.to_datetime(df["date"])
+                df = df.set_index("date").sort_index()
+                if len(df) >= 50:  # Need enough data for indicators
+                    price_data[ticker] = df
+                else:
+                    logger.warning("Skipping %s: only %d bars (need 50+)", ticker, len(df))
+            else:
+                logger.warning("No price data for %s in database", ticker)
+        except Exception as exc:
+            logger.warning("Could not load %s: %s", ticker, exc)
+
+    if not price_data:
+        # Fallback: try loading from raw files in data/raw/prices/
+        raw_prices_dir = Path("data/raw/prices")
+        if raw_prices_dir.exists():
+            for f in raw_prices_dir.iterdir():
+                if f.suffix.lower() in {".csv", ".parquet", ".pq"}:
+                    ticker = f.stem.upper()
+                    if ticker in universe:
+                        if f.suffix.lower() == ".csv":
+                            df = pd.read_csv(f)
+                        else:
+                            df = pd.read_parquet(f)
+                        if "date" in df.columns:
+                            df["date"] = pd.to_datetime(df["date"])
+                            df = df.set_index("date").sort_index()
+                        if len(df) >= 50:
+                            price_data[ticker] = df
+
+    if not price_data:
+        console.print("[red]No price data available. Run extract prices first.[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"  Loaded {len(price_data)} tickers with price data")
+
+    # Compute indicators and generate signals
+    indicator_data: dict[str, pd.DataFrame] = {}
+    for ticker, df in price_data.items():
+        required = {"open", "high", "low", "close", "volume"}
+        if required.issubset(set(df.columns)):
+            indicator_data[ticker] = compute_indicators(df)
+
+    # Get SPY for regime classification
+    spy_prices = None
+    if "SPY" in indicator_data:
+        spy_prices = indicator_data["SPY"]["close"]
+
+    engine = SignalEngine(entry_threshold=threshold)
+    scores = engine.score_universe(indicator_data, spy_prices=spy_prices, date=signal_date)
+    eligible = [s for s in scores if s.entry_eligible]
+
+    console.print(
+        f"  Scored {len(scores)} symbols, {len(eligible)} eligible (score >= {threshold})"
+    )
+
+    # Format signals
+    signals_df = pd.DataFrame()
+    if eligible:
+        from pipeline.strategy.signal_output import format_signals, write_signal_csv
+
+        signals_df = format_signals(
+            scores=eligible, price_data=indicator_data, date=signal_date
+        )
+        if not signals_df.empty:
+            filepath = write_signal_csv(signals_df, signals_dir, signal_date)
+            console.print(f"  Wrote {len(signals_df)} signals to {filepath}")
+
+    # Update prediction history
+    tracker = PerformanceTracker(history_path)
+
+    if not signals_df.empty:
+        added = tracker.add_signals(signals_df, str(signal_date.date()))
+        console.print(f"  Added {added} new predictions to history")
+
+    # Resolve past outcomes
+    summary = tracker.resolve_outcomes(price_data, str(signal_date.date()))
+    console.print(
+        f"  Outcomes: {summary.get('hit_target', 0)} wins, "
+        f"{summary.get('stopped_out', 0)} stopped, "
+        f"{summary.get('expired', 0)} expired, "
+        f"{summary.get('still_active', 0)} active"
+    )
+    tracker.save()
+
+    # Build static site
+    site_path = build_static_site(
+        output_dir=output_dir,
+        signals_dir=signals_dir,
+        history_path=history_path,
+    )
+    console.print(f"[green]  Static site built at {site_path}/[/green]")
+
+    # Print summary
+    stats = tracker.get_stats()
+    console.print("\n[bold green]Daily predictions complete![/bold green]")
+    console.print(f"  Win rate: {stats['win_rate']}% ({stats['resolved']} resolved)")
+    console.print(f"  View at: {output_dir}/index.html")
+
+
 def main():
     """Entry point for CLI."""
     app()

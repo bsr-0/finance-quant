@@ -1,4 +1,4 @@
-.PHONY: help setup install install-dev db-init db-reset test test-dq lint format clean extract-all transform snapshots inventory full-pipeline
+.PHONY: help setup install install-dev db-init db-reset test test-dq lint format clean extract-all transform snapshots inventory full-pipeline daily-predictions build-site
 
 # Default target
 help:
@@ -111,6 +111,15 @@ inventory:
 
 full-pipeline: extract-all transform snapshots dq inventory
 	@echo "✓ Full pipeline complete"
+
+# Daily predictions
+daily-predictions:
+	python -m pipeline.cli daily-predictions
+	@echo "✓ Daily predictions complete — view site/index.html"
+
+build-site:
+	python -m pipeline.cli daily-predictions --date $(shell date +%Y-%m-%d)
+	@echo "✓ Site built"
 
 # Testing
 test:

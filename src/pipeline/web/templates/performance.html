@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% set active_page = 'performance' %}
+
+{% block title %}Performance - Daily Stock Predictions{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Performance Track Record</h1>
+    <div class="subtitle">Aggregate and monthly signal performance</div>
+</div>
+
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-label">Total Signals</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color: var(--green);">{{ stats.hit_target }}</div>
+        <div class="stat-label">Hit Target</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color: var(--red);">{{ stats.stopped_out }}</div>
+        <div class="stat-label">Stopped Out</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.expired }}</div>
+        <div class="stat-label">Expired</div>
+    </div>
+</div>
+
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.win_rate }}%</div>
+        <div class="stat-label">Win Rate</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value pnl-positive">{{ "%+.2f" | format(stats.avg_win_pct) }}%</div>
+        <div class="stat-label">Avg Win</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value pnl-negative">{{ "%+.2f" | format(stats.avg_loss_pct) }}%</div>
+        <div class="stat-label">Avg Loss</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value {{ stats.avg_pnl_pct | pnl_class }}">{{ "%+.2f" | format(stats.avg_pnl_pct) }}%</div>
+        <div class="stat-label">Avg P&L</div>
+    </div>
+</div>
+
+{% if monthly_stats %}
+<h2 style="margin: 32px 0 16px; font-size: 1.1rem;">Monthly Breakdown</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Month</th>
+            <th class="num">Signals</th>
+            <th class="num">Wins</th>
+            <th class="num">Win Rate</th>
+            <th class="num">Total P&L</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for m in monthly_stats %}
+        <tr>
+            <td><strong>{{ m.month }}</strong></td>
+            <td class="num">{{ m.total }}</td>
+            <td class="num">{{ m.wins }}</td>
+            <td class="num">{{ m.win_rate }}%</td>
+            <td class="num {{ m.total_pnl | pnl_class }}">{{ "%+.2f" | format(m.total_pnl) }}%</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <h2>No resolved predictions yet</h2>
+    <p>Monthly performance stats will appear here once predictions start resolving.</p>
+</div>
+{% endif %}
+{% endblock %}

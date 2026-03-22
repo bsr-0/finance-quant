@@ -51,6 +51,9 @@ ml = [
 postgresql = [
     "psycopg2-binary>=2.9.0",
 ]
+web = [
+    "jinja2>=3.1.0",
+]
 dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",

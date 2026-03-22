@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ticker }} - Daily Stock Predictions{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ ticker }}</h1>
+    <div class="subtitle">Signal history and performance</div>
+</div>
+
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-value">{{ ticker_stats.total }}</div>
+        <div class="stat-label">Total Signals</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ ticker_stats.win_rate }}%</div>
+        <div class="stat-label">Win Rate</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value {{ ticker_stats.avg_pnl | pnl_class }}">
+            {{ "%+.2f" | format(ticker_stats.avg_pnl) }}%
+        </div>
+        <div class="stat-label">Avg P&L</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ ticker_stats.avg_score }}</div>
+        <div class="stat-label">Avg Score</div>
+    </div>
+</div>
+
+{% if predictions %}
+<table>
+    <thead>
+        <tr>
+            <th>Signal Date</th>
+            <th class="num">Score</th>
+            <th>Confidence</th>
+            <th class="num">Entry</th>
+            <th class="num">Stop</th>
+            <th class="num">Target</th>
+            <th>Outcome</th>
+            <th class="num">P&L %</th>
+            <th class="num">Days Held</th>
+            <th class="hide-mobile">Regime</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in predictions %}
+        <tr>
+            <td>{{ p.signal_date }}</td>
+            <td class="num {{ p.score | score_class }}">{{ p.score }}</td>
+            <td>{{ p.confidence }}</td>
+            <td class="num">${{ "%.2f" | format(p.entry_price) }}</td>
+            <td class="num">${{ "%.2f" | format(p.stop_price) }}</td>
+            <td class="num">${{ "%.2f" | format(p.target_price) }}</td>
+            <td><span class="{{ p.outcome | outcome_class }}">{{ p.outcome | replace('_', ' ') | title }}</span></td>
+            <td class="num {{ p.pnl_pct | pnl_class }}">
+                {% if p.pnl_pct is not none %}{{ "%+.2f" | format(p.pnl_pct) }}%{% else %}-{% endif %}
+            </td>
+            <td class="num">{{ p.days_held if p.days_held is not none else '-' }}</td>
+            <td class="hide-mobile">
+                <span class="regime regime-{{ p.regime | lower if p.regime else 'neutral' }}">
+                    {{ p.regime | default('N/A') }}
+                </span>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <h2>No signals yet for {{ ticker }}</h2>
+    <p>Predictions will appear here once the model generates signals for this ticker.</p>
+</div>
+{% endif %}
+
+<p style="margin-top: 16px;"><a href="index.html">&larr; Back to dashboard</a></p>
+{% endblock %}
