@@ -251,6 +251,32 @@ execution:
   signal_dir: signals
   log_dir: logs/paper_trading
 
+# Daily predictions settings
+daily_predictions:
+  # ETF universe for daily signal generation
+  universe:
+    - SPY    # S&P 500
+    - QQQ    # Nasdaq 100
+    - IWM    # Russell 2000
+    - DIA    # Dow Jones
+    - XLF    # Financials
+    - XLK    # Technology
+    - XLE    # Energy
+    - XLV    # Healthcare
+    - XLI    # Industrials
+    - XLC    # Communication Services
+    - XLY    # Consumer Discretionary
+    - XLP    # Consumer Staples
+    - XLB    # Materials
+    - XLU    # Utilities
+    - XLRE   # Real Estate
+    - TLT    # 20+ Year Treasury
+    - GLD    # Gold
+  output_dir: site
+  signals_dir: data/signals
+  history_file: data/prediction_history.json
+  lookback_days: 252  # 1 year of trading days for price data
+
 # Pipeline defaults
 default_start_date: "2024-01-01"
 default_end_date: "2024-12-31"
