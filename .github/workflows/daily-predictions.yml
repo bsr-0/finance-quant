@@ -31,24 +31,18 @@ jobs:
       - name: Initialize database
         run: make db-init
 
-      - name: Extract latest prices
+      - name: Extract latest prices (Yahoo Finance, no API key needed)
         run: |
           END_DATE=$(date +%Y-%m-%d)
           START_DATE=$(date -d "-365 days" +%Y-%m-%d)
           python -m pipeline.cli extract prices --start "$START_DATE" --end "$END_DATE"
           python -m pipeline.cli load-raw prices
-        env:
-          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
 
       - name: Transform to curated layer
         run: python -m pipeline.cli transform-curated
 
       - name: Generate signals and build site
         run: python -m pipeline.cli daily-predictions
-        env:
-          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
 
       - name: Commit updated data and site
         run: |

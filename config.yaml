@@ -80,11 +80,11 @@ polymarket:
 
 prices:
   source: yahoo
-  fallback_source: alpaca  # Fallback if Yahoo Finance is unavailable
+  fallback_source: null  # No fallback — Yahoo Finance only (no API key needed)
   api_key: null
-  alpaca_api_key: null   # Set via ALPACA_API_KEY env var
-  alpaca_secret_key: null # Set via ALPACA_SECRET_KEY env var
-  polygon_api_key: null  # Set via POLYGON_API_KEY env var
+  alpaca_api_key: null   # Set via ALPACA_API_KEY env var (optional, for production)
+  alpaca_secret_key: null # Set via ALPACA_SECRET_KEY env var (optional, for production)
+  polygon_api_key: null  # Set via POLYGON_API_KEY env var (optional, for production)
   enabled: true
   market_close_time: "16:00:00"
   exchange_timezone: "America/New_York"
