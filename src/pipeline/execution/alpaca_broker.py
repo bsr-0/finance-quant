@@ -129,11 +129,11 @@ class AlpacaBroker(BaseBroker):
         except Exception as e:
             raise BrokerError(f"Failed to fetch Alpaca account: {_sanitize_error(e)}")
 
-        equity = float(acct.equity)
-        cash = float(acct.cash)
-        buying_power = float(acct.buying_power)
-        long_value = float(acct.long_market_value)
-        short_value = float(acct.short_market_value)
+        equity = float(acct.equity)  # type: ignore[arg-type]
+        cash = float(acct.cash)  # type: ignore[arg-type]
+        buying_power = float(acct.buying_power)  # type: ignore[arg-type]
+        long_value = float(acct.long_market_value)  # type: ignore[arg-type]
+        short_value = float(acct.short_market_value)  # type: ignore[arg-type]
         positions_value = long_value + abs(short_value)
 
         # Determine margin status
@@ -176,6 +176,7 @@ class AlpacaBroker(BaseBroker):
         try:
             side = AlpacaSide.BUY if order.side == OrderSide.BUY else AlpacaSide.SELL
 
+            request: MarketOrderRequest | LimitOrderRequest
             if order.order_type == OrderType.MARKET:
                 request = MarketOrderRequest(
                     symbol=order.symbol,
@@ -198,14 +199,14 @@ class AlpacaBroker(BaseBroker):
 
             result = self._client.submit_order(request)
 
-            order.order_id = str(result.id)
-            order.status = _STATUS_MAP.get(str(result.status), OrderStatus.SUBMITTED)
+            order.order_id = str(result.id)  # type: ignore[union-attr]
+            order.status = _STATUS_MAP.get(str(result.status), OrderStatus.SUBMITTED)  # type: ignore[union-attr]
             order.submitted_at = datetime.now(timezone.utc)
 
-            if result.filled_qty:
-                order.filled_qty = float(result.filled_qty)
-            if result.filled_avg_price:
-                order.filled_avg_price = float(result.filled_avg_price)
+            if result.filled_qty:  # type: ignore[union-attr]
+                order.filled_qty = float(result.filled_qty)  # type: ignore[union-attr]
+            if result.filled_avg_price:  # type: ignore[union-attr]
+                order.filled_avg_price = float(result.filled_avg_price)  # type: ignore[union-attr]
 
             logger.info(
                 "Order submitted: %s %s %.4f %s @ %s → id=%s status=%s",
@@ -230,15 +231,15 @@ class AlpacaBroker(BaseBroker):
             result = self._client.get_order_by_id(order_id)
 
             order = Order(
-                symbol=result.symbol,
-                side=OrderSide.BUY if str(result.side) == "buy" else OrderSide.SELL,
-                order_type=OrderType.LIMIT if result.limit_price else OrderType.MARKET,
-                qty=float(result.qty),
-                limit_price=float(result.limit_price) if result.limit_price else None,
-                order_id=str(result.id),
-                status=_STATUS_MAP.get(str(result.status), OrderStatus.SUBMITTED),
-                filled_qty=float(result.filled_qty) if result.filled_qty else 0.0,
-                filled_avg_price=float(result.filled_avg_price) if result.filled_avg_price else 0.0,
+                symbol=str(result.symbol),  # type: ignore[union-attr]
+                side=OrderSide.BUY if str(result.side) == "buy" else OrderSide.SELL,  # type: ignore[union-attr]
+                order_type=OrderType.LIMIT if result.limit_price else OrderType.MARKET,  # type: ignore[union-attr]
+                qty=float(result.qty),  # type: ignore[union-attr, arg-type]
+                limit_price=float(result.limit_price) if result.limit_price else None,  # type: ignore[union-attr]
+                order_id=str(result.id),  # type: ignore[union-attr]
+                status=_STATUS_MAP.get(str(result.status), OrderStatus.SUBMITTED),  # type: ignore[union-attr]
+                filled_qty=float(result.filled_qty) if result.filled_qty else 0.0,  # type: ignore[union-attr]
+                filled_avg_price=float(result.filled_avg_price) if result.filled_avg_price else 0.0,  # type: ignore[union-attr]
             )
             return order
         except Exception as e:
@@ -263,14 +264,14 @@ class AlpacaBroker(BaseBroker):
 
         positions = []
         for p in alpaca_positions:
-            qty = float(p.qty)
+            qty = float(p.qty)  # type: ignore[union-attr]
             positions.append(Position(
-                symbol=p.symbol,
+                symbol=p.symbol,  # type: ignore[union-attr]
                 qty=qty,
-                market_value=float(p.market_value),
-                avg_entry_price=float(p.avg_entry_price),
-                current_price=float(p.current_price),
-                unrealised_pnl=float(p.unrealized_pl),
+                market_value=float(p.market_value),  # type: ignore[union-attr, arg-type]
+                avg_entry_price=float(p.avg_entry_price),  # type: ignore[union-attr]
+                current_price=float(p.current_price),  # type: ignore[union-attr, arg-type]
+                unrealised_pnl=float(p.unrealized_pl),  # type: ignore[union-attr, arg-type]
                 side="long" if qty > 0 else "short",
             ))
 
@@ -284,9 +285,9 @@ class AlpacaBroker(BaseBroker):
                 symbol=symbol,
                 side=OrderSide.SELL,
                 order_type=OrderType.MARKET,
-                qty=float(result.qty) if result.qty else 0.0,
-                order_id=str(result.id),
-                status=_STATUS_MAP.get(str(result.status), OrderStatus.SUBMITTED),
+                qty=float(result.qty) if result.qty else 0.0,  # type: ignore[union-attr]
+                order_id=str(result.id),  # type: ignore[union-attr]
+                status=_STATUS_MAP.get(str(result.status), OrderStatus.SUBMITTED),  # type: ignore[union-attr]
             )
             logger.info("Close position submitted for %s → order %s", symbol, order.order_id)
             return order
@@ -306,7 +307,7 @@ class AlpacaBroker(BaseBroker):
             if hasattr(r, "body") and hasattr(r.body, "id"):
                 body = r.body
                 orders.append(Order(
-                    symbol=body.symbol if hasattr(body, "symbol") else "UNKNOWN",
+                    symbol=str(body.symbol) if hasattr(body, "symbol") else "UNKNOWN",
                     side=OrderSide.SELL,
                     order_type=OrderType.MARKET,
                     qty=float(body.qty) if hasattr(body, "qty") and body.qty else 0.0,

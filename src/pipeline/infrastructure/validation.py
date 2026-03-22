@@ -13,7 +13,7 @@ from pydantic import validator as _v1_validator
 try:
     from pydantic import field_validator
 except ImportError:  # pragma: no cover - pydantic v1 fallback
-    field_validator = _v1_validator
+    field_validator = _v1_validator  # type: ignore[assignment]
 
 PYDANTIC_V2 = field_validator is not _v1_validator
 
