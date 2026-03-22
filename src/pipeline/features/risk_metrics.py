@@ -285,12 +285,12 @@ def hurst_exponent(prices: pd.Series, max_lag: int = 100) -> float:
         diff = ts[lag:] - ts[:-lag]
         tau.append(np.std(diff))
 
-    tau = np.asarray(tau, dtype=float)
-    valid = np.isfinite(tau) & (tau > 0)
+    tau_arr = np.asarray(tau, dtype=float)
+    valid = np.isfinite(tau_arr) & (tau_arr > 0)
     if valid.sum() < 5:
         return np.nan
 
-    slope, _ = np.polyfit(np.log(np.asarray(list(lags))[valid]), np.log(tau[valid]), 1)
+    slope, _ = np.polyfit(np.log(np.asarray(list(lags))[valid]), np.log(tau_arr[valid]), 1)
     return float(slope)
 
 

@@ -304,7 +304,7 @@ class AlpacaPriceExtractor:
 
         def _do_request() -> list[dict]:
             url = f"{self.BASE_URL}/stocks/{ticker}/bars"
-            params = {
+            params: dict[str, str | int] = {
                 "start": start_date.isoformat(),
                 "end": end_date.isoformat(),
                 "timeframe": "1Day",
@@ -437,7 +437,7 @@ class PolygonPriceExtractor:
                 f"{self.BASE_URL}/aggs/ticker/{ticker}/range/1/day/"
                 f"{start_date.isoformat()}/{end_date.isoformat()}"
             )
-            params = {
+            params: dict[str, str | int] = {
                 "apiKey": self._api_key,
                 "adjusted": "true",
                 "sort": "asc",

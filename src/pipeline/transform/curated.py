@@ -57,7 +57,7 @@ class CuratedTransformer:
                 VALUES (:name, :type, :base_url)
                 RETURNING source_id
             """)
-            result = conn.execute(
+            cursor_result = conn.execute(
                 insert,
                 {
                     "name": source_name,
@@ -65,7 +65,7 @@ class CuratedTransformer:
                     "base_url": self._get_source_url(source_name),
                 },
             )
-            source_id = result.scalar()
+            source_id = cursor_result.scalar()
             conn.commit()
             return source_id
 

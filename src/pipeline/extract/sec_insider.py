@@ -247,7 +247,7 @@ class SecInsiderExtractor:
 
                     xml_text = self._fetch_form4_xml(cik, accession, primary_doc)
                     if xml_text:
-                        rows = self._parse_form4_xml(xml_text, ticker, cik, f_date)
+                        rows = self._parse_form4_xml(xml_text, ticker, cik, f_date or "")
                         for row in rows:
                             row["accession_number"] = accession
                         all_rows.extend(rows)

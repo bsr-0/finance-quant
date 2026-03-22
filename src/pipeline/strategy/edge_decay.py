@@ -144,7 +144,7 @@ class EdgeDecayMonitor:
         # --- 5. Average winner / average loser ratio ---
         avg_win = np.mean(wins) if wins else 0
         avg_loss = abs(np.mean(losses)) if losses else 0
-        metrics.avg_winner_loser_ratio = avg_win / avg_loss if avg_loss > 0 else float("inf")
+        metrics.avg_winner_loser_ratio = float(avg_win / avg_loss) if avg_loss > 0 else float("inf")
         if metrics.avg_winner_loser_ratio < self.wl_ratio_floor:
             breaches.append(
                 f"wl_ratio={metrics.avg_winner_loser_ratio:.2f} < {self.wl_ratio_floor}"
