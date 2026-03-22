@@ -20,8 +20,8 @@ class AsyncWorkerPool:
         self._semaphore = asyncio.Semaphore(max_workers)
 
     async def run_parallel(
-        self, func: Callable[..., T], items: list[Any], *args, **kwargs
-    ) -> list[T]:
+        self, func: Callable[..., T], items: list[Any], *args: Any, **kwargs: Any
+    ) -> list[T | BaseException]:
         """Run function in parallel for all items."""
         loop = asyncio.get_event_loop()
 
@@ -42,9 +42,9 @@ class AsyncWorkerPool:
             else:
                 successful.append(result)
 
-        return successful
+        return successful  # type: ignore[return-value]
 
-    async def run_async_tasks(self, tasks: list[Coroutine[Any, Any, T]]) -> list[T]:
+    async def run_async_tasks(self, tasks: list[Coroutine[Any, Any, T]]) -> list[T | BaseException]:
         """Run async tasks with concurrency limiting."""
         sem = asyncio.Semaphore(self.max_workers)
 
@@ -62,7 +62,7 @@ class AsyncWorkerPool:
             else:
                 successful.append(result)
 
-        return successful
+        return successful  # type: ignore[return-value]
 
     def shutdown(self):
         """Shutdown the executor."""

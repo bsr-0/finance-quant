@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -54,7 +55,7 @@ def scenario_metrics(returns: pd.Series, scenario: StressScenario) -> dict[str, 
     Returns:
         Dict with VaR, Expected Shortfall, max drawdown, and recovery days.
     """
-    window = returns.loc[scenario.start : scenario.end].dropna()
+    window = returns.loc[scenario.start : scenario.end].dropna()  # type: ignore[misc]
     if window.empty:
         return {
             "var": float("nan"),
@@ -170,7 +171,7 @@ def apply_hypothetical_shock(
     prices: dict[str, float],
     shock: HypotheticalShock,
     spreads_bps: dict[str, float] | None = None,
-) -> dict[str, float]:
+) -> dict[str, float | dict[str, float]]:
     """Compute the PnL impact of a hypothetical shock.
 
     Args:
@@ -212,7 +213,7 @@ def apply_hypothetical_shock(
         "pnl_impact": total_pnl,
         "spread_cost_increase": spread_cost,
         "total_impact": total_pnl - spread_cost,
-        "per_symbol": per_symbol,
+        "per_symbol": per_symbol,  # type: ignore[dict-item]
     }
 
 
@@ -304,7 +305,7 @@ def run_all_stress_tests(
     prices: dict[str, float] | None = None,
     historical_scenarios: list[StressScenario] | None = None,
     hypothetical_shocks: list[HypotheticalShock] | None = None,
-) -> dict[str, dict[str, float]]:
+) -> dict[str, Any]:
     """Run all stress tests and return a consolidated report.
 
     Args:
@@ -317,7 +318,7 @@ def run_all_stress_tests(
     Returns:
         Dict mapping scenario/shock name to results.
     """
-    results: dict[str, dict[str, float]] = {}
+    results: dict[str, Any] = {}
 
     # Historical scenarios
     scenarios = historical_scenarios or DEFAULT_SCENARIOS

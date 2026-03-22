@@ -331,7 +331,7 @@ class SignalExecutor:
                 })
                 continue
 
-            shares = size_result.shares
+            shares: int | float = size_result.shares
             if self.use_fractional_shares and shares == 0:
                 # Try fractional for micro-capital
                 shares = round(size_result.position_value / signal.entry_price, 4)

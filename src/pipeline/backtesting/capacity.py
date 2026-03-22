@@ -251,22 +251,27 @@ def sensitivity_analysis(
     metric_values = []
     for val in param_values:
         try:
-            result = metric_fn(df, val)
-            metric_values.append(float(result))
+            metric_result = metric_fn(df, val)
+            metric_values.append(float(metric_result))
         except Exception as exc:
             logger.warning("sensitivity_analysis: param=%s value=%s error: %s", param_name, val, exc)
             metric_values.append(float("nan"))
 
+    resolved_baseline: float
     if baseline_value is None and param_values:
         mid_idx = len(param_values) // 2
-        baseline_value = metric_values[mid_idx]
+        resolved_baseline = metric_values[mid_idx]
+    elif baseline_value is not None:
+        resolved_baseline = baseline_value
+    else:
+        resolved_baseline = float("nan")
 
     result = SensitivityResult(
         param_name=param_name,
         param_values=list(param_values),
         metric_values=metric_values,
         metric_name=metric_name,
-        baseline_value=float(baseline_value) if baseline_value is not None else float("nan"),
+        baseline_value=resolved_baseline,
     )
 
     logger.info(

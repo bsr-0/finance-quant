@@ -155,13 +155,13 @@ class ParallelBatchProcessor:
     """Process batches in parallel using multiple workers."""
 
     def __init__(
-        self, worker_func: Callable[[list[T]], int], num_workers: int = 4, batch_size: int = 1000
+        self, worker_func: Callable[[list], int], num_workers: int = 4, batch_size: int = 1000
     ):
         self.worker_func = worker_func
         self.num_workers = num_workers
         self.batch_size = batch_size
 
-    def process_all(self, items: list[T]) -> int:
+    def process_all(self, items: list) -> int:
         """Process all items in parallel batches."""
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -170,7 +170,7 @@ class ParallelBatchProcessor:
 
         with ProcessPoolExecutor(max_workers=self.num_workers) as executor:
             futures = {
-                executor.submit(self.worker_func, chunk): i for i, chunk in enumerate(chunks)
+                executor.submit(self.worker_func, chunk): i for i, chunk in enumerate(chunks)  # type: ignore[arg-type]
             }
 
             for future in as_completed(futures):

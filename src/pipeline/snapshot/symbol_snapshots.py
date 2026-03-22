@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Any
 from uuid import UUID
 
 import pandas as pd
@@ -32,7 +33,7 @@ class SymbolSnapshotBuilder:
             asof_ts = asof_ts.replace(tzinfo=timezone.utc)
         else:
             asof_ts = asof_ts.astimezone(timezone.utc)
-        snapshot = {
+        snapshot: dict[str, Any] = {
             "symbol_id": symbol_id,
             "asof_ts": asof_ts,
             "event_time": asof_ts,
@@ -95,7 +96,8 @@ class SymbolSnapshotBuilder:
         snapshot["news_counts"] = self._get_news_counts(asof_ts)
 
         # New data source features
-        fundamentals = self._get_fundamentals(symbol_id, asof_ts, snapshot["price_latest"])
+        price_latest: float | None = snapshot.get("price_latest")  # type: ignore[assignment]
+        fundamentals = self._get_fundamentals(symbol_id, asof_ts, price_latest)
         snapshot.update(fundamentals)
 
         insider = self._get_insider_activity(symbol_id, asof_ts)
@@ -183,7 +185,7 @@ class SymbolSnapshotBuilder:
 
     def _get_fundamentals(self, symbol_id: UUID, asof_ts: datetime, price: float | None) -> dict:
         """Get latest fundamental ratios as of asof_ts."""
-        result = {"pe_ratio": None, "pb_ratio": None, "debt_to_equity": None, "roe": None}
+        result: dict[str, float | None] = {"pe_ratio": None, "pb_ratio": None, "debt_to_equity": None, "roe": None}
         if not self.db.table_exists("cur_fundamentals_quarterly"):
             return result
 
@@ -226,7 +228,7 @@ class SymbolSnapshotBuilder:
 
     def _get_insider_activity(self, symbol_id: UUID, asof_ts: datetime) -> dict:
         """Get insider trading signals in a 90-day window."""
-        result = {"insider_net_shares_90d": None, "insider_buy_count_90d": None}
+        result: dict[str, float | int | None] = {"insider_net_shares_90d": None, "insider_buy_count_90d": None}
         if not self.db.table_exists("cur_insider_trades"):
             return result
 
@@ -251,7 +253,7 @@ class SymbolSnapshotBuilder:
 
     def _get_institutional_holdings(self, symbol_id: UUID, asof_ts: datetime) -> dict:
         """Get institutional holder count from latest 13F report."""
-        result = {"institutional_holders_count": None}
+        result: dict[str, int | None] = {"institutional_holders_count": None}
         if not self.db.table_exists("cur_institutional_holdings"):
             return result
 
@@ -273,7 +275,7 @@ class SymbolSnapshotBuilder:
 
     def _get_options_iv(self, symbol_id: UUID, asof_ts: datetime) -> dict:
         """Get latest options IV metrics."""
-        result = {"iv_30d": None, "put_call_volume_ratio": None, "skew_25d": None}
+        result: dict[str, float | None] = {"iv_30d": None, "put_call_volume_ratio": None, "skew_25d": None}
         if not self.db.table_exists("cur_options_summary_daily"):
             return result
 
@@ -299,7 +301,7 @@ class SymbolSnapshotBuilder:
 
     def _get_earnings_features(self, symbol_id: UUID, asof_ts: datetime) -> dict:
         """Get earnings surprise and next earnings date."""
-        result = {"days_to_next_earnings": None, "last_eps_surprise_pct": None}
+        result: dict[str, float | int | None] = {"days_to_next_earnings": None, "last_eps_surprise_pct": None}
         if not self.db.table_exists("cur_earnings_events"):
             return result
 
@@ -335,7 +337,7 @@ class SymbolSnapshotBuilder:
 
     def _get_short_interest(self, symbol_id: UUID, asof_ts: datetime) -> dict:
         """Get latest short interest ratio (days to cover)."""
-        result = {"short_interest_ratio": None}
+        result: dict[str, float | None] = {"short_interest_ratio": None}
         if not self.db.table_exists("cur_short_interest"):
             return result
 

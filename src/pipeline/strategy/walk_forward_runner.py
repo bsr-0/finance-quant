@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -95,9 +96,9 @@ class WalkForwardResult:
         if not self.out_of_sample_metrics:
             return pd.DataFrame()
 
-        rows = []
+        rows: list[dict[str, Any]] = []
         for i, (fold, oos) in enumerate(zip(self.folds, self.out_of_sample_metrics)):
-            row = {
+            row: dict[str, Any] = {
                 "fold": i,
                 "test_start": fold.test_start,
                 "test_end": fold.test_end,
@@ -107,7 +108,7 @@ class WalkForwardResult:
             rows.append(row)
 
         # Add mean row
-        mean_row = {"fold": "MEAN", "test_start": "", "test_end": "", "test_size": ""}
+        mean_row: dict[str, Any] = {"fold": "MEAN", "test_start": "", "test_end": "", "test_size": ""}
         mean_row.update(self.oos_mean_metrics)
         rows.append(mean_row)
 

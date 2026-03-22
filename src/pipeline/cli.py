@@ -7,6 +7,7 @@ import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from uuid import UUID, uuid4
 
 import pandas as pd
@@ -96,7 +97,7 @@ def record_pipeline_run(pipeline_name: str, params: dict, status: str = "running
             {
                 "run_id": run_id,
                 "pipeline_name": pipeline_name,
-                "params": params,
+                "params": json.dumps(params, default=str),
                 "status": status,
                 "git_sha": get_git_sha(),
             },
@@ -127,7 +128,7 @@ def update_pipeline_run(
             {
                 "run_id": run_id,
                 "status": status,
-                "row_counts": str(row_counts) if row_counts else None,
+                "row_counts": json.dumps(row_counts, default=str) if row_counts else None,
                 "errors": errors,
             },
         )
@@ -160,6 +161,7 @@ def extract(
     )
 
     try:
+        files: list[Path] | dict[str, list[Path]]
         if source == "fred":
             files = extract_fred(raw_path, start_date=start, end_date=end, run_id=run_id)
         elif source == "gdelt":
@@ -224,7 +226,7 @@ def load_raw(
 
     try:
         loader = RawLoader()
-        rows = loader.load_all_raw_files(raw_path, source, run_id=run_id)
+        rows = loader.load_all_raw_files(raw_path, source, run_id=UUID(run_id))
 
         update_pipeline_run(run_id, "success", {"rows_loaded": rows})
         console.print(f"[green]✓ Loaded {rows} rows into raw_{source}* tables[/green]")
@@ -288,7 +290,7 @@ def build_snapshots(
 
         builder = ContractSnapshotBuilder()
         count = builder.build_snapshots_for_range(
-            contract_ids=list(contracts) if contracts else None,
+            contract_ids=[UUID(c) for c in contracts] if contracts else None,
             start_ts=datetime.fromisoformat(start) if start else None,
             end_ts=datetime.fromisoformat(end) if end else None,
             frequency=freq,
@@ -516,14 +518,14 @@ def evaluate(
         probs = _read_data(probs_path)
         prices = _read_data(prices_path)
         outcomes = _read_data(outcomes_path) if outcomes_path else None
-        config = ProbPortfolioConfig(edge_threshold=settings.evaluation.edge_threshold)
+        prob_config = ProbPortfolioConfig(edge_threshold=settings.evaluation.edge_threshold)
 
         result = evaluator.evaluate_prediction_markets(
             probs=probs,
             prices=prices,
             outcomes=outcomes,
             factor_returns=factors_df,
-            config=config,
+            config=prob_config,
         )
         eval_cfg = (
             settings.evaluation.model_dump()
@@ -1169,7 +1171,7 @@ def monitor_positions(
                 console.print("[yellow]No open positions — realtime feed not started[/yellow]")
 
         settings = get_settings()
-        exec_cfg = settings.execution if hasattr(settings, "execution") else {}
+        exec_cfg: Any = settings.execution if hasattr(settings, "execution") else {}
         max_cap = exec_cfg.get("max_capital", 300.0) if isinstance(exec_cfg, dict) else 300.0
         guard_config = CapitalGuardConfig(max_capital=max_cap)
         monitor = PositionMonitor(broker=broker, guard_config=guard_config, realtime_feed=rt_feed)
