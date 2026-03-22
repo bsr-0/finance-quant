@@ -77,12 +77,15 @@ class LineageTracker:
 
     def _ensure_table(self):
         """Ensure lineage table exists."""
+        is_duckdb = self.db.backend == "duckdb"
+        json_type = "JSON" if is_duckdb else "JSONB"
+        uuid_fn = "uuid()" if is_duckdb else "gen_random_uuid()"
+        fk_clause = "" if is_duckdb else " REFERENCES meta_pipeline_runs(run_id)"
         with self.db.engine.connect() as conn:
-            conn.execute(
-                text("""
+            conn.execute(text(f"""
                 CREATE TABLE IF NOT EXISTS meta_data_lineage (
-                    lineage_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    run_id UUID REFERENCES meta_pipeline_runs(run_id),
+                    lineage_id UUID PRIMARY KEY DEFAULT {uuid_fn},
+                    run_id UUID{fk_clause},
                     source_table VARCHAR(100) NOT NULL,
                     target_table VARCHAR(100) NOT NULL,
                     transformation_name VARCHAR(200) NOT NULL,
@@ -93,25 +96,18 @@ class LineageTracker:
                     record_count_source INTEGER,
                     record_count_target INTEGER,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    metadata JSONB
+                    metadata {json_type}
                 )
-            """)
-            )
-            conn.execute(
-                text("""
+            """))
+            conn.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_lineage_run_id ON meta_data_lineage(run_id)
-            """)
-            )
-            conn.execute(
-                text("""
+            """))
+            conn.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_lineage_source ON meta_data_lineage(source_table)
-            """)
-            )
-            conn.execute(
-                text("""
+            """))
+            conn.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_lineage_target ON meta_data_lineage(target_table)
-            """)
-            )
+            """))
             conn.commit()
 
     def compute_table_hash(self, table_name: str, query_filter: str = "") -> str:

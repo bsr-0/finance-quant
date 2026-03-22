@@ -29,7 +29,9 @@ class CuratedTransformer:
         self.run_id = run_id
         self._lineage = LineageTracker() if self.settings.infrastructure.lineage_enabled else None
 
-    def _record_lineage(self, source_table: str, target_table: str, transformation_name: str) -> None:
+    def _record_lineage(
+        self, source_table: str, target_table: str, transformation_name: str
+    ) -> None:
         if not self._lineage:
             return
         try:
@@ -113,7 +115,8 @@ class CuratedTransformer:
 
         # Upsert dimension rows for any new series codes
         with self.db.engine.connect() as conn:
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 INSERT INTO dim_macro_series
                     (provider_series_code, name, frequency, source_id,
                      release_time, release_timezone, release_day_offset, release_jitter_minutes)
@@ -122,7 +125,7 @@ class CuratedTransformer:
                     r.series_code AS name,
                     'monthly'     AS frequency,
                     :source_id,
-                    :release_time::time,
+                    CAST(:release_time AS TIME),
                     :release_tz,
                     0,
                     :release_jitter
@@ -143,16 +146,14 @@ class CuratedTransformer:
         # Ensure legacy series have conservative release metadata
         with self.db.engine.connect() as conn:
             conn.execute(
-                text(
-                    """
+                text("""
                     UPDATE dim_macro_series
-                    SET release_time = :release_time::time,
+                    SET release_time = CAST(:release_time AS TIME),
                         release_timezone = :release_tz,
                         release_day_offset = COALESCE(release_day_offset, 0),
                         release_jitter_minutes = :release_jitter
                     WHERE release_time IS NULL
-                """
-                ),
+                """),
                 {
                     "release_time": self.settings.historical_fixes.macro_release_time,
                     "release_tz": self.settings.historical_fixes.macro_release_timezone,
@@ -165,7 +166,8 @@ class CuratedTransformer:
         # available_time = realtime_start (when FRED first published the value)
         # event_time     = observation_date (period the value refers to)
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 INSERT INTO cur_macro_observations
                     (series_id, period_end, value, revision_id,
                      event_time, available_time, time_quality, ingested_at, data_quality_flag)
@@ -176,8 +178,8 @@ class CuratedTransformer:
                     COALESCE(r.realtime_start::text, 'initial')       AS revision_id,
                     r.observation_date::timestamptz                    AS event_time,
                     COALESCE(
-                        (r.realtime_start::timestamp + :release_time::time) AT TIME ZONE :release_tz
-                            + (:release_jitter || ' minutes')::interval,
+                        (r.realtime_start::timestamp + CAST(:release_time AS TIME)) AT TIME ZONE :release_tz
+                            + MAKE_INTERVAL(mins => CAST(:release_jitter AS INTEGER)),
                         r.extracted_at
                     )                                                 AS available_time,
                     CASE
@@ -211,7 +213,9 @@ class CuratedTransformer:
             rows = result.rowcount
 
         logger.info(f"Transformed {rows} macro observations")
-        self._record_lineage("raw_fred_observations", "cur_macro_observations", "transform_macro_observations")
+        self._record_lineage(
+            "raw_fred_observations", "cur_macro_observations", "transform_macro_observations"
+        )
         return rows
 
     def transform_world_events(self) -> int:
@@ -225,7 +229,8 @@ class CuratedTransformer:
             "gdelt", self.settings.historical_fixes.gdelt_fallback_lag_minutes
         )
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 WITH base AS (
                     SELECT
                         :source_id AS source_id,
@@ -242,19 +247,19 @@ class CuratedTransformer:
                             )
                             ELSE r.extracted_at
                         END                                           AS base_available_time,
-                        jsonb_build_object(
+                        json_object(
                             'action_geo_fullname', r.raw_data::json->>'ActionGeo_FullName',
                             'action_geo_country',  r.raw_data::json->>'ActionGeo_CountryCode',
                             'action_geo_lat',      (r.raw_data::json->>'ActionGeo_Lat')::numeric,
                             'action_geo_long',     (r.raw_data::json->>'ActionGeo_Long')::numeric
                         )                                             AS location,
-                        jsonb_build_object(
+                        json_object(
                             'actor1_name', r.raw_data::json->>'Actor1Name',
                             'actor1_code', r.raw_data::json->>'Actor1Code',
                             'actor2_name', r.raw_data::json->>'Actor2Name',
                             'actor2_code', r.raw_data::json->>'Actor2Code'
                         )                                             AS actors,
-                        jsonb_build_array(r.raw_data::json->>'EventBaseCode') AS themes,
+                        json_array(r.raw_data::json->>'EventBaseCode') AS themes,
                         (r.raw_data::json->>'AvgTone')::numeric       AS tone_score,
                         CASE
                             WHEN :available_source = 'DATEADDED' AND r.raw_data::json->>'DATEADDED' IS NOT NULL THEN 'confirmed'
@@ -273,7 +278,7 @@ class CuratedTransformer:
                     b.event_time,
                     GREATEST(
                         b.base_available_time,
-                        b.event_time + (:latency_minutes || ' minutes')::interval
+                        b.event_time + MAKE_INTERVAL(mins => CAST(:latency_minutes AS INTEGER))
                     ) AS available_time,
                     b.location,
                     b.actors,
@@ -310,7 +315,8 @@ class CuratedTransformer:
         source_id = self._get_source_id("polymarket")
 
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 INSERT INTO dim_contract
                 (venue, venue_market_id, ticker, title, description, category,
                  resolution_time, resolution_rule_text, outcome_type, outcomes, status,
@@ -325,12 +331,13 @@ class CuratedTransformer:
                     (r.raw_data::json->>'resolutionDate')::timestamptz AS resolution_time,
                     r.raw_data::json->>'resolutionSource' AS resolution_rule_text,
                     CASE
-                        WHEN (r.raw_data::json->'outcomes')::jsonb @> '["Yes", "No"]'::jsonb
+                        WHEN list_contains(CAST(r.raw_data::json->'outcomes' AS VARCHAR[]), 'Yes')
+                         AND list_contains(CAST(r.raw_data::json->'outcomes' AS VARCHAR[]), 'No')
                         THEN 'binary' ELSE 'multi'
                     END AS outcome_type,
-                    (r.raw_data::json->'outcomes')::jsonb  AS outcomes,
+                    CAST(r.raw_data::json->'outcomes' AS JSON)  AS outcomes,
                     CASE
-                        WHEN COALESCE(r.raw_data::json->>'active', 'true')::boolean
+                        WHEN CAST(COALESCE(r.raw_data::json->>'active', 'true') AS BOOLEAN)
                         THEN 'active' ELSE 'closed'
                     END AS status,
                     r.extracted_at                         AS created_time,
@@ -412,7 +419,9 @@ class CuratedTransformer:
             rows = result.rowcount
 
         logger.info(f"Transformed {rows} contract state rows")
-        self._record_lineage("dim_contract", "cur_contract_state_daily", "transform_contract_state_daily")
+        self._record_lineage(
+            "dim_contract", "cur_contract_state_daily", "transform_contract_state_daily"
+        )
         return rows
 
     def transform_contract_resolution(self) -> int:
@@ -470,7 +479,9 @@ class CuratedTransformer:
             rows = result.rowcount
 
         logger.info(f"Transformed {rows} contract resolutions")
-        self._record_lineage("raw_polymarket_markets", "cur_contract_resolution", "transform_contract_resolution")
+        self._record_lineage(
+            "raw_polymarket_markets", "cur_contract_resolution", "transform_contract_resolution"
+        )
         return rows
 
     def transform_contract_prices(self) -> int:
@@ -481,7 +492,8 @@ class CuratedTransformer:
             "polymarket", self.settings.historical_fixes.polymarket_fallback_lag_minutes
         )
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 INSERT INTO cur_contract_prices
                 (contract_id, ts, outcome, price_raw, price_normalized,
                  event_time, available_time, time_quality, ingested_at, data_quality_flag)
@@ -495,7 +507,7 @@ class CuratedTransformer:
                         ELSE r.price
                     END                        AS price_normalized,
                     r.ts                       AS event_time,
-                    r.ts + (:latency_minutes || ' minutes')::interval AS available_time,
+                    r.ts + MAKE_INTERVAL(mins => CAST(:latency_minutes AS INTEGER)) AS available_time,
                     'inferred'                 AS time_quality,
                     NOW()                      AS ingested_at,
                     CASE
@@ -512,12 +524,16 @@ class CuratedTransformer:
                     available_time   = EXCLUDED.available_time,
                     ingested_at      = EXCLUDED.ingested_at,
                     data_quality_flag = EXCLUDED.data_quality_flag
-            """), {"latency_minutes": latency_minutes})
+            """),
+                {"latency_minutes": latency_minutes},
+            )
             conn.commit()
             rows = result.rowcount
 
         logger.info(f"Transformed {rows} contract prices")
-        self._record_lineage("raw_polymarket_prices", "cur_contract_prices", "transform_contract_prices")
+        self._record_lineage(
+            "raw_polymarket_prices", "cur_contract_prices", "transform_contract_prices"
+        )
         return rows
 
     def transform_contract_trades(self) -> int:
@@ -528,7 +544,8 @@ class CuratedTransformer:
             "polymarket", self.settings.historical_fixes.polymarket_fallback_lag_minutes
         )
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 INSERT INTO cur_contract_trades
                 (contract_id, trade_id, ts, price, size, side,
                  event_time, available_time, time_quality, ingested_at, data_quality_flag)
@@ -540,7 +557,7 @@ class CuratedTransformer:
                     r.size,
                     r.side,
                     r.ts           AS event_time,
-                    r.ts + (:latency_minutes || ' minutes')::interval AS available_time,
+                    r.ts + MAKE_INTERVAL(mins => CAST(:latency_minutes AS INTEGER)) AS available_time,
                     'inferred'     AS time_quality,
                     NOW()          AS ingested_at,
                     CASE
@@ -558,7 +575,9 @@ class CuratedTransformer:
             rows = result.rowcount
 
         logger.info(f"Transformed {rows} contract trades")
-        self._record_lineage("raw_polymarket_trades", "cur_contract_trades", "transform_contract_trades")
+        self._record_lineage(
+            "raw_polymarket_trades", "cur_contract_trades", "transform_contract_trades"
+        )
         return rows
 
     def transform_contract_orderbooks(self) -> int:
@@ -623,15 +642,19 @@ class CuratedTransformer:
         jitter_minutes = self.settings.historical_fixes.macro_release_jitter_minutes
 
         with self.db.engine.connect() as conn:
-            df = pd.read_sql("SELECT date, mkt_rf, smb, hml, rmw, cma, mom, rf FROM raw_factor_returns", conn)
+            df = pd.read_sql(
+                "SELECT date, mkt_rf, smb, hml, rmw, cma, mom, rf FROM raw_factor_returns", conn
+            )
             if df.empty:
                 return 0
 
             dates = pd.to_datetime(df["date"])
             available_dates = dates + pd.tseries.offsets.BDay(lag_days)
-            available_time = pd.to_datetime(
-                available_dates.dt.date.astype(str) + " " + release_time
-            ).dt.tz_localize(tz).dt.tz_convert("UTC")
+            available_time = (
+                pd.to_datetime(available_dates.dt.date.astype(str) + " " + release_time)
+                .dt.tz_localize(tz)
+                .dt.tz_convert("UTC")
+            )
             if jitter_minutes:
                 available_time = available_time + pd.to_timedelta(jitter_minutes, unit="m")
 
@@ -705,8 +728,7 @@ class CuratedTransformer:
                 LEFT JOIN dim_symbol s ON r.ticker = s.ticker
                 WHERE s.symbol_id IS NULL
                 GROUP BY r.ticker
-            """)
-            )
+            """))
             conn.commit()
 
         # ------ 2. Detect delistings ------
@@ -734,7 +756,8 @@ class CuratedTransformer:
 
         # ------ 3. Populate cur_corporate_actions (splits) ------
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 INSERT INTO cur_corporate_actions
                     (symbol_id, action_type, action_date, ratio,
                      event_time, available_time, time_quality, ingested_at, data_quality_flag)
@@ -750,9 +773,9 @@ class CuratedTransformer:
                             / NULLIF(SPLIT_PART(r.split_ratio, ':', 2)::numeric, 0)
                         ELSE NULL
                     END                AS ratio,
-                    (r.date + :close_time::time) AT TIME ZONE :exchange_tz AS event_time,
-                    (r.date + :close_time::time) AT TIME ZONE :exchange_tz
-                        + (:delay_minutes || ' minutes')::interval AS available_time,
+                    (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz AS event_time,
+                    (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz
+                        + MAKE_INTERVAL(mins => CAST(:delay_minutes AS INTEGER)) AS available_time,
                     'inferred'         AS time_quality,
                     NOW()              AS ingested_at,
                     NULL               AS data_quality_flag
@@ -760,7 +783,13 @@ class CuratedTransformer:
                 JOIN dim_symbol s ON r.ticker = s.ticker
                 WHERE r.split_ratio IS NOT NULL
                 ON CONFLICT (symbol_id, action_type, action_date) DO NOTHING
-            """), {"close_time": close_time, "exchange_tz": exchange_tz, "delay_minutes": delay_minutes})
+            """),
+                {
+                    "close_time": close_time,
+                    "exchange_tz": exchange_tz,
+                    "delay_minutes": delay_minutes,
+                },
+            )
             conn.commit()
             splits = result.rowcount
             if splits:
@@ -768,7 +797,8 @@ class CuratedTransformer:
 
         # ------ 4. Populate cur_corporate_actions (dividends) ------
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 INSERT INTO cur_corporate_actions
                     (symbol_id, action_type, action_date, amount,
                      event_time, available_time, time_quality, ingested_at, data_quality_flag)
@@ -777,9 +807,9 @@ class CuratedTransformer:
                     'dividend'         AS action_type,
                     r.date             AS action_date,
                     r.dividend         AS amount,
-                    (r.date + :close_time::time) AT TIME ZONE :exchange_tz AS event_time,
-                    (r.date + :close_time::time) AT TIME ZONE :exchange_tz
-                        + (:delay_minutes || ' minutes')::interval AS available_time,
+                    (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz AS event_time,
+                    (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz
+                        + MAKE_INTERVAL(mins => CAST(:delay_minutes AS INTEGER)) AS available_time,
                     'inferred'         AS time_quality,
                     NOW()              AS ingested_at,
                     NULL               AS data_quality_flag
@@ -787,7 +817,13 @@ class CuratedTransformer:
                 JOIN dim_symbol s ON r.ticker = s.ticker
                 WHERE r.dividend IS NOT NULL AND r.dividend > 0
                 ON CONFLICT (symbol_id, action_type, action_date) DO NOTHING
-            """), {"close_time": close_time, "exchange_tz": exchange_tz, "delay_minutes": delay_minutes})
+            """),
+                {
+                    "close_time": close_time,
+                    "exchange_tz": exchange_tz,
+                    "delay_minutes": delay_minutes,
+                },
+            )
             conn.commit()
             divs = result.rowcount
             if divs:
@@ -795,7 +831,8 @@ class CuratedTransformer:
 
         # ------ 5. Transform prices ------
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 INSERT INTO cur_prices_ohlcv_daily
                     (symbol_id, date, open, high, low, close, adj_close, volume,
                      event_time, available_time, time_quality, ingested_at, data_quality_flag)
@@ -808,9 +845,9 @@ class CuratedTransformer:
                     r.close,
                     r.adj_close,
                     r.volume,
-                    (r.date + :close_time::time) AT TIME ZONE :exchange_tz AS event_time,
-                    (r.date + :close_time::time) AT TIME ZONE :exchange_tz
-                        + (:delay_minutes || ' minutes')::interval AS available_time,
+                    (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz AS event_time,
+                    (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz
+                        + MAKE_INTERVAL(mins => CAST(:delay_minutes AS INTEGER)) AS available_time,
                     'inferred'                             AS time_quality,
                     NOW()                                  AS ingested_at,
                     CASE
@@ -833,7 +870,13 @@ class CuratedTransformer:
                     ingested_at    = EXCLUDED.ingested_at,
                     data_quality_flag = EXCLUDED.data_quality_flag,
                     updated_at     = NOW()
-            """), {"close_time": close_time, "exchange_tz": exchange_tz, "delay_minutes": delay_minutes})
+            """),
+                {
+                    "close_time": close_time,
+                    "exchange_tz": exchange_tz,
+                    "delay_minutes": delay_minutes,
+                },
+            )
             conn.commit()
             rows = result.rowcount
 
@@ -1004,7 +1047,8 @@ class CuratedTransformer:
         delay_minutes = max(base_delay, latency_delay)
 
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 INSERT INTO snap_universe_membership
                     (symbol_id, start_date, end_date, is_delisted, available_time, ingested_at)
                 SELECT
@@ -1012,8 +1056,8 @@ class CuratedTransformer:
                     s.start_date,
                     s.end_date,
                     s.is_delisted,
-                    (s.start_date + :close_time::time) AT TIME ZONE :exchange_tz
-                        + (:delay_minutes || ' minutes')::interval AS available_time,
+                    (s.start_date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz
+                        + MAKE_INTERVAL(mins => CAST(:delay_minutes AS INTEGER)) AS available_time,
                     NOW() AS ingested_at
                 FROM dim_symbol s
                 WHERE s.start_date IS NOT NULL
@@ -1022,12 +1066,20 @@ class CuratedTransformer:
                     is_delisted = EXCLUDED.is_delisted,
                     available_time = EXCLUDED.available_time,
                     ingested_at = EXCLUDED.ingested_at
-            """), {"close_time": close_time, "exchange_tz": exchange_tz, "delay_minutes": delay_minutes})
+            """),
+                {
+                    "close_time": close_time,
+                    "exchange_tz": exchange_tz,
+                    "delay_minutes": delay_minutes,
+                },
+            )
             conn.commit()
             rows = result.rowcount
 
         logger.info(f"Transformed {rows} universe membership records")
-        self._record_lineage("dim_symbol", "snap_universe_membership", "transform_universe_membership")
+        self._record_lineage(
+            "dim_symbol", "snap_universe_membership", "transform_universe_membership"
+        )
         return rows
 
     # ------------------------------------------------------------------
@@ -1047,12 +1099,21 @@ class CuratedTransformer:
         results["prices_adjusted"] = self.transform_prices_adjusted_daily()
         results["universe_membership"] = self.transform_universe_membership()
         results["factor_returns"] = self.transform_factor_returns()
-        # New data source transforms
-        results["fundamentals"] = self.transform_fundamentals()
-        results["insider_trades"] = self.transform_insider_trades()
-        results["institutional_holdings"] = self.transform_institutional_holdings()
-        results["options_summary"] = self.transform_options_summary()
-        results["earnings"] = self.transform_earnings()
-        results["short_interest"] = self.transform_short_interest()
-        results["etf_flows"] = self.transform_etf_flows()
+        # New data source transforms (call only if implemented)
+        for name in (
+            "fundamentals",
+            "insider_trades",
+            "institutional_holdings",
+            "options_summary",
+            "earnings",
+            "short_interest",
+            "etf_flows",
+        ):
+            method = getattr(self, f"transform_{name}", None)
+            if method is not None:
+                try:
+                    results[name] = method()
+                except Exception as exc:
+                    logger.warning(f"transform_{name} failed: {exc}")
+                    results[name] = 0
         return results

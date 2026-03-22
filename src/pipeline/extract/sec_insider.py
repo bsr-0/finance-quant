@@ -50,9 +50,7 @@ class SecInsiderExtractor:
         self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def _fetch_recent_filings(
-        self, cik: int, form_type: str = "4", count: int = 40
-    ) -> list[dict]:
+    def _fetch_recent_filings(self, cik: int, form_type: str = "4", count: int = 40) -> list[dict]:
         """Fetch recent Form 4 filings for a company CIK from EDGAR."""
 
         def _do() -> list[dict]:
@@ -96,11 +94,13 @@ class SecInsiderExtractor:
                 filing_date = dates[i] if i < len(dates) else None
                 if start_date and filing_date and filing_date < start_date.isoformat():
                     continue
-                results.append({
-                    "accession_number": accessions[i] if i < len(accessions) else None,
-                    "filing_date": filing_date,
-                    "primary_document": primary_docs[i] if i < len(primary_docs) else None,
-                })
+                results.append(
+                    {
+                        "accession_number": accessions[i] if i < len(accessions) else None,
+                        "filing_date": filing_date,
+                        "primary_document": primary_docs[i] if i < len(primary_docs) else None,
+                    }
+                )
             return results
 
         return self._circuit.call(_do)
@@ -141,23 +141,32 @@ class SecInsiderExtractor:
                 name_el = rid.find("rptOwnerName")
                 insider_name = name_el.text.strip() if name_el is not None and name_el.text else ""
                 cik_el = rid.find("rptOwnerCik")
-                insider_cik = int(cik_el.text.strip()) if cik_el is not None and cik_el.text else None
+                insider_cik = (
+                    int(cik_el.text.strip()) if cik_el is not None and cik_el.text else None
+                )
             rel = owner_el.find("reportingOwnerRelationship")
             if rel is not None:
                 title_el = rel.find("officerTitle")
-                insider_title = title_el.text.strip() if title_el is not None and title_el.text else ""
+                insider_title = (
+                    title_el.text.strip() if title_el is not None and title_el.text else ""
+                )
 
         # Non-derivative transactions
         for txn in root.findall(".//nonDerivativeTransaction"):
-            row = SecInsiderExtractor._parse_transaction(txn, ticker, cik, insider_name, insider_title, insider_cik, filing_date)
+            row = SecInsiderExtractor._parse_transaction(
+                txn, ticker, cik, insider_name, insider_title, insider_cik, filing_date
+            )
             if row:
                 rows.append(row)
 
         return rows
 
     @staticmethod
-    def _parse_transaction(txn_el, ticker, cik, insider_name, insider_title, insider_cik, filing_date) -> dict | None:
+    def _parse_transaction(
+        txn_el, ticker, cik, insider_name, insider_title, insider_cik, filing_date
+    ) -> dict | None:
         """Parse a single transaction element."""
+
         def _text(parent, path):
             el = parent.find(path)
             return el.text.strip() if el is not None and el.text else None
@@ -167,7 +176,9 @@ class SecInsiderExtractor:
         shares_str = _text(txn_el, ".//transactionAmounts/transactionShares/value")
         price_str = _text(txn_el, ".//transactionAmounts/transactionPricePerShare/value")
         acq_disp = _text(txn_el, ".//transactionAmounts/transactionAcquiredDisposedCode/value")
-        shares_after_str = _text(txn_el, ".//postTransactionAmounts/sharesOwnedFollowingTransaction/value")
+        shares_after_str = _text(
+            txn_el, ".//postTransactionAmounts/sharesOwnedFollowingTransaction/value"
+        )
         ownership_type = _text(txn_el, ".//ownershipNature/directOrIndirectOwnership/value")
 
         if txn_date is None or shares_str is None:
@@ -222,6 +233,7 @@ class SecInsiderExtractor:
         # Get CIK mapping if not provided
         if ticker_to_cik is None:
             from pipeline.extract.sec_fundamentals import SecFundamentalsExtractor
+
             ticker_to_cik = SecFundamentalsExtractor()._fetch_ticker_to_cik()
 
         saved_files: list[Path] = []
@@ -298,6 +310,9 @@ def extract_sec_insider(
     start = date.fromisoformat(start_date) if start_date else None
     end = date.fromisoformat(end_date) if end_date else None
     return extractor.extract_to_raw(
-        output_dir=output_dir, tickers=tickers,
-        start_date=start, end_date=end, run_id=run_id,
+        output_dir=output_dir,
+        tickers=tickers,
+        start_date=start,
+        end_date=end,
+        run_id=run_id,
     )
