@@ -118,8 +118,11 @@ class DataQualityMonitor:
         if isinstance(latest_ts, str):
             latest_ts = datetime.fromisoformat(latest_ts.replace("Z", "+00:00"))
 
+        # Ensure both are tz-aware for subtraction
+        if latest_ts.tzinfo is None:
+            latest_ts = latest_ts.replace(tzinfo=timezone.utc)
         age_hours = (
-            datetime.now(timezone.utc) - latest_ts.replace(tzinfo=None)
+            datetime.now(timezone.utc) - latest_ts
         ).total_seconds() / 3600
 
         if age_hours > max_age_hours:

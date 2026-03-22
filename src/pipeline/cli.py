@@ -127,7 +127,7 @@ def update_pipeline_run(
             {
                 "run_id": run_id,
                 "status": status,
-                "row_counts": str(row_counts) if row_counts else None,
+                "row_counts": json.dumps(row_counts) if row_counts else None,
                 "errors": errors,
             },
         )

@@ -51,7 +51,8 @@ class CuratedTransformer:
             {"name": source_name},
         )
         if result:
-            return UUID(result[0]["source_id"])
+            val = result[0]["source_id"]
+            return val if isinstance(val, UUID) else UUID(val)
 
         with self.db.engine.connect() as conn:
             insert = text("""
@@ -178,8 +179,8 @@ class CuratedTransformer:
                     COALESCE(r.realtime_start::text, 'initial')       AS revision_id,
                     r.observation_date::timestamptz                    AS event_time,
                     COALESCE(
-                        (r.realtime_start::timestamp + CAST(:release_time AS TIME)) AT TIME ZONE :release_tz
-                            + MAKE_INTERVAL(mins => CAST(:release_jitter AS INTEGER)),
+                        (r.realtime_start::date + CAST(:release_time AS TIME)) AT TIME ZONE :release_tz
+                            + (CAST(:release_jitter AS INTEGER) * INTERVAL '1' MINUTE),
                         r.extracted_at
                     )                                                 AS available_time,
                     CASE
@@ -242,7 +243,7 @@ class CuratedTransformer:
                         ) AS event_time,
                         CASE
                             WHEN :available_source = 'DATEADDED' THEN COALESCE(
-                                (to_timestamp(NULLIF(r.raw_data::json->>'DATEADDED', ''), 'YYYYMMDDHH24MISS') AT TIME ZONE 'UTC'),
+                                (strptime(NULLIF(r.raw_data::json->>'DATEADDED', ''), '%Y%m%d%H%M%S') AT TIME ZONE 'UTC'),
                                 r.extracted_at
                             )
                             ELSE r.extracted_at
@@ -278,7 +279,7 @@ class CuratedTransformer:
                     b.event_time,
                     GREATEST(
                         b.base_available_time,
-                        b.event_time + MAKE_INTERVAL(mins => CAST(:latency_minutes AS INTEGER))
+                        b.event_time + (CAST(:latency_minutes AS INTEGER) * INTERVAL '1' MINUTE)
                     ) AS available_time,
                     b.location,
                     b.actors,
@@ -381,11 +382,11 @@ class CuratedTransformer:
                         c.status,
                         c.resolution_time,
                         c.available_time,
-                        generate_series(
+                        unnest(generate_series(
                             date_trunc('day', c.created_time),
                             date_trunc('day', COALESCE(c.resolution_time, NOW())),
                             interval '1 day'
-                        ) AS day
+                        )) AS day
                     FROM contracts c
                 )
                 INSERT INTO cur_contract_state_daily
@@ -507,7 +508,7 @@ class CuratedTransformer:
                         ELSE r.price
                     END                        AS price_normalized,
                     r.ts                       AS event_time,
-                    r.ts + MAKE_INTERVAL(mins => CAST(:latency_minutes AS INTEGER)) AS available_time,
+                    r.ts + (CAST(:latency_minutes AS INTEGER) * INTERVAL '1' MINUTE) AS available_time,
                     'inferred'                 AS time_quality,
                     NOW()                      AS ingested_at,
                     CASE
@@ -557,7 +558,7 @@ class CuratedTransformer:
                     r.size,
                     r.side,
                     r.ts           AS event_time,
-                    r.ts + MAKE_INTERVAL(mins => CAST(:latency_minutes AS INTEGER)) AS available_time,
+                    r.ts + (CAST(:latency_minutes AS INTEGER) * INTERVAL '1' MINUTE) AS available_time,
                     'inferred'     AS time_quality,
                     NOW()          AS ingested_at,
                     CASE
@@ -749,8 +750,8 @@ class CuratedTransformer:
                     end_date    = ld.last_date
                 FROM last_dates ld, global_max gm
                 WHERE s.ticker = ld.ticker
-                  AND ld.last_date < gm.max_date - INTERVAL ':gap days'
-            """).bindparams(gap=_DELISTING_GAP_DAYS))
+                  AND ld.last_date < gm.max_date - (CAST(:gap AS INTEGER) * INTERVAL '1' DAY)
+            """), {"gap": _DELISTING_GAP_DAYS})
             conn.commit()
             logger.info("Updated delisting flags on dim_symbol")
 
@@ -775,7 +776,7 @@ class CuratedTransformer:
                     END                AS ratio,
                     (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz AS event_time,
                     (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz
-                        + MAKE_INTERVAL(mins => CAST(:delay_minutes AS INTEGER)) AS available_time,
+                        + (CAST(:delay_minutes AS INTEGER) * INTERVAL '1' MINUTE) AS available_time,
                     'inferred'         AS time_quality,
                     NOW()              AS ingested_at,
                     NULL               AS data_quality_flag
@@ -809,7 +810,7 @@ class CuratedTransformer:
                     r.dividend         AS amount,
                     (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz AS event_time,
                     (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz
-                        + MAKE_INTERVAL(mins => CAST(:delay_minutes AS INTEGER)) AS available_time,
+                        + (CAST(:delay_minutes AS INTEGER) * INTERVAL '1' MINUTE) AS available_time,
                     'inferred'         AS time_quality,
                     NOW()              AS ingested_at,
                     NULL               AS data_quality_flag
@@ -847,7 +848,7 @@ class CuratedTransformer:
                     r.volume,
                     (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz AS event_time,
                     (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz
-                        + MAKE_INTERVAL(mins => CAST(:delay_minutes AS INTEGER)) AS available_time,
+                        + (CAST(:delay_minutes AS INTEGER) * INTERVAL '1' MINUTE) AS available_time,
                     'inferred'                             AS time_quality,
                     NOW()                                  AS ingested_at,
                     CASE
@@ -1057,7 +1058,7 @@ class CuratedTransformer:
                     s.end_date,
                     s.is_delisted,
                     (s.start_date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz
-                        + MAKE_INTERVAL(mins => CAST(:delay_minutes AS INTEGER)) AS available_time,
+                        + (CAST(:delay_minutes AS INTEGER) * INTERVAL '1' MINUTE) AS available_time,
                     NOW() AS ingested_at
                 FROM dim_symbol s
                 WHERE s.start_date IS NOT NULL
