@@ -176,7 +176,7 @@ class Evaluator:
             fee_bps=settings.evaluation.pm_fee_bps,
         )
 
-    def _cost_model(self) -> FixedPlusSpreadModel:
+    def _cost_model(self) -> FixedPlusSpreadModel | SquareRootImpactModel:
         # FixedPlusSpreadModel uses half-spread internally, so double to match total bps.
         return FixedPlusSpreadModel(spread_bps=self.cost_bps * 2)
 

@@ -546,7 +546,7 @@ class AgentCoordinator:
         cycle_num = self._cycle_count + 1
         prefix = f"cycle_{cycle_num}"
 
-        phases = [
+        phases: list[tuple[AgentRole, str, list[str]]] = [
             (AgentRole.DATA_AGENT, "Refresh datasets and validate lineage", []),
             (AgentRole.FEATURE_AGENT, "Search and filter feature families", []),
             (AgentRole.MODEL_AGENT, "Search model architectures and hyperparameters", []),

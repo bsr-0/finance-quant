@@ -273,7 +273,7 @@ class PositionMonitor:
                 else None
             )
 
-            if rt_quote and not self.realtime_feed.is_stale(symbol):
+            if rt_quote and self.realtime_feed is not None and not self.realtime_feed.is_stale(symbol):
                 current_close = rt_quote.price
                 current_high = rt_quote.high if rt_quote.high > 0 else rt_quote.price
                 logger.debug(

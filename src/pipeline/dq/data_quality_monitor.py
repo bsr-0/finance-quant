@@ -1,11 +1,14 @@
 """Data quality monitoring and alerting for production pipelines."""
 
+from __future__ import annotations
+
 import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from pipeline.db import _validate_identifier, get_db_manager
 
@@ -384,7 +387,7 @@ class DataQualityMonitor:
 
     def generate_quality_report(self, output_path: Path | None = None) -> dict:
         """Generate comprehensive quality report."""
-        report = {
+        report: dict[str, Any] = {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "checks": {},
             "alerts": [],

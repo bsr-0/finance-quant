@@ -27,7 +27,7 @@ class CircuitBreaker:
         name: str,
         failure_threshold: int = 5,
         recovery_timeout: float = 30.0,
-        expected_exception: type = Exception,
+        expected_exception: type[BaseException] = Exception,
     ):
         self.name = name
         self.failure_threshold = failure_threshold
@@ -65,7 +65,7 @@ class CircuitBreaker:
             with self._lock:
                 self._on_success()
             return result
-        except self.expected_exception:
+        except self.expected_exception:  # type: ignore[misc]
             with self._lock:
                 self._on_failure()
             raise
@@ -80,7 +80,7 @@ class CircuitBreaker:
             with self._lock:
                 self._on_success()
             return result
-        except self.expected_exception:
+        except self.expected_exception:  # type: ignore[misc]
             with self._lock:
                 self._on_failure()
             raise

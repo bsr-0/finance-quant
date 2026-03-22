@@ -276,7 +276,7 @@ class ModelSearcher:
     def _expand_grid(self, space: SearchSpace) -> list[ModelSpec]:
         """Expand a SearchSpace into individual ModelSpec instances."""
         if not space.param_grid:
-            windows = space.train_windows or [None]
+            windows: list[int | None] = space.train_windows or [None]  # type: ignore[assignment]
             objectives = space.objectives or ["mse"]
             specs = []
             for w, obj in itertools.product(windows, objectives):
@@ -292,13 +292,13 @@ class ModelSearcher:
 
         keys = list(space.param_grid.keys())
         values = list(space.param_grid.values())
-        windows = space.train_windows or [None]
+        windows2: list[int | None] = space.train_windows or [None]  # type: ignore[assignment]
         objectives = space.objectives or ["mse"]
 
         specs = []
         for combo in itertools.product(*values):
             hp = dict(zip(keys, combo))
-            for w, obj in itertools.product(windows, objectives):
+            for w, obj in itertools.product(windows2, objectives):
                 specs.append(
                     ModelSpec(
                         model_family=space.model_family,

@@ -279,7 +279,7 @@ class Sec13FExtractor:
                     if xml_text:
                         rows = self._parse_13f_xml(
                             xml_text, filer_cik, filer_name,
-                            report_date, filing_date,
+                            str(report_date or ""), str(filing_date or ""),
                         )
                         for row in rows:
                             row["accession_number"] = accession

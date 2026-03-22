@@ -1031,6 +1031,45 @@ class CuratedTransformer:
         return rows
 
     # ------------------------------------------------------------------
+    # Stub transforms for new data sources (not yet implemented)
+    # ------------------------------------------------------------------
+
+    def transform_fundamentals(self) -> int:
+        """Transform fundamentals data (stub)."""
+        logger.info("transform_fundamentals not yet implemented; skipping")
+        return 0
+
+    def transform_insider_trades(self) -> int:
+        """Transform insider trades data (stub)."""
+        logger.info("transform_insider_trades not yet implemented; skipping")
+        return 0
+
+    def transform_institutional_holdings(self) -> int:
+        """Transform institutional holdings data (stub)."""
+        logger.info("transform_institutional_holdings not yet implemented; skipping")
+        return 0
+
+    def transform_options_summary(self) -> int:
+        """Transform options summary data (stub)."""
+        logger.info("transform_options_summary not yet implemented; skipping")
+        return 0
+
+    def transform_earnings(self) -> int:
+        """Transform earnings data (stub)."""
+        logger.info("transform_earnings not yet implemented; skipping")
+        return 0
+
+    def transform_short_interest(self) -> int:
+        """Transform short interest data (stub)."""
+        logger.info("transform_short_interest not yet implemented; skipping")
+        return 0
+
+    def transform_etf_flows(self) -> int:
+        """Transform ETF flows data (stub)."""
+        logger.info("transform_etf_flows not yet implemented; skipping")
+        return 0
+
+    # ------------------------------------------------------------------
 
     def transform_all(self) -> dict:
         """Run all transformations."""

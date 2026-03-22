@@ -8,6 +8,7 @@ import time
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from typing import Any
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -104,11 +105,11 @@ class MetricsCollector:
 
     def get_summary(self) -> dict:
         """Get metrics summary."""
-        summary = {
+        summary: dict[str, Any] = {
             "counters": dict(self._counters),
             "gauges": dict(self._gauges),
-            "histograms": {},
-            "timers": {},
+            "histograms": dict[str, dict[str, float]](),
+            "timers": dict[str, dict[str, float]](),
         }
 
         for name, values in self._histograms.items():

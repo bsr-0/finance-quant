@@ -339,8 +339,7 @@ class _ExperimentTracker:
         self._cost = self._budget._start_tracking(self._experiment_id, self._phase)
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         if self._cost is not None:
             self._cost.primary_metric_value = self.primary_metric_value
             self._budget._stop_tracking(self._experiment_id)
-        return False

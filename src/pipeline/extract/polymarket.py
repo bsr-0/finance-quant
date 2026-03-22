@@ -232,7 +232,7 @@ class PolymarketExtractor:
         for d in [markets_dir, prices_dir, trades_dir, orderbooks_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
-        saved_files = {"markets": [], "prices": [], "trades": [], "orderbooks": []}
+        saved_files: dict[str, list[Path]] = {"markets": [], "prices": [], "trades": [], "orderbooks": []}
 
         # Get markets based on universe mode
         logger.info("Fetching Polymarket markets...")

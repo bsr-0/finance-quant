@@ -60,7 +60,7 @@ class RedditSentimentExtractor:
 
         def _do() -> list[dict]:
             url = f"https://www.reddit.com/r/{subreddit}/{sort}.json"
-            params = {"limit": limit, "raw_json": 1}
+            params: dict[str, str | int] = {"limit": limit, "raw_json": 1}
             if after:
                 params["after"] = after
             resp = self.client.get(url, params=params)
