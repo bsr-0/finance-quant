@@ -97,7 +97,7 @@ def record_pipeline_run(pipeline_name: str, params: dict, status: str = "running
             {
                 "run_id": run_id,
                 "pipeline_name": pipeline_name,
-                "params": params,
+                "params": json.dumps(params, default=str),
                 "status": status,
                 "git_sha": get_git_sha(),
             },
@@ -128,7 +128,7 @@ def update_pipeline_run(
             {
                 "run_id": run_id,
                 "status": status,
-                "row_counts": str(row_counts) if row_counts else None,
+                "row_counts": json.dumps(row_counts, default=str) if row_counts else None,
                 "errors": errors,
             },
         )
