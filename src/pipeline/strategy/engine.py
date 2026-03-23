@@ -477,7 +477,7 @@ class BacktestResult:
 
         # Max drawdown
         peak = eq.cummax()
-        dd = (eq - peak) / peak
+        dd = (eq - peak) / peak.replace(0, np.nan)
         max_dd = dd.min()
 
         # Trade stats

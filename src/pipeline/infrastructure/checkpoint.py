@@ -33,7 +33,7 @@ class CheckpointManager:
 
         checkpoint_path = self._get_checkpoint_path(operation_id)
         with open(checkpoint_path, "w") as f:
-            json.dump(checkpoint, f, indent=2)
+            json.dump(checkpoint, f, indent=2, default=str)
 
         logger.info(f"Saved checkpoint: {checkpoint_path}")
         return checkpoint_path

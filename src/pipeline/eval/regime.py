@@ -11,7 +11,7 @@ def classify_regimes(prices: pd.Series) -> pd.Series:
     prices = prices.dropna()
     ma_200 = prices.rolling(200, min_periods=50).mean()
     peak = prices.cummax()
-    drawdown = (prices - peak) / peak
+    drawdown = (prices - peak) / peak.replace(0, float("nan"))
 
     regime = pd.Series(index=prices.index, dtype="object")
     regime[(prices > ma_200) & (drawdown > -0.10)] = "bull"

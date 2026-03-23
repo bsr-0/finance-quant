@@ -438,7 +438,7 @@ class DataQualityMonitor:
 
         if output_path:
             with open(output_path, "w") as f:
-                json.dump(report, f, indent=2)
+                json.dump(report, f, indent=2, default=str)
 
         return report
 

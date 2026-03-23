@@ -480,7 +480,7 @@ class BacktestRunResult:
         if self.equity_curve.empty:
             return 0.0
         peak = self.equity_curve.cummax()
-        dd = (self.equity_curve - peak) / peak
+        dd = (self.equity_curve - peak) / peak.replace(0, np.nan)
         return float(dd.min())
 
     def summary(self) -> dict[str, float]:

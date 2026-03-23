@@ -500,7 +500,7 @@ def generate_risk_path_report(
     returns = returns.dropna()
     equity = (1 + returns).cumprod()
     peak = equity.cummax()
-    dd_series = (equity - peak) / peak
+    dd_series = (equity - peak) / peak.replace(0, np.nan)
 
     sharpe, sortino = sharpe_sortino(returns)
 
