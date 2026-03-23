@@ -94,8 +94,12 @@ extract-polymarket:
 	python -m pipeline.cli extract polymarket --start 2024-01-01 --end 2024-12-31
 	python -m pipeline.cli load-raw polymarket
 
-extract-all: extract-fred extract-gdelt extract-prices extract-polymarket
-	@echo "✓ All sources extracted"
+# Prices are required; other sources are best-effort (may lack API keys in CI)
+extract-all: extract-prices
+	-$(MAKE) extract-fred
+	-$(MAKE) extract-gdelt
+	-$(MAKE) extract-polymarket
+	@echo "✓ Extraction complete (prices required; other sources best-effort)"
 
 transform:
 	python -m pipeline.cli transform-curated
