@@ -38,6 +38,16 @@ jobs:
           python -m pipeline.cli extract prices --start "$START_DATE" --end "$END_DATE"
           python -m pipeline.cli load-raw prices
 
+      - name: Extract FRED macro data
+        if: ${{ secrets.FRED_API_KEY != '' }}
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          END_DATE=$(date +%Y-%m-%d)
+          START_DATE=$(date -d "-365 days" +%Y-%m-%d)
+          python -m pipeline.cli extract fred --start "$START_DATE" --end "$END_DATE"
+          python -m pipeline.cli load-raw fred
+
       - name: Transform to curated layer
         run: python -m pipeline.cli transform-curated
 
