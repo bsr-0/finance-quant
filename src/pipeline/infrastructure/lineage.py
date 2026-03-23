@@ -180,7 +180,7 @@ class LineageTracker:
                     "target_hash": target_hash,
                     "record_count_source": source_count,
                     "record_count_target": target_count,
-                    "metadata": json.dumps(metadata or {}),
+                    "metadata": json.dumps(metadata or {}, default=str),
                 },
             )
             conn.commit()
