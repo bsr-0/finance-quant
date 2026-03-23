@@ -492,7 +492,7 @@ class BacktestHarness:
 
         # Drawdown
         peak = equity.cummax()
-        dd = (equity - peak) / peak
+        dd = (equity - peak) / peak.replace(0, np.nan)
         max_dd = float(dd.min())
         avg_dd = float(dd.mean())
 

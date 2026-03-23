@@ -164,7 +164,7 @@ class SymbolSnapshotBuilder:
             ORDER BY s.provider_series_code, o.period_end DESC
         """
         results = self.db.run_query(query, {"asof_ts": asof_ts})
-        return {r["series_code"]: r["value"] for r in results}
+        return {r["series_code"]: float(r["value"]) if r["value"] is not None else None for r in results}
 
     def _get_news_counts(self, asof_ts: datetime) -> dict:
         windows = {"1h": timedelta(hours=1), "24h": timedelta(hours=24), "7d": timedelta(days=7)}
@@ -445,8 +445,8 @@ class SymbolSnapshotBuilder:
                     "price_change_7d": snapshot["price_change_7d"],
                     "volume_avg_20d": snapshot["volume_avg_20d"],
                     "volatility_20d": snapshot["volatility_20d"],
-                    "macro_panel": json.dumps(snapshot["macro_panel"]),
-                    "news_counts": json.dumps(snapshot["news_counts"]),
+                    "macro_panel": json.dumps(snapshot["macro_panel"], default=str),
+                    "news_counts": json.dumps(snapshot["news_counts"], default=str),
                     "pe_ratio": snapshot.get("pe_ratio"),
                     "pb_ratio": snapshot.get("pb_ratio"),
                     "debt_to_equity": snapshot.get("debt_to_equity"),

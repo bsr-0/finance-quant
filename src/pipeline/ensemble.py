@@ -122,7 +122,10 @@ class EnsembleBuilder:
             weights = [1.0 / len(components)] * len(components)
         else:
             total = sum(weights)
-            weights = [w / total for w in weights]
+            if total == 0:
+                weights = [1.0 / len(components)] * len(components)
+            else:
+                weights = [w / total for w in weights]
 
         component_fns = [
             (c.train_fn, c.predict_fn, w)

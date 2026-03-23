@@ -272,7 +272,7 @@ class ContractSnapshotBuilder:
         panel: dict[str, float] = {}
         staleness_days: float | None = None
         for row in results:
-            panel[row["series_code"]] = row["value"]
+            panel[row["series_code"]] = float(row["value"]) if row["value"] is not None else None
             period_end = row.get("period_end")
             if period_end:
                 period_dt = pd.to_datetime(period_end).date()
@@ -608,8 +608,8 @@ class ContractSnapshotBuilder:
                     "price_staleness_hours": snapshot.get("price_staleness_hours"),
                     "macro_staleness_days": snapshot.get("macro_staleness_days"),
                     "data_quality_score": snapshot.get("data_quality_score"),
-                    "macro_panel": json.dumps(snapshot["macro_panel"]),
-                    "news_counts": json.dumps(snapshot["news_counts"]),
+                    "macro_panel": json.dumps(snapshot["macro_panel"], default=str),
+                    "news_counts": json.dumps(snapshot["news_counts"], default=str),
                     "event_counts_24h": snapshot["event_counts_24h"],
                     "event_tone_avg": snapshot["event_tone_avg"],
                     "event_time": snapshot["event_time"],

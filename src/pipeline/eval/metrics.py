@@ -105,8 +105,8 @@ def max_drawdown(returns: pd.Series) -> float:
         return np.nan
     equity = (1 + returns).cumprod()
     peak = equity.cummax()
-    dd = (equity - peak) / peak
-    return float(dd.min())
+    dd = (equity - peak) / peak.replace(0, np.nan)
+    return float(dd.min()) if not dd.isna().all() else 0.0
 
 
 def drawdown_recovery_time(returns: pd.Series) -> int | float:

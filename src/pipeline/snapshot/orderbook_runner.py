@@ -75,7 +75,7 @@ class OrderbookSnapshotRunner:
                         "spread": spread,
                         "bids": bids,
                         "asks": asks,
-                        "raw_data": json.dumps(orderbook),
+                        "raw_data": json.dumps(orderbook, default=str),
                         "extracted_at": ts,
                         "run_id": self.run_id,
                     }

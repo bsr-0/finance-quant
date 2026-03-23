@@ -182,7 +182,7 @@ def cornish_fisher_var(
 def drawdown_series(prices: pd.Series) -> pd.Series:
     """Compute running drawdown from peak (as a negative fraction)."""
     peak = prices.expanding().max()
-    return (prices - peak) / peak
+    return (prices - peak) / peak.replace(0, np.nan)
 
 
 def max_drawdown(prices: pd.Series, window: int = 252) -> pd.Series:

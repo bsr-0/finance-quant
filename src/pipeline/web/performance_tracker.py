@@ -206,7 +206,11 @@ class PerformanceTracker:
         preds = self.history.predictions
         total = len(preds)
         if total == 0:
-            return {"total": 0, "active": 0, "resolved": 0, "win_rate": 0.0}
+            return {
+                "total": 0, "active": 0, "resolved": 0, "hit_target": 0,
+                "stopped_out": 0, "expired": 0, "win_rate": 0.0,
+                "avg_pnl_pct": 0.0, "avg_win_pct": 0.0, "avg_loss_pct": 0.0,
+            }
 
         active = sum(1 for p in preds if p["outcome"] == "active")
         hit = sum(1 for p in preds if p["outcome"] == "hit_target")

@@ -67,7 +67,7 @@ def scenario_metrics(returns: pd.Series, scenario: StressScenario) -> dict[str, 
     es = window[window <= var].mean() if (window <= var).any() else float("nan")
     equity = (1 + window).cumprod()
     peak = equity.cummax()
-    dd = (equity - peak) / peak
+    dd = (equity - peak) / peak.replace(0, np.nan)
     is_at_peak = equity >= peak
     groups = is_at_peak.cumsum()
     duration = equity.groupby(groups).cumcount()

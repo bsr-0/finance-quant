@@ -183,7 +183,8 @@ def monte_carlo_simulation(
     max_dds = np.zeros(config.n_simulations)
     for i in range(config.n_simulations):
         peaks = np.maximum.accumulate(equity_paths[i])
-        dd = (equity_paths[i] - peaks) / peaks
+        safe_peaks = np.where(peaks == 0, np.nan, peaks)
+        dd = (equity_paths[i] - peaks) / safe_peaks
         max_dds[i] = dd.min()
 
     # Sharpe ratios per path
@@ -277,8 +278,9 @@ def execution_stress_test(
         equity = initial_capital * np.cumprod(1 + adj_returns)
         final_val = equity[-1]
         peak = np.maximum.accumulate(equity)
-        dd = (equity - peak) / peak
-        max_dd = dd.min()
+        safe_peak = np.where(peak == 0, np.nan, peak)
+        dd = (equity - peak) / safe_peak
+        max_dd = np.nanmin(dd) if not np.all(np.isnan(dd)) else 0.0
         sharpe = (
             adj_returns.mean() / adj_returns.std() * np.sqrt(252)
             if adj_returns.std() > 0
