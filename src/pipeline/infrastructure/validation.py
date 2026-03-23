@@ -81,6 +81,7 @@ class PriceValidator(BaseModel):
     volume: float = Field(..., ge=0)
 
     if PYDANTIC_V2:
+
         @field_validator("high")
         @classmethod
         def high_gte_open(cls, v, info):
@@ -104,7 +105,9 @@ class PriceValidator(BaseModel):
             if "low" in values and "high" in values and (v < values["low"] or v > values["high"]):
                 raise ValueError("close must be between low and high")
             return v
+
     else:
+
         @field_validator("high")
         @classmethod
         def high_gte_open(cls, v, values=None):

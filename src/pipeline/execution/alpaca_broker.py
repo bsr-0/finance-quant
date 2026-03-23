@@ -90,8 +90,7 @@ class AlpacaBroker(BaseBroker):
             from alpaca.trading.client import TradingClient
         except ImportError:
             raise ImportError(
-                "alpaca-py is required for Alpaca broker. "
-                "Install with: pip install alpaca-py"
+                "alpaca-py is required for Alpaca broker. " "Install with: pip install alpaca-py"
             )
 
         self._is_paper = "paper" in base_url.lower()
@@ -110,9 +109,7 @@ class AlpacaBroker(BaseBroker):
         """Create an AlpacaBroker from environment variables."""
         api_key = os.environ.get("ALPACA_API_KEY", "")
         secret_key = os.environ.get("ALPACA_SECRET_KEY", "")
-        base_url = os.environ.get(
-            "ALPACA_BASE_URL", "https://paper-api.alpaca.markets"
-        )
+        base_url = os.environ.get("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
 
         if not api_key or not secret_key:
             raise BrokerError(
@@ -159,7 +156,11 @@ class AlpacaBroker(BaseBroker):
         logger.debug(
             "Account snapshot: equity=$%.2f cash=$%.2f buying_power=$%.2f "
             "positions=$%.2f margin=%s",
-            equity, cash, buying_power, positions_value, is_margin,
+            equity,
+            cash,
+            buying_power,
+            positions_value,
+            is_margin,
         )
 
         return snapshot
@@ -210,10 +211,13 @@ class AlpacaBroker(BaseBroker):
 
             logger.info(
                 "Order submitted: %s %s %.4f %s @ %s → id=%s status=%s",
-                order.side.value, order.symbol, order.qty,
+                order.side.value,
+                order.symbol,
+                order.qty,
                 order.order_type.value,
                 f"${order.limit_price:.2f}" if order.limit_price else "MKT",
-                order.order_id, order.status.value,
+                order.order_id,
+                order.status.value,
             )
 
             return order
@@ -265,15 +269,17 @@ class AlpacaBroker(BaseBroker):
         positions = []
         for p in alpaca_positions:
             qty = float(p.qty)  # type: ignore[union-attr]
-            positions.append(Position(
-                symbol=p.symbol,  # type: ignore[union-attr]
-                qty=qty,
-                market_value=float(p.market_value),  # type: ignore[union-attr, arg-type]
-                avg_entry_price=float(p.avg_entry_price),  # type: ignore[union-attr]
-                current_price=float(p.current_price),  # type: ignore[union-attr, arg-type]
-                unrealised_pnl=float(p.unrealized_pl),  # type: ignore[union-attr, arg-type]
-                side="long" if qty > 0 else "short",
-            ))
+            positions.append(
+                Position(
+                    symbol=p.symbol,  # type: ignore[union-attr]
+                    qty=qty,
+                    market_value=float(p.market_value),  # type: ignore[union-attr, arg-type]
+                    avg_entry_price=float(p.avg_entry_price),  # type: ignore[union-attr]
+                    current_price=float(p.current_price),  # type: ignore[union-attr, arg-type]
+                    unrealised_pnl=float(p.unrealized_pl),  # type: ignore[union-attr, arg-type]
+                    side="long" if qty > 0 else "short",
+                )
+            )
 
         return positions
 
@@ -306,14 +312,16 @@ class AlpacaBroker(BaseBroker):
         for r in results:
             if hasattr(r, "body") and hasattr(r.body, "id"):
                 body = r.body
-                orders.append(Order(
-                    symbol=str(body.symbol) if hasattr(body, "symbol") else "UNKNOWN",
-                    side=OrderSide.SELL,
-                    order_type=OrderType.MARKET,
-                    qty=float(body.qty) if hasattr(body, "qty") and body.qty else 0.0,
-                    order_id=str(body.id),
-                    status=OrderStatus.SUBMITTED,
-                ))
+                orders.append(
+                    Order(
+                        symbol=str(body.symbol) if hasattr(body, "symbol") else "UNKNOWN",
+                        side=OrderSide.SELL,
+                        order_type=OrderType.MARKET,
+                        qty=float(body.qty) if hasattr(body, "qty") and body.qty else 0.0,
+                        order_id=str(body.id),
+                        status=OrderStatus.SUBMITTED,
+                    )
+                )
 
         logger.critical("Submitted %d close-all orders", len(orders))
         return orders

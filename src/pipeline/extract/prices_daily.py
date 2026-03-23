@@ -31,6 +31,7 @@ _DELISTING_GAP_DAYS = 30
 # Corporate actions adjustment
 # ---------------------------------------------------------------------------
 
+
 def adjust_for_corporate_actions(df: pd.DataFrame) -> pd.DataFrame:
     """Adjust OHLCV prices for stock splits and dividends.
 
@@ -105,6 +106,7 @@ def _parse_split_ratio(raw: str | float) -> float:
 # ---------------------------------------------------------------------------
 # Yahoo Finance extractor
 # ---------------------------------------------------------------------------
+
 
 class YahooFinanceExtractor:
     """Extract price data from Yahoo Finance."""
@@ -255,6 +257,7 @@ class YahooFinanceExtractor:
 # Alpaca extractor
 # ---------------------------------------------------------------------------
 
+
 class AlpacaPriceExtractor:
     """Extract historical price data from Alpaca Markets data API."""
 
@@ -262,15 +265,9 @@ class AlpacaPriceExtractor:
 
     def __init__(self, api_key: str | None = None, secret_key: str | None = None):
         settings = get_settings().prices
-        self._api_key = (
-            api_key
-            or settings.alpaca_api_key
-            or os.environ.get("ALPACA_API_KEY", "")
-        )
+        self._api_key = api_key or settings.alpaca_api_key or os.environ.get("ALPACA_API_KEY", "")
         self._secret_key = (
-            secret_key
-            or settings.alpaca_secret_key
-            or os.environ.get("ALPACA_SECRET_KEY", "")
+            secret_key or settings.alpaca_secret_key or os.environ.get("ALPACA_SECRET_KEY", "")
         )
         if not self._api_key or not self._secret_key:
             raise ValueError(
@@ -336,10 +333,16 @@ class AlpacaPriceExtractor:
             return pd.DataFrame()
 
         df = pd.DataFrame(bars)
-        df = df.rename(columns={
-            "t": "date", "o": "open", "h": "high",
-            "l": "low", "c": "close", "v": "volume",
-        })
+        df = df.rename(
+            columns={
+                "t": "date",
+                "o": "open",
+                "h": "high",
+                "l": "low",
+                "c": "close",
+                "v": "volume",
+            }
+        )
         df["date"] = pd.to_datetime(df["date"]).dt.date
         df["adj_close"] = df["close"]
         df["ticker"] = ticker
@@ -347,8 +350,18 @@ class AlpacaPriceExtractor:
         df["dividend"] = 0.0
 
         # Drop extra Alpaca columns
-        keep_cols = ["date", "open", "high", "low", "close", "volume",
-                     "adj_close", "ticker", "split_ratio", "dividend"]
+        keep_cols = [
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "adj_close",
+            "ticker",
+            "split_ratio",
+            "dividend",
+        ]
         df = df[[c for c in keep_cols if c in df.columns]]
         df = df.dropna(subset=["open", "high", "low", "close"])
 
@@ -396,6 +409,7 @@ class AlpacaPriceExtractor:
 # Polygon extractor
 # ---------------------------------------------------------------------------
 
+
 class PolygonPriceExtractor:
     """Extract historical price data from Polygon.io."""
 
@@ -403,11 +417,7 @@ class PolygonPriceExtractor:
 
     def __init__(self, api_key: str | None = None):
         settings = get_settings().prices
-        self._api_key = (
-            api_key
-            or settings.polygon_api_key
-            or os.environ.get("POLYGON_API_KEY", "")
-        )
+        self._api_key = api_key or settings.polygon_api_key or os.environ.get("POLYGON_API_KEY", "")
         if not self._api_key:
             raise ValueError(
                 "Polygon API key required. Set POLYGON_API_KEY environment "
@@ -455,18 +465,34 @@ class PolygonPriceExtractor:
             return pd.DataFrame()
 
         df = pd.DataFrame(results)
-        df = df.rename(columns={
-            "t": "date_ts", "o": "open", "h": "high",
-            "l": "low", "c": "close", "v": "volume",
-        })
+        df = df.rename(
+            columns={
+                "t": "date_ts",
+                "o": "open",
+                "h": "high",
+                "l": "low",
+                "c": "close",
+                "v": "volume",
+            }
+        )
         df["date"] = pd.to_datetime(df["date_ts"], unit="ms").dt.date
         df["adj_close"] = df["close"]
         df["ticker"] = ticker
         df["split_ratio"] = None
         df["dividend"] = 0.0
 
-        keep_cols = ["date", "open", "high", "low", "close", "volume",
-                     "adj_close", "ticker", "split_ratio", "dividend"]
+        keep_cols = [
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "adj_close",
+            "ticker",
+            "split_ratio",
+            "dividend",
+        ]
         df = df[[c for c in keep_cols if c in df.columns]]
         df = df.dropna(subset=["open", "high", "low", "close"])
 
@@ -513,6 +539,7 @@ class PolygonPriceExtractor:
 # ---------------------------------------------------------------------------
 # Delisting detection
 # ---------------------------------------------------------------------------
+
 
 def detect_delisted_symbols(prices_dir: Path) -> dict[str, date]:
     """Detect potentially delisted symbols from extracted price data.
@@ -571,8 +598,7 @@ def _create_extractor(source: str):
     cls = _EXTRACTOR_CLASSES.get(source)
     if cls is None:
         raise ValueError(
-            f"Unsupported price source: {source!r}. "
-            f"Supported: {', '.join(_EXTRACTOR_CLASSES)}"
+            f"Unsupported price source: {source!r}. " f"Supported: {', '.join(_EXTRACTOR_CLASSES)}"
         )
     return cls()
 
@@ -580,6 +606,7 @@ def _create_extractor(source: str):
 # ---------------------------------------------------------------------------
 # Main PriceExtractor with fallback
 # ---------------------------------------------------------------------------
+
 
 class PriceExtractor:
     """Generic price extractor with automatic fallback and corporate-action adjustment."""
@@ -596,9 +623,7 @@ class PriceExtractor:
         if self.fallback_source:
             try:
                 self._fallback_extractor = _create_extractor(self.fallback_source)
-                logger.info(
-                    f"Price fallback configured: {self.source} -> {self.fallback_source}"
-                )
+                logger.info(f"Price fallback configured: {self.source} -> {self.fallback_source}")
             except Exception as e:
                 logger.warning(f"Could not initialise fallback source {self.fallback_source}: {e}")
 

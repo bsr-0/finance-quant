@@ -20,6 +20,7 @@ _SQRT_252 = np.sqrt(_TRADING_DAYS_PER_YEAR)
 # Realized Volatility Estimators
 # ---------------------------------------------------------------------------
 
+
 def close_to_close_vol(close: pd.Series, window: int = 20) -> pd.Series:
     """Classical close-to-close realized volatility (annualised)."""
     log_ret = np.log(close / close.shift(1))
@@ -33,7 +34,7 @@ def parkinson_vol(high: pd.Series, low: pd.Series, window: int = 20) -> pd.Serie
     """
     log_hl = np.log(high / low)
     factor = 1.0 / (4.0 * np.log(2))
-    daily_var = factor * log_hl ** 2
+    daily_var = factor * log_hl**2
     return np.sqrt(daily_var.rolling(window, min_periods=2).mean() * _TRADING_DAYS_PER_YEAR)
 
 
@@ -50,7 +51,7 @@ def garman_klass_vol(
     """
     log_hl = np.log(high / low)
     log_co = np.log(close / open_)
-    daily_var = 0.5 * log_hl ** 2 - (2 * np.log(2) - 1) * log_co ** 2
+    daily_var = 0.5 * log_hl**2 - (2 * np.log(2) - 1) * log_co**2
     return np.sqrt(daily_var.rolling(window, min_periods=2).mean() * _TRADING_DAYS_PER_YEAR)
 
 
@@ -93,6 +94,7 @@ def ewma_vol(close: pd.Series, span: int = 60) -> pd.Series:
 # ---------------------------------------------------------------------------
 # Value-at-Risk / Conditional VaR
 # ---------------------------------------------------------------------------
+
 
 def historical_var(
     returns: pd.Series,
@@ -165,10 +167,9 @@ def cornish_fisher_var(
     kurt = returns.rolling(window, min_periods=60).kurt()  # excess kurtosis
 
     # Cornish-Fisher expansion
-    z_cf = (z
-            + (z**2 - 1) * skew / 6
-            + (z**3 - 3 * z) * kurt / 24
-            - (2 * z**3 - 5 * z) * skew**2 / 36)
+    z_cf = (
+        z + (z**2 - 1) * skew / 6 + (z**3 - 3 * z) * kurt / 24 - (2 * z**3 - 5 * z) * skew**2 / 36
+    )
 
     return mu + z_cf * sigma
 
@@ -176,6 +177,7 @@ def cornish_fisher_var(
 # ---------------------------------------------------------------------------
 # Drawdown Analysis
 # ---------------------------------------------------------------------------
+
 
 def drawdown_series(prices: pd.Series) -> pd.Series:
     """Compute running drawdown from peak (as a negative fraction)."""
@@ -202,6 +204,7 @@ def drawdown_duration(prices: pd.Series) -> pd.Series:
 # Risk-adjusted Performance Ratios
 # ---------------------------------------------------------------------------
 
+
 def sharpe_ratio(
     returns: pd.Series,
     risk_free_rate: float = 0.0,
@@ -224,7 +227,7 @@ def sortino_ratio(
 
     def _downside_std(x: pd.Series) -> float:
         neg = x[x < 0]
-        return np.sqrt((neg ** 2).mean()) if len(neg) > 0 else np.nan
+        return np.sqrt((neg**2).mean()) if len(neg) > 0 else np.nan
 
     mu = excess.rolling(window, min_periods=20).mean()
     ds = excess.rolling(window, min_periods=20).apply(_downside_std, raw=False)
@@ -242,6 +245,7 @@ def calmar_ratio(prices: pd.Series, window: int = 252) -> pd.Series:
 # ---------------------------------------------------------------------------
 # Higher Moments
 # ---------------------------------------------------------------------------
+
 
 def rolling_skewness(returns: pd.Series, window: int = 60) -> pd.Series:
     """Rolling skewness of returns.
@@ -267,6 +271,7 @@ def rolling_kurtosis(returns: pd.Series, window: int = 120) -> pd.Series:
 # ---------------------------------------------------------------------------
 # Trend / Mean-Reversion Detection
 # ---------------------------------------------------------------------------
+
 
 def hurst_exponent(prices: pd.Series, max_lag: int = 100) -> float:
     """Estimate the Hurst exponent via the aggregated variance method.
@@ -297,6 +302,7 @@ def hurst_exponent(prices: pd.Series, max_lag: int = 100) -> float:
 # ---------------------------------------------------------------------------
 # Convenience: calculate all risk metrics for a price DataFrame
 # ---------------------------------------------------------------------------
+
 
 def calculate_risk_metrics(
     df: pd.DataFrame,

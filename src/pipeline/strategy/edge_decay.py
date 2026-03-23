@@ -135,7 +135,9 @@ class EdgeDecayMonitor:
             if self._inception_hit_rate is None and len(self._signal_hits) >= self.min_trades:
                 self._inception_hit_rate = sum(self._signal_hits) / len(self._signal_hits)
             if self._inception_hit_rate is not None and self._inception_hit_rate > 0:
-                decay = (self._inception_hit_rate - metrics.signal_hit_rate) / self._inception_hit_rate
+                decay = (
+                    self._inception_hit_rate - metrics.signal_hit_rate
+                ) / self._inception_hit_rate
                 if decay > self.hit_rate_decay_pct:
                     breaches.append(
                         f"signal_hit_rate decay={decay:.0%} > {self.hit_rate_decay_pct:.0%}"
@@ -155,9 +157,7 @@ class EdgeDecayMonitor:
             equity_series = pd.Series(self._equity_curve[-252:])
             metrics.equity_hurst = hurst_exponent(equity_series)
             if not np.isnan(metrics.equity_hurst) and metrics.equity_hurst < self.hurst_floor:
-                breaches.append(
-                    f"equity_hurst={metrics.equity_hurst:.2f} < {self.hurst_floor}"
-                )
+                breaches.append(f"equity_hurst={metrics.equity_hurst:.2f} < {self.hurst_floor}")
 
         # --- Determine alert level ---
         metrics.breached_count = len(breaches)
@@ -166,11 +166,15 @@ class EdgeDecayMonitor:
         if len(breaches) >= 3:
             # Check if sustained
             self._breach_history.append(len(breaches))
-            sustained_months = sum(1 for b in self._breach_history[-self.red_months:] if b >= 3)
+            sustained_months = sum(1 for b in self._breach_history[-self.red_months :] if b >= 3)
             if sustained_months >= self.red_months:
                 metrics.alert_level = AlertLevel.RED
-                logger.critical("EDGE DECAY RED: %d metrics breached for %d months: %s",
-                                len(breaches), sustained_months, breaches)
+                logger.critical(
+                    "EDGE DECAY RED: %d metrics breached for %d months: %s",
+                    len(breaches),
+                    sustained_months,
+                    breaches,
+                )
                 notify(
                     AlertSeverity.CRITICAL,
                     "Edge Decay RED — Strategy Shutdown",
@@ -179,7 +183,9 @@ class EdgeDecayMonitor:
                 )
             else:
                 metrics.alert_level = AlertLevel.ORANGE
-                logger.warning("EDGE DECAY ORANGE: %d metrics breached: %s", len(breaches), breaches)
+                logger.warning(
+                    "EDGE DECAY ORANGE: %d metrics breached: %s", len(breaches), breaches
+                )
                 notify(
                     AlertSeverity.WARNING,
                     "Edge Decay ORANGE",
