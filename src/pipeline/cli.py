@@ -1501,6 +1501,9 @@ def daily_predictions(
                 df = pd.DataFrame(rows)
                 df["date"] = pd.to_datetime(df["date"])
                 df = df.set_index("date").sort_index()
+                for col in ("open", "high", "low", "close", "volume"):
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
                 if len(df) >= 50:  # Need enough data for indicators
                     price_data[ticker] = df
                 else:
