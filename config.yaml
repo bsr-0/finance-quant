@@ -96,6 +96,20 @@ prices:
     - IWM
     - VTI
     - VOO
+    - DIA    # Dow Jones (daily-predictions ETF)
+    - XLF    # Financials
+    - XLK    # Technology
+    - XLE    # Energy
+    - XLV    # Healthcare
+    - XLI    # Industrials
+    - XLC    # Communication Services
+    - XLY    # Consumer Discretionary
+    - XLP    # Consumer Staples
+    - XLB    # Materials
+    - XLU    # Utilities
+    - XLRE   # Real Estate
+    - TLT    # 20+ Year Treasury
+    - GLD    # Gold
     - AAPL
     - MSFT
     - GOOGL
