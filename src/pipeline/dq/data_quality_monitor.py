@@ -384,7 +384,7 @@ class DataQualityMonitor:
                         "check_name": alert.check_name,
                         "severity": alert.severity.value,
                         "message": alert.message,
-                        "details": json.dumps(alert.details),
+                        "details": json.dumps(alert.details, default=str),
                     },
                 )
             conn.commit()
