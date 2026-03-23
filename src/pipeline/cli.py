@@ -1490,8 +1490,12 @@ def daily_predictions(
     for ticker in universe:
         try:
             rows = db.run_query(
-                f"SELECT date, open, high, low, close, volume FROM cur_prices_daily "
-                f"WHERE symbol = '{ticker}' ORDER BY date DESC LIMIT {lookback}"
+                "SELECT p.date, p.open, p.high, p.low, p.close, p.volume "
+                "FROM cur_prices_ohlcv_daily p "
+                "JOIN dim_symbol s ON p.symbol_id = s.symbol_id "
+                "WHERE s.ticker = :ticker "
+                "ORDER BY p.date DESC LIMIT :lookback",
+                {"ticker": ticker, "lookback": lookback},
             )
             if rows:
                 df = pd.DataFrame(rows)
