@@ -126,11 +126,11 @@ class AlpacaBroker(BaseBroker):
         except Exception as e:
             raise BrokerError(f"Failed to fetch Alpaca account: {_sanitize_error(e)}")
 
-        equity = float(acct.equity)  # type: ignore[arg-type]
-        cash = float(acct.cash)  # type: ignore[arg-type]
-        buying_power = float(acct.buying_power)  # type: ignore[arg-type]
-        long_value = float(acct.long_market_value)  # type: ignore[arg-type]
-        short_value = float(acct.short_market_value)  # type: ignore[arg-type]
+        equity = float(acct.equity)  # type: ignore[arg-type, union-attr]
+        cash = float(acct.cash)  # type: ignore[arg-type, union-attr]
+        buying_power = float(acct.buying_power)  # type: ignore[arg-type, union-attr]
+        long_value = float(acct.long_market_value)  # type: ignore[arg-type, union-attr]
+        short_value = float(acct.short_market_value)  # type: ignore[arg-type, union-attr]
         positions_value = long_value + abs(short_value)
 
         # Determine margin status
