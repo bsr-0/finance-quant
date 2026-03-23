@@ -58,18 +58,29 @@ class FredSettings(BaseSettings):
     series_codes: list[str] = Field(
         default_factory=lambda: [
             # Core macro indicators
-            "GDP", "UNRATE", "CPIAUCSL", "FEDFUNDS", "T10Y2Y", "VIXCLS",
-            "DGS10", "DGS2", "TB3MS",
+            "GDP",
+            "UNRATE",
+            "CPIAUCSL",
+            "FEDFUNDS",
+            "T10Y2Y",
+            "VIXCLS",
+            "DGS10",
+            "DGS2",
+            "TB3MS",
             # Credit spreads
-            "BAMLH0A0HYM2", "BAMLC0A4CBBB",
+            "BAMLH0A0HYM2",
+            "BAMLC0A4CBBB",
             # Housing
-            "HOUST", "CSUSHPISA",
+            "HOUST",
+            "CSUSHPISA",
             # Labor market
-            "ICSA", "PAYEMS",
+            "ICSA",
+            "PAYEMS",
             # Money supply
             "M2SL",
             # Commodities
-            "DCOILWTICO", "GOLDAMGBD228NLBM",
+            "DCOILWTICO",
+            "GOLDAMGBD228NLBM",
             # Dollar index
             "DTWEXBGS",
             # Financial conditions
@@ -77,9 +88,14 @@ class FredSettings(BaseSettings):
             # Leading indicators
             "USSLIND",
             # Inflation expectations
-            "T5YIE", "T10YIE",
+            "T5YIE",
+            "T10YIE",
             # FX rates (major pairs)
-            "DEXUSEU", "DEXJPUS", "DEXUSUK", "DEXCHUS", "DEXCAUS",
+            "DEXUSEU",
+            "DEXJPUS",
+            "DEXUSUK",
+            "DEXCHUS",
+            "DEXCAUS",
         ]
     )
     enabled: bool = True
@@ -152,28 +168,42 @@ class SecEdgarSettings(BaseSettings):
 
     enabled: bool = True
     rate_limit_delay: float = 0.12  # SEC asks for <=10 req/s
-    cusip_mapping: dict[str, str] = Field(default_factory=lambda: {
-        "AAPL": "037833100", "MSFT": "594918104", "GOOGL": "02079K305",
-        "AMZN": "023135106", "META": "30303M102", "TSLA": "88160R101",
-        "NVDA": "67066G104", "JPM": "46625H100", "JNJ": "478160104",
-        "V": "92826C839", "WMT": "931142103", "PG": "742718109",
-        "UNH": "91324P102", "HD": "437076102", "MA": "57636Q104",
-    })
-    fundamentals_metrics: list[str] = Field(default_factory=lambda: [
-        "Revenues",
-        "NetIncomeLoss",
-        "EarningsPerShareBasic",
-        "EarningsPerShareDiluted",
-        "Assets",
-        "Liabilities",
-        "StockholdersEquity",
-        "LongTermDebt",
-        "CashAndCashEquivalentsAtCarryingValue",
-        "OperatingIncomeLoss",
-        "GrossProfit",
-        "NetCashProvidedByUsedInOperatingActivities",
-        "CommonStockSharesOutstanding",
-    ])
+    cusip_mapping: dict[str, str] = Field(
+        default_factory=lambda: {
+            "AAPL": "037833100",
+            "MSFT": "594918104",
+            "GOOGL": "02079K305",
+            "AMZN": "023135106",
+            "META": "30303M102",
+            "TSLA": "88160R101",
+            "NVDA": "67066G104",
+            "JPM": "46625H100",
+            "JNJ": "478160104",
+            "V": "92826C839",
+            "WMT": "931142103",
+            "PG": "742718109",
+            "UNH": "91324P102",
+            "HD": "437076102",
+            "MA": "57636Q104",
+        }
+    )
+    fundamentals_metrics: list[str] = Field(
+        default_factory=lambda: [
+            "Revenues",
+            "NetIncomeLoss",
+            "EarningsPerShareBasic",
+            "EarningsPerShareDiluted",
+            "Assets",
+            "Liabilities",
+            "StockholdersEquity",
+            "LongTermDebt",
+            "CashAndCashEquivalentsAtCarryingValue",
+            "OperatingIncomeLoss",
+            "GrossProfit",
+            "NetCashProvidedByUsedInOperatingActivities",
+            "CommonStockSharesOutstanding",
+        ]
+    )
 
 
 class OptionsSettings(BaseSettings):
@@ -221,13 +251,31 @@ class EtfFlowsSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="ETF_FLOWS_")
 
     enabled: bool = True
-    etf_universe: list[str] = Field(default_factory=lambda: [
-        "SPY", "QQQ", "IWM", "VTI", "VOO",
-        "XLF", "XLK", "XLE", "XLV", "XLI",
-        "TLT", "IEF", "SHY", "LQD", "HYG",
-        "GLD", "SLV", "USO",
-        "EEM", "EFA", "VWO",
-    ])
+    etf_universe: list[str] = Field(
+        default_factory=lambda: [
+            "SPY",
+            "QQQ",
+            "IWM",
+            "VTI",
+            "VOO",
+            "XLF",
+            "XLK",
+            "XLE",
+            "XLV",
+            "XLI",
+            "TLT",
+            "IEF",
+            "SHY",
+            "LQD",
+            "HYG",
+            "GLD",
+            "SLV",
+            "USO",
+            "EEM",
+            "EFA",
+            "VWO",
+        ]
+    )
 
 
 class ExecutionSettings(BaseSettings):
@@ -428,9 +476,7 @@ class EnsembleSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="ENSEMBLE_")
 
     top_n_models: int = 5
-    methods: list[str] = Field(
-        default_factory=lambda: ["weighted_average", "greedy", "stacking"]
-    )
+    methods: list[str] = Field(default_factory=lambda: ["weighted_average", "greedy", "stacking"])
     meta_learner_family: str = "ridge"
     calibration_method: str = "isotonic"
     calibration_fraction: float = 0.2

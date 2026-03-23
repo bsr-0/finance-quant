@@ -49,49 +49,48 @@ class DataQualityMonitor:
         """Ensure monitoring tables exist."""
         from sqlalchemy import text
 
+        is_duckdb = self.db.backend == "duckdb"
+        json_type = "JSON" if is_duckdb else "JSONB"
+        uuid_fn = "uuid()" if is_duckdb else "gen_random_uuid()"
+        fk_clause = "" if is_duckdb else " REFERENCES meta_data_quality_checks(check_id)"
+
         with self.db.engine.connect() as conn:
-            conn.execute(
-                text("""
+            conn.execute(text(f"""
                 CREATE TABLE IF NOT EXISTS meta_data_quality_checks (
-                    check_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    check_id UUID PRIMARY KEY DEFAULT {uuid_fn},
                     table_name VARCHAR(100) NOT NULL,
                     check_name VARCHAR(100) NOT NULL,
                     check_type VARCHAR(50) NOT NULL,
                     threshold_value NUMERIC,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
-            """)
-            )
+            """))
 
-            conn.execute(
-                text("""
+            conn.execute(text(f"""
                 CREATE TABLE IF NOT EXISTS meta_data_quality_alerts (
-                    alert_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    check_id UUID REFERENCES meta_data_quality_checks(check_id),
+                    alert_id UUID PRIMARY KEY DEFAULT {uuid_fn},
+                    check_id UUID{fk_clause},
                     table_name VARCHAR(100) NOT NULL,
                     check_name VARCHAR(100) NOT NULL,
                     severity VARCHAR(20) NOT NULL,
                     message TEXT NOT NULL,
-                    details JSONB,
+                    details {json_type},
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     resolved_at TIMESTAMPTZ,
                     resolved_by VARCHAR(100)
                 )
-            """)
-            )
+            """))
 
-            conn.execute(
-                text("""
+            conn.execute(text(f"""
                 CREATE TABLE IF NOT EXISTS meta_data_quality_metrics (
-                    metric_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    metric_id UUID PRIMARY KEY DEFAULT {uuid_fn},
                     table_name VARCHAR(100) NOT NULL,
                     metric_name VARCHAR(100) NOT NULL,
                     metric_value NUMERIC,
                     sample_size INTEGER,
                     recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
-            """)
-            )
+            """))
 
             conn.commit()
 
@@ -122,7 +121,12 @@ class DataQualityMonitor:
         if isinstance(latest_ts, str):
             latest_ts = datetime.fromisoformat(latest_ts.replace("Z", "+00:00"))
 
-        age_hours = (datetime.now(timezone.utc) - latest_ts.replace(tzinfo=None)).total_seconds() / 3600
+        # Ensure both are tz-aware for subtraction
+        if latest_ts.tzinfo is None:
+            latest_ts = latest_ts.replace(tzinfo=timezone.utc)
+        age_hours = (
+            datetime.now(timezone.utc) - latest_ts
+        ).total_seconds() / 3600
 
         if age_hours > max_age_hours:
             severity = Severity.CRITICAL if age_hours > max_age_hours * 2 else Severity.WARNING
