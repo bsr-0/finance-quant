@@ -41,6 +41,43 @@ jobs:
       - name: Transform to curated layer
         run: python -m pipeline.cli transform-curated
 
+      - name: Validate price data coverage
+        run: |
+          python -c "
+          from pipeline.database import get_db
+          db = get_db()
+          rows = db.run_query('SELECT ticker FROM dim_symbol ORDER BY ticker')
+          tickers_in_db = {r[\"ticker\"] for r in rows}
+
+          import yaml
+          cfg = yaml.safe_load(open('config.yaml'))
+          pred_universe = set(cfg['daily_predictions']['universe'])
+          extract_universe = set(cfg['prices']['universe'])
+
+          missing_extract = pred_universe - extract_universe
+          if missing_extract:
+              print(f'::error::Prediction universe tickers not in extraction universe: {sorted(missing_extract)}')
+
+          missing_db = pred_universe - tickers_in_db
+          if missing_db:
+              print(f'::warning::Prediction universe tickers not in dim_symbol: {sorted(missing_db)}')
+
+          # Check row counts for each prediction ticker
+          for t in sorted(pred_universe):
+              count_rows = db.run_query(
+                  'SELECT COUNT(*) as n FROM cur_prices_ohlcv_daily p '
+                  'JOIN dim_symbol s ON p.symbol_id = s.symbol_id '
+                  'WHERE s.ticker = :ticker',
+                  {'ticker': t},
+              )
+              n = count_rows[0]['n'] if count_rows else 0
+              status = 'ok' if n >= 200 else ('low' if n > 0 else 'MISSING')
+              print(f'  {t:6s}: {n:>5d} rows [{status}]')
+
+          if missing_extract:
+              raise SystemExit(1)
+          "
+
       - name: Generate signals and build site
         run: python -m pipeline.cli daily-predictions
 
