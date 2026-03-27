@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -94,7 +94,7 @@ def build_static_site(
     env.filters["outcome_class"] = _outcome_class
     env.filters["score_class"] = _score_class
     env.filters["pnl_class"] = _pnl_class
-    env.globals["now"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    env.globals["now"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     # Load latest signals
     latest_csv = _find_latest_signal_csv(signals_dir)

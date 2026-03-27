@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -75,7 +75,7 @@ class PerformanceTracker:
 
     def save(self) -> None:
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
-        self.history.last_updated = datetime.utcnow().isoformat()
+        self.history.last_updated = datetime.now(timezone.utc).isoformat()
         self.history_path.write_text(
             json.dumps(self.history.to_dict(), indent=2, default=str)
         )
@@ -156,8 +156,21 @@ class PerformanceTracker:
                 low = bar.get("low", bar.get("close", 0))
                 close = bar["close"]
 
-                # Check stop hit (low touches stop)
-                if low <= stop_price:
+                stop_hit = low <= stop_price
+                target_hit = high >= target_price
+
+                if stop_hit and target_hit:
+                    # Both hit on same bar — use open to decide which came first.
+                    # If open is closer to stop (opened low), assume stop hit first;
+                    # otherwise assume target hit first.
+                    bar_open = bar.get("open", close)
+                    stop_first = abs(bar_open - stop_price) < abs(bar_open - target_price)
+                    if stop_first:
+                        stop_hit, target_hit = True, False
+                    else:
+                        stop_hit, target_hit = False, True
+
+                if stop_hit:
                     pred["outcome"] = "stopped_out"
                     pred["resolved_date"] = str(bar_date.date())
                     pred["resolved_price"] = stop_price
@@ -169,8 +182,7 @@ class PerformanceTracker:
                     resolved = True
                     break
 
-                # Check target hit (high touches target)
-                if high >= target_price:
+                if target_hit:
                     pred["outcome"] = "hit_target"
                     pred["resolved_date"] = str(bar_date.date())
                     pred["resolved_price"] = target_price

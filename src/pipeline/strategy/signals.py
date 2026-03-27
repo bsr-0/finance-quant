@@ -164,7 +164,7 @@ class SignalEngine:
             if macd_hist > macd_prev:
                 volatility += 5
         wr = row.get("williams_r", -50)
-        if not np.isnan(wr) and wr > -80:
+        if not np.isnan(wr) and wr < -80:
             volatility += 5
 
         total = trend + pullback + volume + volatility
