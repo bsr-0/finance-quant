@@ -21,12 +21,17 @@ from pipeline.execution.trade_journal import TradeJournal
 # Trade journal tests
 # ---------------------------------------------------------------------------
 
+
 class TestTradeJournal:
     def test_record_order(self, tmp_path):
         journal = TradeJournal(journal_dir=tmp_path)
         order = Order(
-            symbol="AAPL", side=OrderSide.BUY, order_type=OrderType.LIMIT,
-            qty=2.0, limit_price=150.0, order_id="ord-1",
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=2.0,
+            limit_price=150.0,
+            order_id="ord-1",
             status=OrderStatus.SUBMITTED,
         )
         journal.record_order(order, signal_score=75, signal_regime="BULL")
@@ -41,9 +46,15 @@ class TestTradeJournal:
     def test_record_fill(self, tmp_path):
         journal = TradeJournal(journal_dir=tmp_path)
         order = Order(
-            symbol="AAPL", side=OrderSide.BUY, order_type=OrderType.LIMIT,
-            qty=2.0, limit_price=150.0, order_id="ord-1",
-            status=OrderStatus.FILLED, filled_qty=2.0, filled_avg_price=149.95,
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=2.0,
+            limit_price=150.0,
+            order_id="ord-1",
+            status=OrderStatus.FILLED,
+            filled_qty=2.0,
+            filled_avg_price=149.95,
         )
         journal.record_fill(order)
 
@@ -55,8 +66,12 @@ class TestTradeJournal:
     def test_record_exit(self, tmp_path):
         journal = TradeJournal(journal_dir=tmp_path)
         journal.record_exit(
-            symbol="AAPL", reason="stop_loss",
-            exit_price=145.0, pnl=-10.0, shares=2, order_id="exit-1",
+            symbol="AAPL",
+            reason="stop_loss",
+            exit_price=145.0,
+            pnl=-10.0,
+            shares=2,
+            order_id="exit-1",
         )
 
         entries = journal.read_journal()
@@ -68,7 +83,8 @@ class TestTradeJournal:
     def test_record_guard_rejection(self, tmp_path):
         journal = TradeJournal(journal_dir=tmp_path)
         journal.record_guard_rejection(
-            symbol="TSLA", checks_failed=["max_capital_check", "buying_power_check"],
+            symbol="TSLA",
+            checks_failed=["max_capital_check", "buying_power_check"],
         )
 
         entries = journal.read_journal()
@@ -79,8 +95,12 @@ class TestTradeJournal:
     def test_record_rejection(self, tmp_path):
         journal = TradeJournal(journal_dir=tmp_path)
         order = Order(
-            symbol="AAPL", side=OrderSide.BUY, order_type=OrderType.MARKET,
-            qty=1.0, order_id="rej-1", status=OrderStatus.REJECTED,
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            qty=1.0,
+            order_id="rej-1",
+            status=OrderStatus.REJECTED,
             reject_reason="Insufficient funds",
         )
         journal.record_rejection(order)
@@ -94,9 +114,12 @@ class TestTradeJournal:
         journal = TradeJournal(journal_dir=tmp_path)
         for i in range(5):
             order = Order(
-                symbol=f"SYM{i}", side=OrderSide.BUY,
-                order_type=OrderType.MARKET, qty=1.0,
-                order_id=f"ord-{i}", status=OrderStatus.SUBMITTED,
+                symbol=f"SYM{i}",
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                qty=1.0,
+                order_id=f"ord-{i}",
+                status=OrderStatus.SUBMITTED,
             )
             journal.record_order(order)
 
@@ -118,6 +141,7 @@ class TestTradeJournal:
 # Fill polling tests (uses MockBroker)
 # ---------------------------------------------------------------------------
 
+
 class MockBroker(BaseBroker):
     """Mock broker with configurable fill behavior."""
 
@@ -133,8 +157,12 @@ class MockBroker(BaseBroker):
 
     def get_account_snapshot(self) -> AccountSnapshot:
         return AccountSnapshot(
-            equity=self._equity, cash=self._equity, buying_power=self._equity,
-            positions_market_value=0, position_count=0, is_margin_account=False,
+            equity=self._equity,
+            cash=self._equity,
+            buying_power=self._equity,
+            positions_market_value=0,
+            position_count=0,
+            is_margin_account=False,
         )
 
     def submit_order(self, order: Order) -> Order:
@@ -165,8 +193,11 @@ class MockBroker(BaseBroker):
     def get_positions(self) -> list[Position]:
         return []
 
-    def close_position(self, symbol): raise NotImplementedError
-    def close_all_positions(self): return []
+    def close_position(self, symbol):
+        raise NotImplementedError
+
+    def close_all_positions(self):
+        return []
 
 
 class TestFillPolling:
@@ -174,15 +205,19 @@ class TestFillPolling:
         broker = MockBroker(fill_on_poll=2)
         config = CapitalGuardConfig(max_capital=400)
         executor = SignalExecutor(
-            broker=broker, guard_config=config,
+            broker=broker,
+            guard_config=config,
             fill_poll_interval=0,  # No sleep in tests
             fill_poll_timeout=10,
         )
 
         # Manually submit an order
         order = Order(
-            symbol="AAPL", side=OrderSide.BUY,
-            order_type=OrderType.LIMIT, qty=1.0, limit_price=150.0,
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=1.0,
+            limit_price=150.0,
         )
         submitted = broker.submit_order(order)
 
@@ -195,14 +230,18 @@ class TestFillPolling:
         broker = MockBroker(fill_on_poll=999)  # Never fills
         config = CapitalGuardConfig(max_capital=400)
         executor = SignalExecutor(
-            broker=broker, guard_config=config,
+            broker=broker,
+            guard_config=config,
             fill_poll_interval=0,
             fill_poll_timeout=0,  # Immediate timeout
         )
 
         order = Order(
-            symbol="AAPL", side=OrderSide.BUY,
-            order_type=OrderType.LIMIT, qty=1.0, limit_price=150.0,
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=1.0,
+            limit_price=150.0,
         )
         submitted = broker.submit_order(order)
 
@@ -225,9 +264,11 @@ class TestFillPolling:
 # ExecutionSettings tests
 # ---------------------------------------------------------------------------
 
+
 class TestExecutionSettings:
     def test_default_values(self):
         from pipeline.settings import ExecutionSettings
+
         settings = ExecutionSettings()
         assert settings.broker == "alpaca"
         assert settings.mode == "paper"
@@ -238,16 +279,19 @@ class TestExecutionSettings:
 
     def test_live_mode(self):
         from pipeline.settings import ExecutionSettings
+
         settings = ExecutionSettings(mode="live", base_url="https://api.alpaca.markets")
         assert settings.is_paper is False
 
     def test_paper_detection_from_url(self):
         from pipeline.settings import ExecutionSettings
+
         settings = ExecutionSettings(mode="live", base_url="https://paper-api.alpaca.markets")
         assert settings.is_paper is True  # URL overrides mode
 
     def test_settings_in_pipeline_settings(self):
         from pipeline.settings import PipelineSettings
+
         settings = PipelineSettings()
         assert hasattr(settings, "execution")
         assert settings.execution.broker == "alpaca"

@@ -18,6 +18,7 @@ from pipeline.backtesting.capacity import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def sample_returns():
     """Synthetic daily return series with positive expected value."""
@@ -45,6 +46,7 @@ def sample_df(sample_returns):
 # ---------------------------------------------------------------------------
 # Capacity Analysis Tests
 # ---------------------------------------------------------------------------
+
 
 class TestCapacityAnalysis:
     def test_returns_capacity_result(self, sample_returns):
@@ -159,6 +161,7 @@ class TestCapacityAnalysis:
 # Sensitivity Analysis Tests
 # ---------------------------------------------------------------------------
 
+
 class TestSensitivityAnalysis:
     def test_returns_sensitivity_result(self, sample_df):
         def sharpe_fn(df: pd.DataFrame, window: float) -> float:
@@ -168,9 +171,7 @@ class TestSensitivityAnalysis:
             sigma = returns.rolling(w, min_periods=5).std().dropna().mean()
             return float(mu / sigma * np.sqrt(252)) if sigma > 0 else np.nan
 
-        result = sensitivity_analysis(
-            sample_df, "window", [20, 40, 60, 80], sharpe_fn, "sharpe"
-        )
+        result = sensitivity_analysis(sample_df, "window", [20, 40, 60, 80], sharpe_fn, "sharpe")
         assert isinstance(result, SensitivityResult)
         assert result.param_name == "window"
         assert len(result.metric_values) == 4
@@ -246,6 +247,7 @@ class TestSensitivityAnalysis:
 # ---------------------------------------------------------------------------
 # Multi-Parameter Sensitivity Tests
 # ---------------------------------------------------------------------------
+
 
 class TestMultiParamSensitivity:
     def test_full_grid_evaluated(self, sample_df):

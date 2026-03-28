@@ -63,7 +63,7 @@ class FillRecord:
     """Record of a single fill for adverse selection analysis."""
 
     symbol: str
-    side: str           # "buy" or "sell"
+    side: str  # "buy" or "sell"
     fill_price: float
     fill_size: float
     mid_at_fill: float
@@ -248,10 +248,7 @@ class AdverseSelectionDetector:
                 pnl = future_mid - f.fill_price if f.side == "buy" else f.fill_price - future_mid
                 sides[f.side].append(pnl)
 
-        return {
-            side: float(np.mean(vals)) if vals else 0.0
-            for side, vals in sides.items()
-        }
+        return {side: float(np.mean(vals)) if vals else 0.0 for side, vals in sides.items()}
 
     def summary(self, symbol: str) -> dict:
         """Return a serializable summary of toxicity metrics."""

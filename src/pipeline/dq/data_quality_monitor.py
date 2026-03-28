@@ -124,9 +124,7 @@ class DataQualityMonitor:
         # Ensure both are tz-aware for subtraction
         if latest_ts.tzinfo is None:
             latest_ts = latest_ts.replace(tzinfo=UTC)
-        age_hours = (
-            datetime.now(UTC) - latest_ts
-        ).total_seconds() / 3600
+        age_hours = (datetime.now(UTC) - latest_ts).total_seconds() / 3600
 
         if age_hours > max_age_hours:
             severity = Severity.CRITICAL if age_hours > max_age_hours * 2 else Severity.WARNING

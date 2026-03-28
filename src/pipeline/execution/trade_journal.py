@@ -94,81 +94,87 @@ class TradeJournal:
         notes: str = "",
     ) -> None:
         """Record an order submission event."""
-        self._append_row({
-            "timestamp": datetime.now(UTC).isoformat(),
-            "event_type": "ORDER_SUBMITTED",
-            "symbol": order.symbol,
-            "side": order.side.value,
-            "order_type": order.order_type.value,
-            "qty": order.qty,
-            "limit_price": order.limit_price or "",
-            "stop_price": order.stop_price or "",
-            "filled_qty": order.filled_qty,
-            "filled_avg_price": order.filled_avg_price or "",
-            "order_id": order.order_id,
-            "status": order.status.value,
-            "reject_reason": "",
-            "signal_score": signal_score,
-            "signal_regime": signal_regime,
-            "signal_confidence": signal_confidence,
-            "exit_reason": "",
-            "pnl": "",
-            "notes": notes,
-        })
+        self._append_row(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "event_type": "ORDER_SUBMITTED",
+                "symbol": order.symbol,
+                "side": order.side.value,
+                "order_type": order.order_type.value,
+                "qty": order.qty,
+                "limit_price": order.limit_price or "",
+                "stop_price": order.stop_price or "",
+                "filled_qty": order.filled_qty,
+                "filled_avg_price": order.filled_avg_price or "",
+                "order_id": order.order_id,
+                "status": order.status.value,
+                "reject_reason": "",
+                "signal_score": signal_score,
+                "signal_regime": signal_regime,
+                "signal_confidence": signal_confidence,
+                "exit_reason": "",
+                "pnl": "",
+                "notes": notes,
+            }
+        )
         logger.debug("Journal: ORDER_SUBMITTED %s %s", order.symbol, order.order_id)
 
     def record_fill(self, order: Order, notes: str = "") -> None:
         """Record an order fill event."""
-        self._append_row({
-            "timestamp": datetime.now(UTC).isoformat(),
-            "event_type": "ORDER_FILLED",
-            "symbol": order.symbol,
-            "side": order.side.value,
-            "order_type": order.order_type.value,
-            "qty": order.qty,
-            "limit_price": order.limit_price or "",
-            "stop_price": order.stop_price or "",
-            "filled_qty": order.filled_qty,
-            "filled_avg_price": order.filled_avg_price,
-            "order_id": order.order_id,
-            "status": order.status.value,
-            "reject_reason": "",
-            "signal_score": "",
-            "signal_regime": "",
-            "signal_confidence": "",
-            "exit_reason": "",
-            "pnl": "",
-            "notes": notes,
-        })
+        self._append_row(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "event_type": "ORDER_FILLED",
+                "symbol": order.symbol,
+                "side": order.side.value,
+                "order_type": order.order_type.value,
+                "qty": order.qty,
+                "limit_price": order.limit_price or "",
+                "stop_price": order.stop_price or "",
+                "filled_qty": order.filled_qty,
+                "filled_avg_price": order.filled_avg_price,
+                "order_id": order.order_id,
+                "status": order.status.value,
+                "reject_reason": "",
+                "signal_score": "",
+                "signal_regime": "",
+                "signal_confidence": "",
+                "exit_reason": "",
+                "pnl": "",
+                "notes": notes,
+            }
+        )
         logger.debug("Journal: ORDER_FILLED %s %s", order.symbol, order.order_id)
 
     def record_rejection(self, order: Order, reason: str = "", notes: str = "") -> None:
         """Record an order rejection event."""
-        self._append_row({
-            "timestamp": datetime.now(UTC).isoformat(),
-            "event_type": "ORDER_REJECTED",
-            "symbol": order.symbol,
-            "side": order.side.value if hasattr(order.side, "value") else str(order.side),
-            "order_type": (
-                order.order_type.value
-                if hasattr(order.order_type, "value")
-                else str(order.order_type)
-            ),
-            "qty": order.qty,
-            "limit_price": order.limit_price or "",
-            "stop_price": order.stop_price or "",
-            "filled_qty": 0,
-            "filled_avg_price": "",
-            "order_id": order.order_id,
-            "status": "rejected",
-            "reject_reason": reason or order.reject_reason,
-            "signal_score": "",
-            "signal_regime": "",
-            "signal_confidence": "",
-            "exit_reason": "",
-            "pnl": "",
-            "notes": notes,
-        })
+        self._append_row(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "event_type": "ORDER_REJECTED",
+                "symbol": order.symbol,
+                "side": order.side.value if hasattr(order.side, "value") else str(order.side),
+                "order_type": (
+                    order.order_type.value
+                    if hasattr(order.order_type, "value")
+                    else str(order.order_type)
+                ),
+                "qty": order.qty,
+                "limit_price": order.limit_price or "",
+                "stop_price": order.stop_price or "",
+                "filled_qty": 0,
+                "filled_avg_price": "",
+                "order_id": order.order_id,
+                "status": "rejected",
+                "reject_reason": reason or order.reject_reason,
+                "signal_score": "",
+                "signal_regime": "",
+                "signal_confidence": "",
+                "exit_reason": "",
+                "pnl": "",
+                "notes": notes,
+            }
+        )
 
     def record_exit(
         self,
@@ -181,27 +187,29 @@ class TradeJournal:
         notes: str = "",
     ) -> None:
         """Record a position exit event."""
-        self._append_row({
-            "timestamp": datetime.now(UTC).isoformat(),
-            "event_type": "POSITION_EXIT",
-            "symbol": symbol,
-            "side": "sell",
-            "order_type": "market",
-            "qty": shares,
-            "limit_price": "",
-            "stop_price": "",
-            "filled_qty": shares,
-            "filled_avg_price": exit_price,
-            "order_id": order_id,
-            "status": "filled",
-            "reject_reason": "",
-            "signal_score": "",
-            "signal_regime": "",
-            "signal_confidence": "",
-            "exit_reason": reason,
-            "pnl": round(pnl, 2),
-            "notes": notes,
-        })
+        self._append_row(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "event_type": "POSITION_EXIT",
+                "symbol": symbol,
+                "side": "sell",
+                "order_type": "market",
+                "qty": shares,
+                "limit_price": "",
+                "stop_price": "",
+                "filled_qty": shares,
+                "filled_avg_price": exit_price,
+                "order_id": order_id,
+                "status": "filled",
+                "reject_reason": "",
+                "signal_score": "",
+                "signal_regime": "",
+                "signal_confidence": "",
+                "exit_reason": reason,
+                "pnl": round(pnl, 2),
+                "notes": notes,
+            }
+        )
         logger.debug("Journal: POSITION_EXIT %s reason=%s pnl=$%.2f", symbol, reason, pnl)
 
     def record_guard_rejection(
@@ -211,27 +219,29 @@ class TradeJournal:
         notes: str = "",
     ) -> None:
         """Record a capital guard rejection."""
-        self._append_row({
-            "timestamp": datetime.now(UTC).isoformat(),
-            "event_type": "GUARD_REJECTED",
-            "symbol": symbol,
-            "side": "buy",
-            "order_type": "",
-            "qty": "",
-            "limit_price": "",
-            "stop_price": "",
-            "filled_qty": "",
-            "filled_avg_price": "",
-            "order_id": "",
-            "status": "rejected",
-            "reject_reason": "; ".join(checks_failed),
-            "signal_score": "",
-            "signal_regime": "",
-            "signal_confidence": "",
-            "exit_reason": "",
-            "pnl": "",
-            "notes": notes,
-        })
+        self._append_row(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "event_type": "GUARD_REJECTED",
+                "symbol": symbol,
+                "side": "buy",
+                "order_type": "",
+                "qty": "",
+                "limit_price": "",
+                "stop_price": "",
+                "filled_qty": "",
+                "filled_avg_price": "",
+                "order_id": "",
+                "status": "rejected",
+                "reject_reason": "; ".join(checks_failed),
+                "signal_score": "",
+                "signal_regime": "",
+                "signal_confidence": "",
+                "exit_reason": "",
+                "pnl": "",
+                "notes": notes,
+            }
+        )
 
     def read_journal(self, date_str: str | None = None) -> list[dict[str, str]]:
         """Read journal entries for a given date (YYYY-MM-DD or YYYYMMDD).

@@ -79,14 +79,12 @@ def record_coverage_metrics(source_name: str, metrics: dict[str, float]) -> None
     with db.engine.connect() as conn:
         for metric_name, value in metrics.items():
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO meta_dataset_coverage
                         (source_name, metric_name, metric_value)
                     VALUES
                         (:source_name, :metric_name, :metric_value)
-                """
-                ),
+                """),
                 {
                     "source_name": source_name,
                     "metric_name": metric_name,

@@ -63,9 +63,7 @@ class ExperimentRecord:
     secondary_metrics: dict[str, float] = field(default_factory=dict)
     path_risk_metrics: dict[str, float] = field(default_factory=dict)
     reproducibility_hash: str = ""
-    experiment_timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    experiment_timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     status: ExperimentStatus = ExperimentStatus.RUNNING
     agent: str = ""
     compute_cost_seconds: float = 0.0

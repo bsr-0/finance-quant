@@ -73,7 +73,7 @@ class HedgeTrade:
 
     symbol: str
     hedge_instrument: str
-    side: str          # "buy" or "sell"
+    side: str  # "buy" or "sell"
     quantity: float
     estimated_cost_bps: float
     reason: str
@@ -191,22 +191,26 @@ class HedgeManager:
             if cost_estimate_bps > cfg.max_hedge_cost_bps:
                 logger.info(
                     "DEFER hedge %s: cost %.1f bps > limit %.1f bps",
-                    hedge_instr, cost_estimate_bps, cfg.max_hedge_cost_bps,
+                    hedge_instr,
+                    cost_estimate_bps,
+                    cfg.max_hedge_cost_bps,
                 )
                 continue
 
             side = "buy" if trade_qty > 0 else "sell"
             urgency = "urgent" if abs(trade_qty) > abs(current) * 2 else "normal"
 
-            trades.append(HedgeTrade(
-                symbol="",  # Aggregate across symbols
-                hedge_instrument=hedge_instr,
-                side=side,
-                quantity=abs(trade_qty),
-                estimated_cost_bps=cost_estimate_bps,
-                reason=f"delta_rebalance: need={target_delta:.0f}, current={current:.0f}",
-                urgency=urgency,
-            ))
+            trades.append(
+                HedgeTrade(
+                    symbol="",  # Aggregate across symbols
+                    hedge_instrument=hedge_instr,
+                    side=side,
+                    quantity=abs(trade_qty),
+                    estimated_cost_bps=cost_estimate_bps,
+                    reason=f"delta_rebalance: need={target_delta:.0f}, current={current:.0f}",
+                    urgency=urgency,
+                )
+            )
 
             self._current_hedges[hedge_instr] = target_delta
 

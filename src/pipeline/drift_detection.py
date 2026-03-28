@@ -46,9 +46,7 @@ class DriftResult:
     metric_value: float
     threshold: float
     details: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
     def triggered(self) -> bool:
@@ -60,9 +58,7 @@ class DriftReport:
     """Aggregate drift report across all axes."""
 
     results: list[DriftResult] = field(default_factory=list)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
     def triggered_axes(self) -> list[DriftAxis]:
@@ -171,9 +167,7 @@ class DriftDetector:
     def check_data_drift(self, current_features: pd.DataFrame) -> list[DriftResult]:
         """Detect covariate shift via PSI and KS tests (Section 18.3)."""
         results: list[DriftResult] = []
-        common_cols = list(
-            set(self.reference_features.columns) & set(current_features.columns)
-        )
+        common_cols = list(set(self.reference_features.columns) & set(current_features.columns))
 
         psi_violations = []
         ks_violations = []
@@ -192,9 +186,7 @@ class DriftDetector:
             # KS test
             ks_stat, ks_pval = sp_stats.ks_2samp(ref_vals, cur_vals)
             if ks_pval < self.ks_pvalue_threshold:
-                ks_violations.append(
-                    {"feature": col, "ks_stat": ks_stat, "ks_pvalue": ks_pval}
-                )
+                ks_violations.append({"feature": col, "ks_stat": ks_stat, "ks_pvalue": ks_pval})
 
         # PSI violations
         if psi_violations:
@@ -250,9 +242,7 @@ class DriftDetector:
         if self._ref_base_rate == 0:
             relative_shift = abs(current_base_rate)
         else:
-            relative_shift = abs(current_base_rate - self._ref_base_rate) / abs(
-                self._ref_base_rate
-            )
+            relative_shift = abs(current_base_rate - self._ref_base_rate) / abs(self._ref_base_rate)
 
         severity = DriftSeverity.NONE
         if relative_shift > self.label_shift_threshold:
@@ -324,13 +314,9 @@ class DriftDetector:
                 above = errors[feat > median]
                 if len(below) < 5 or len(above) < 5:
                     continue
-                ratio = max(float(below.mean()), float(above.mean())) / max(
-                    overall_error, 1e-10
-                )
+                ratio = max(float(below.mean()), float(above.mean())) / max(overall_error, 1e-10)
                 if ratio > self.conditional_error_ratio_threshold:
-                    concept_violations.append(
-                        {"feature": col, "error_ratio": ratio}
-                    )
+                    concept_violations.append({"feature": col, "error_ratio": ratio})
             except (ValueError, ZeroDivisionError):
                 continue
 
@@ -370,9 +356,7 @@ class DriftDetector:
         all_results.extend(self.check_data_drift(current_features))
         all_results.extend(self.check_label_drift(current_target))
         all_results.extend(
-            self.check_concept_drift(
-                current_features, current_target, current_predictions
-            )
+            self.check_concept_drift(current_features, current_target, current_predictions)
         )
 
         report = DriftReport(results=all_results)

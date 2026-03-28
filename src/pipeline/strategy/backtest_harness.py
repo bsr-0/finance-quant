@@ -40,6 +40,7 @@ _TRADING_DAYS = 252
 # Backtest configuration
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class BacktestConfig:
     """Configuration for the backtest harness."""
@@ -63,6 +64,7 @@ class BacktestConfig:
 # ---------------------------------------------------------------------------
 # Backtest result
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class BacktestMetrics:
@@ -134,9 +136,7 @@ class HarnessBacktestResult:
                     val_str = "N/A"
                 elif abs(v) < 10 and "Ratio" in k or "Factor" in k or "Exposure" in k:
                     val_str = f"{v:.3f}"
-                elif any(
-                    s in k for s in ("Return", "Drawdown", "Rate", "Turnover", "Market")
-                ):
+                elif any(s in k for s in ("Return", "Drawdown", "Rate", "Turnover", "Market")):
                     val_str = f"{v:.2%}"
                 else:
                     val_str = f"{v:,.2f}"
@@ -151,6 +151,7 @@ class HarnessBacktestResult:
 # ---------------------------------------------------------------------------
 # Backtest harness
 # ---------------------------------------------------------------------------
+
 
 class BacktestHarness:
     """Modular backtest harness for systematic strategies.
@@ -248,8 +249,7 @@ class BacktestHarness:
 
             # Compute equity
             pos_value = sum(
-                current_prices.get(t, p.entry_price) * p.shares
-                for t, p in positions.items()
+                current_prices.get(t, p.entry_price) * p.shares for t, p in positions.items()
             )
             equity = cash + pos_value
 
@@ -287,7 +287,8 @@ class BacktestHarness:
                     current_high=float(row["high"]),
                     current_atr=(
                         current_vols.get(ticker, pos.atr_at_entry)
-                        / np.sqrt(_TRADING_DAYS) * float(row["close"])
+                        / np.sqrt(_TRADING_DAYS)
+                        * float(row["close"])
                         if current_vols.get(ticker)
                         else pos.atr_at_entry
                     ),
@@ -308,21 +309,24 @@ class BacktestHarness:
                     cash += notional - cost
                     total_costs += cost
 
-                    trade_log.append({
-                        "ticker": ticker,
-                        "entry_date": pos.entry_date,
-                        "entry_price": pos.entry_price,
-                        "shares": pos.shares,
-                        "exit_date": date,
-                        "exit_price": close_px,
-                        "exit_reason": exit_sig.reason.value,
-                        "pnl": pnl,
-                        "pnl_pct": (close_px - pos.entry_price) / pos.entry_price,
-                        "days_held": (date - pos.entry_date).days,
-                        "cost": cost,
-                    })
+                    trade_log.append(
+                        {
+                            "ticker": ticker,
+                            "entry_date": pos.entry_date,
+                            "entry_price": pos.entry_price,
+                            "shares": pos.shares,
+                            "exit_date": date,
+                            "exit_price": close_px,
+                            "exit_reason": exit_sig.reason.value,
+                            "pnl": pnl,
+                            "pnl_pct": (close_px - pos.entry_price) / pos.entry_price,
+                            "days_held": (date - pos.entry_date).days,
+                            "cost": cost,
+                        }
+                    )
                     self.decay_monitor.record_trade(
-                        pnl, exit_sig.reason == ExitReason.PROFIT_TARGET,
+                        pnl,
+                        exit_sig.reason == ExitReason.PROFIT_TARGET,
                     )
                     closed_tickers.append(ticker)
 
@@ -359,7 +363,10 @@ class BacktestHarness:
                     )
 
                     decision = self.entry_rules.evaluate(
-                        ticker, date, sig_val, ctx,
+                        ticker,
+                        date,
+                        sig_val,
+                        ctx,
                     )
                     if not decision.eligible:
                         continue
@@ -405,8 +412,7 @@ class BacktestHarness:
 
             # Record snapshot
             pos_value = sum(
-                current_prices.get(t, p.entry_price) * p.shares
-                for t, p in positions.items()
+                current_prices.get(t, p.entry_price) * p.shares for t, p in positions.items()
             )
             equity = cash + pos_value
             equity_history.append((date, equity))
@@ -414,41 +420,59 @@ class BacktestHarness:
             gross_exp = pos_value / equity if equity > 0 else 0
             gross_exposures.append(gross_exp)
 
-            positions_history.append({
-                "date": date,
-                "equity": equity,
-                "cash": cash,
-                "positions_value": pos_value,
-                "num_positions": len(positions),
-                "gross_exposure": gross_exp,
-                "drawdown": drawdown,
-            })
+            positions_history.append(
+                {
+                    "date": date,
+                    "equity": equity,
+                    "cash": cash,
+                    "positions_value": pos_value,
+                    "num_positions": len(positions),
+                    "gross_exposure": gross_exp,
+                    "drawdown": drawdown,
+                }
+            )
 
             prev_equity = equity
 
         # Build result DataFrames
-        eq_series = pd.Series(
-            dict(equity_history), dtype=float,
-        ).sort_index() if equity_history else pd.Series(dtype=float)
+        eq_series = (
+            pd.Series(
+                dict(equity_history),
+                dtype=float,
+            ).sort_index()
+            if equity_history
+            else pd.Series(dtype=float)
+        )
 
-        ret_series = pd.Series(
-            dict(daily_returns_list), dtype=float,
-        ).sort_index() if daily_returns_list else pd.Series(dtype=float)
+        ret_series = (
+            pd.Series(
+                dict(daily_returns_list),
+                dtype=float,
+            ).sort_index()
+            if daily_returns_list
+            else pd.Series(dtype=float)
+        )
 
         trade_df = pd.DataFrame(trade_log) if trade_log else pd.DataFrame()
         pos_df = pd.DataFrame(positions_history) if positions_history else pd.DataFrame()
 
         # Compute metrics
         metrics = self._compute_metrics(
-            eq_series, ret_series, trade_df, cfg.initial_capital,
-            total_costs, gross_exposures,
+            eq_series,
+            ret_series,
+            trade_df,
+            cfg.initial_capital,
+            total_costs,
+            gross_exposures,
         )
 
         # Benchmark analysis
         bm_analyses: list[BenchmarkAnalysis] = []
         if self.benchmark_suite and benchmark_returns and not ret_series.empty:
             bm_analyses = compute_all_benchmarks(
-                ret_series, benchmark_returns, self.benchmark_suite,
+                ret_series,
+                benchmark_returns,
+                self.benchmark_suite,
             )
 
         return HarnessBacktestResult(
@@ -492,10 +516,9 @@ class BacktestHarness:
         # Sortino
         downside = returns[returns < 0]
         if len(downside) > 0:
-            ds_std = float(np.sqrt((downside ** 2).mean()))
+            ds_std = float(np.sqrt((downside**2).mean()))
             sortino = (
-                float(returns.mean() / ds_std * np.sqrt(_TRADING_DAYS))
-                if ds_std > 0 else np.nan
+                float(returns.mean() / ds_std * np.sqrt(_TRADING_DAYS)) if ds_std > 0 else np.nan
             )
         else:
             sortino = np.nan
@@ -520,8 +543,7 @@ class BacktestHarness:
             pf_den = abs(losers["pnl"].sum()) if len(losers) > 0 else 0
             profit_factor = pf_num / pf_den if pf_den > 0 else float("inf")
             avg_hold = (
-                float(trades["days_held"].mean())
-                if "days_held" in trades.columns else np.nan
+                float(trades["days_held"].mean()) if "days_held" in trades.columns else np.nan
             )
         else:
             hit_rate = avg_win = avg_loss = avg_hold = np.nan

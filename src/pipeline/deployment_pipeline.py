@@ -449,16 +449,17 @@ class DeploymentPipeline:
             return []
         fired = []
         for trigger in config.rollback_triggers:
-            if (trigger.metric in current_metrics
-                    and trigger.evaluate(current_metrics[trigger.metric])):
-                    fired.append(trigger)
-                    logger.warning(
-                        "Rollback trigger fired for %s: %s (value=%s, threshold=%s)",
-                        experiment_id,
-                        trigger.name,
-                        current_metrics[trigger.metric],
-                        trigger.threshold,
-                    )
+            if trigger.metric in current_metrics and trigger.evaluate(
+                current_metrics[trigger.metric]
+            ):
+                fired.append(trigger)
+                logger.warning(
+                    "Rollback trigger fired for %s: %s (value=%s, threshold=%s)",
+                    experiment_id,
+                    trigger.name,
+                    current_metrics[trigger.metric],
+                    trigger.threshold,
+                )
         return fired
 
     def auto_rollback_if_triggered(

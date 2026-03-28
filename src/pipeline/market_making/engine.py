@@ -279,17 +279,13 @@ class MarketMakingEngine:
     def _on_trade(self, event: MarketEvent) -> None:
         """Handle an external trade event (not our fill)."""
         # Feed to adverse selection detector for price tracking
-        self.adverse_detector.record_post_fill_price(
-            event.symbol, event.price
-        )
+        self.adverse_detector.record_post_fill_price(event.symbol, event.price)
 
     def _on_market_data(self, event: MarketEvent) -> None:
         """Handle a quote or book update."""
         if event.bid > 0 and event.ask > 0:
             self._prices[event.symbol] = (event.bid + event.ask) / 2
-            self.adverse_detector.record_post_fill_price(
-                event.symbol, (event.bid + event.ask) / 2
-            )
+            self.adverse_detector.record_post_fill_price(event.symbol, (event.bid + event.ask) / 2)
 
     def _check_risk_limits(self) -> bool:
         """Synchronous risk limit check.  Returns False if trading should halt."""
@@ -328,8 +324,7 @@ class MarketMakingEngine:
             if dd < -limits.max_drawdown_pct:
                 state.is_shutdown = True
                 state.shutdown_reason = (
-                    f"Drawdown limit breached: {dd:.2%} "
-                    f"< -{limits.max_drawdown_pct:.2%}"
+                    f"Drawdown limit breached: {dd:.2%} " f"< -{limits.max_drawdown_pct:.2%}"
                 )
                 logger.critical("SHUTDOWN: %s", state.shutdown_reason)
                 return False
@@ -338,7 +333,8 @@ class MarketMakingEngine:
         if snap.gross_notional > limits.max_portfolio_notional:
             logger.warning(
                 "Portfolio notional %.0f exceeds limit %.0f — blocking new quotes",
-                snap.gross_notional, limits.max_portfolio_notional,
+                snap.gross_notional,
+                limits.max_portfolio_notional,
             )
             return False
 
@@ -390,38 +386,46 @@ class MarketMakingEngine:
 
         # 1. Limits loaded
         limits = self.config.risk_limits
-        checks.append((
-            "risk_limits_loaded",
-            limits.max_daily_loss > 0 and limits.max_inventory_per_symbol > 0,
-            f"max_loss={limits.max_daily_loss:,.0f}, "
-            f"max_inv={limits.max_inventory_per_symbol:,.0f}",
-        ))
+        checks.append(
+            (
+                "risk_limits_loaded",
+                limits.max_daily_loss > 0 and limits.max_inventory_per_symbol > 0,
+                f"max_loss={limits.max_daily_loss:,.0f}, "
+                f"max_inv={limits.max_inventory_per_symbol:,.0f}",
+            )
+        )
 
         # 2. Inventory flat
         snap = self.inventory_mgr.snapshot()
         is_flat = snap.gross_notional < 1000  # effectively flat
-        checks.append((
-            "inventory_flat",
-            is_flat,
-            f"gross_notional={snap.gross_notional:,.0f}",
-        ))
+        checks.append(
+            (
+                "inventory_flat",
+                is_flat,
+                f"gross_notional={snap.gross_notional:,.0f}",
+            )
+        )
 
         # 3. Not in shutdown state
-        checks.append((
-            "not_shutdown",
-            not self._state.is_shutdown,
-            self._state.shutdown_reason or "OK",
-        ))
+        checks.append(
+            (
+                "not_shutdown",
+                not self._state.is_shutdown,
+                self._state.shutdown_reason or "OK",
+            )
+        )
 
         # 4. Spread config valid
         spread_ok = (
             self.config.spread.min_spread_bps > 0
             and self.config.spread.max_spread_bps > self.config.spread.min_spread_bps
         )
-        checks.append((
-            "spread_config_valid",
-            spread_ok,
-            f"min={self.config.spread.min_spread_bps}, max={self.config.spread.max_spread_bps}",
-        ))
+        checks.append(
+            (
+                "spread_config_valid",
+                spread_ok,
+                f"min={self.config.spread.min_spread_bps}, max={self.config.spread.max_spread_bps}",
+            )
+        )
 
         return checks

@@ -73,17 +73,25 @@ def run_pre_trade_checks(
 
     # 1. Already holding
     if signal.symbol in held_tickers:
-        checks.append(CheckDetail(
-            "no_duplicate", False, f"Already holding {signal.symbol}",
-        ))
+        checks.append(
+            CheckDetail(
+                "no_duplicate",
+                False,
+                f"Already holding {signal.symbol}",
+            )
+        )
     else:
         checks.append(CheckDetail("no_duplicate", True))
 
     # 2. Data freshness
     if price_df.empty:
-        checks.append(CheckDetail(
-            "data_freshness", False, f"No price data for {signal.symbol}",
-        ))
+        checks.append(
+            CheckDetail(
+                "data_freshness",
+                False,
+                f"No price data for {signal.symbol}",
+            )
+        )
     else:
         last_date = price_df.index[-1]
         signal_date = signal.date
@@ -93,10 +101,13 @@ def run_pre_trade_checks(
             last_date = last_date.normalize()
         gap_days = (signal_date - last_date).days if signal_date >= last_date else 0
         if gap_days > max_staleness_days:
-            checks.append(CheckDetail(
-                "data_freshness", False,
-                f"Data stale: last date {last_date.date()}, gap {gap_days} days",
-            ))
+            checks.append(
+                CheckDetail(
+                    "data_freshness",
+                    False,
+                    f"Data stale: last date {last_date.date()}, gap {gap_days} days",
+                )
+            )
         else:
             checks.append(CheckDetail("data_freshness", True))
 
@@ -104,10 +115,13 @@ def run_pre_trade_checks(
     if not price_df.empty:
         latest_close = float(price_df.iloc[-1]["close"])
         if latest_close < min_price:
-            checks.append(CheckDetail(
-                "min_price", False,
-                f"Price ${latest_close:.2f} below minimum ${min_price:.2f}",
-            ))
+            checks.append(
+                CheckDetail(
+                    "min_price",
+                    False,
+                    f"Price ${latest_close:.2f} below minimum ${min_price:.2f}",
+                )
+            )
         else:
             checks.append(CheckDetail("min_price", True))
     else:
@@ -117,10 +131,13 @@ def run_pre_trade_checks(
     if not price_df.empty and "volume" in price_df.columns:
         avg_vol = float(price_df["volume"].tail(20).mean())
         if avg_vol < min_volume:
-            checks.append(CheckDetail(
-                "min_volume", False,
-                f"Avg volume {avg_vol:,.0f} below minimum {min_volume:,.0f}",
-            ))
+            checks.append(
+                CheckDetail(
+                    "min_volume",
+                    False,
+                    f"Avg volume {avg_vol:,.0f} below minimum {min_volume:,.0f}",
+                )
+            )
         else:
             checks.append(CheckDetail("min_volume", True))
     else:
@@ -129,15 +146,21 @@ def run_pre_trade_checks(
     # 5. Risk state
     if risk_state is not None:
         if risk_state.drawdown_level >= DrawdownLevel.ORANGE:
-            checks.append(CheckDetail(
-                "risk_state", False,
-                f"Drawdown level {risk_state.drawdown_level.name} blocks new entries",
-            ))
+            checks.append(
+                CheckDetail(
+                    "risk_state",
+                    False,
+                    f"Drawdown level {risk_state.drawdown_level.name} blocks new entries",
+                )
+            )
         elif not risk_state.can_open_new:
-            checks.append(CheckDetail(
-                "risk_state", False,
-                "Risk state blocks new entries (cooldown or consecutive losses)",
-            ))
+            checks.append(
+                CheckDetail(
+                    "risk_state",
+                    False,
+                    "Risk state blocks new entries (cooldown or consecutive losses)",
+                )
+            )
         else:
             checks.append(CheckDetail("risk_state", True))
 
@@ -145,10 +168,13 @@ def run_pre_trade_checks(
     if equity > 0 and not price_df.empty:
         latest_close = float(price_df.iloc[-1]["close"])
         if cash < latest_close:
-            checks.append(CheckDetail(
-                "cash_available", False,
-                f"Cash ${cash:.2f} insufficient for min 1 share at ${latest_close:.2f}",
-            ))
+            checks.append(
+                CheckDetail(
+                    "cash_available",
+                    False,
+                    f"Cash ${cash:.2f} insufficient for min 1 share at ${latest_close:.2f}",
+                )
+            )
         else:
             checks.append(CheckDetail("cash_available", True))
 
@@ -196,11 +222,13 @@ def filter_signals(
         else:
             logger.info(
                 "Pre-trade REJECT %s: %s",
-                sig.symbol, "; ".join(result.failure_reasons),
+                sig.symbol,
+                "; ".join(result.failure_reasons),
             )
 
     logger.info(
         "Pre-trade filter: %d/%d signals passed",
-        len(passed), len(signals),
+        len(passed),
+        len(signals),
     )
     return passed, results

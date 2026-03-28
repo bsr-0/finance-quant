@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline - Finance Quant</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --bg-card: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+            --orange: #db6d28;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+
+        /* Navigation */
+        nav {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        nav .container {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+        nav .logo {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--text);
+        }
+        nav .nav-links { display: flex; gap: 16px; }
+        nav .nav-links a {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        nav .nav-links a:hover, nav .nav-links a.active {
+            color: var(--text);
+            background: var(--border);
+            text-decoration: none;
+        }
+
+        /* Header */
+        .page-header {
+            padding: 24px 0 16px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+        .page-header h1 { font-size: 1.5rem; font-weight: 600; }
+        .page-header .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
+
+        /* Stats cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+        .stat-card .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .stat-card .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+        th, td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+        th {
+            background: rgba(110, 118, 129, 0.1);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: rgba(110, 118, 129, 0.05); }
+        td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+        /* Score badges */
+        .score-high { color: var(--green); font-weight: 700; }
+        .score-medium { color: var(--yellow); font-weight: 600; }
+        .score-low { color: var(--text-muted); }
+
+        /* Outcome badges */
+        .outcome-win {
+            background: rgba(63, 185, 80, 0.15);
+            color: var(--green);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .outcome-loss {
+            background: rgba(248, 81, 73, 0.15);
+            color: var(--red);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .outcome-expired {
+            background: rgba(139, 148, 158, 0.15);
+            color: var(--text-muted);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+        .outcome-active {
+            background: rgba(88, 166, 255, 0.15);
+            color: var(--accent);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        /* P&L colors */
+        .pnl-positive { color: var(--green); }
+        .pnl-negative { color: var(--red); }
+
+        /* Regime badges */
+        .regime {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        .regime-bull { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+        .regime-bear { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+        .regime-neutral { background: rgba(139, 148, 158, 0.15); color: var(--text-muted); }
+
+        /* Footer */
+        footer {
+            padding: 24px 0;
+            margin-top: 48px;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-align: center;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            th, td { padding: 8px 10px; font-size: 0.82rem; }
+            .hide-mobile { display: none; }
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--text-muted);
+        }
+        .empty-state h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--text); }
+
+        /* Disclaimer */
+        .disclaimer {
+            background: rgba(210, 153, 34, 0.1);
+            border: 1px solid rgba(210, 153, 34, 0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            font-size: 0.82rem;
+            color: var(--yellow);
+        }
+
+        /* Section headings */
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 32px 0 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* Source / feature cards grid */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .info-card .card-title {
+            font-weight: 600;
+            font-size: 0.92rem;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .info-card .card-detail {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        .info-card .card-detail code {
+            background: rgba(110,118,129,0.15);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 0.78rem;
+        }
+
+        /* Status dot */
+        .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .dot-green { background: var(--green); }
+        .dot-yellow { background: var(--yellow); }
+        .dot-red { background: var(--red); }
+        .dot-muted { background: var(--text-muted); }
+
+        /* Architecture diagram */
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            overflow-x: auto;
+            padding: 16px 0;
+            margin-bottom: 24px;
+        }
+        .arch-step {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 18px;
+            text-align: center;
+            min-width: 130px;
+            flex-shrink: 0;
+        }
+        .arch-step .step-label {
+            font-weight: 600;
+            font-size: 0.88rem;
+            margin-bottom: 4px;
+        }
+        .arch-step .step-detail {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .arch-arrow {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            padding: 0 6px;
+            flex-shrink: 0;
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-green { background: rgba(63,185,80,0.15); color: var(--green); }
+        .badge-yellow { background: rgba(210,153,34,0.15); color: var(--yellow); }
+        .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
+        .badge-muted { background: rgba(139,148,158,0.15); color: var(--text-muted); }
+
+        /* Two-column layout */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 768px) {
+            .two-col { grid-template-columns: 1fr; }
+            .arch-flow { flex-wrap: wrap; justify-content: center; }
+            .card-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <span class="logo">StockSignals</span>
+            <div class="nav-links">
+                <a href="index.html" >Dashboard</a>
+                <a href="pipeline.html" class="active">Pipeline</a>
+                <a href="history.html" >History</a>
+                <a href="performance.html" >Performance</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        
+<div class="page-header">
+    <h1>Data Pipeline</h1>
+    <div class="subtitle">Extract &rarr; Load &rarr; Transform &rarr; Features &rarr; Signals</div>
+</div>
+
+
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-value">14</div>
+        <div class="stat-label">Raw Tables</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">8</div>
+        <div class="stat-label">Curated Tables</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">7</div>
+        <div class="stat-label">DQ Checks</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">25</div>
+        <div class="stat-label">Indicators</div>
+    </div>
+</div>
+
+
+<h2 class="section-title">Extract Layer</h2>
+<p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+    Multi-source data ingestion with circuit breakers, retry logic, and rate limiting.
+</p>
+<div class="card-grid">
+    
+    <div class="info-card">
+        <div class="card-title">
+            <span class="dot dot-green"></span>
+            Yahoo Finance
+        </div>
+        <div class="card-detail">
+            <span class="badge badge-green">Prices</span><br>
+            Daily OHLCV for ETFs and equities with corporate actions adjustment.
+            <br>Latency: <code>~15 min</code>
+        </div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">
+            <span class="dot dot-green"></span>
+            FRED
+        </div>
+        <div class="card-detail">
+            <span class="badge badge-blue">Macro</span><br>
+            28 economic series: GDP, CPI, unemployment, yields, VIX, and more.
+            <br>Latency: <code>~1 day</code>
+        </div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">
+            <span class="dot dot-green"></span>
+            GDELT
+        </div>
+        <div class="card-detail">
+            <span class="badge badge-yellow">Events</span><br>
+            Global geopolitical events with actor, location, and tone scoring.
+            <br>Latency: <code>~3 hours</code>
+        </div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">
+            <span class="dot dot-green"></span>
+            Polymarket
+        </div>
+        <div class="card-detail">
+            <span class="badge badge-yellow">Prediction</span><br>
+            Prediction market prices, trades, and orderbook snapshots.
+            <br>Latency: <code>~2 min</code>
+        </div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">
+            <span class="dot dot-green"></span>
+            SEC EDGAR
+        </div>
+        <div class="card-detail">
+            <span class="badge badge-blue">Fundamentals</span><br>
+            Company fundamentals, insider trades, and 13F institutional holdings.
+            <br>Latency: <code>~1 day</code>
+        </div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">
+            <span class="dot dot-green"></span>
+            Options Chains
+        </div>
+        <div class="card-detail">
+            <span class="badge badge-muted">Derivatives</span><br>
+            Strike-level options data with implied volatility and open interest.
+            <br>Latency: <code>~15 min</code>
+        </div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">
+            <span class="dot dot-yellow"></span>
+            Reddit Sentiment
+        </div>
+        <div class="card-detail">
+            <span class="badge badge-yellow">Sentiment</span><br>
+            Posts from r/wallstreetbets, r/stocks, r/investing with ticker extraction.
+            <br>Latency: <code>~5 min</code>
+        </div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">
+            <span class="dot dot-green"></span>
+            Fama-French
+        </div>
+        <div class="card-detail">
+            <span class="badge badge-muted">Factors</span><br>
+            6-factor model returns: MKT, SMB, HML, RMW, CMA, MOM.
+            <br>Latency: <code>~1 day</code>
+        </div>
+    </div>
+    
+</div>
+
+
+<h2 class="section-title">Load Layer (Raw Tables)</h2>
+<p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+    Append-only raw tables with idempotent upserts, corruption quarantine, and batch insert.
+</p>
+<table>
+    <thead>
+        <tr>
+            <th>Table</th>
+            <th>Source</th>
+            <th class="hide-mobile">Primary Key</th>
+        </tr>
+    </thead>
+    <tbody>
+        
+        <tr>
+            <td><code>raw_fred_observations</code></td>
+            <td>FRED</td>
+            <td class="hide-mobile"><code>series_code, date, realtime_start</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_gdelt_events</code></td>
+            <td>GDELT</td>
+            <td class="hide-mobile"><code>gdelt_event_id</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_polymarket_markets</code></td>
+            <td>Polymarket</td>
+            <td class="hide-mobile"><code>venue_market_id</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_polymarket_prices</code></td>
+            <td>Polymarket</td>
+            <td class="hide-mobile"><code>venue_market_id, ts, outcome</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_polymarket_trades</code></td>
+            <td>Polymarket</td>
+            <td class="hide-mobile"><code>trade_id</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_prices_ohlcv</code></td>
+            <td>Yahoo Finance</td>
+            <td class="hide-mobile"><code>ticker, date</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_factor_returns</code></td>
+            <td>Fama-French</td>
+            <td class="hide-mobile"><code>date</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_sec_fundamentals</code></td>
+            <td>SEC EDGAR</td>
+            <td class="hide-mobile"><code>ticker, metric, period, form, accession</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_sec_insider_trades</code></td>
+            <td>SEC EDGAR</td>
+            <td class="hide-mobile"><code>accession, insider_cik, date, type</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_options_chain</code></td>
+            <td>Yahoo Finance</td>
+            <td class="hide-mobile"><code>ticker, date, expiry, strike, type</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_earnings_calendar</code></td>
+            <td>Yahoo Finance</td>
+            <td class="hide-mobile"><code>ticker, report_date</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_reddit_posts</code></td>
+            <td>Reddit</td>
+            <td class="hide-mobile"><code>post_id</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_short_interest</code></td>
+            <td>FINRA</td>
+            <td class="hide-mobile"><code>ticker, settlement_date</code></td>
+        </tr>
+        
+        <tr>
+            <td><code>raw_etf_flows</code></td>
+            <td>Yahoo Finance</td>
+            <td class="hide-mobile"><code>ticker, date</code></td>
+        </tr>
+        
+    </tbody>
+</table>
+
+
+<h2 class="section-title">Transform Layer (Curated Tables)</h2>
+<p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+    Deduplicated, typed tables with point-in-time <code>available_time</code> and <code>event_time</code> columns.
+</p>
+<table>
+    <thead>
+        <tr>
+            <th>Table</th>
+            <th>Description</th>
+            <th class="hide-mobile">Time Quality</th>
+        </tr>
+    </thead>
+    <tbody>
+        
+        <tr>
+            <td><code>cur_prices_ohlcv_daily</code></td>
+            <td>Adjusted daily prices with corporate actions</td>
+            <td class="hide-mobile"><span class="badge badge-green">confirmed</span></td>
+        </tr>
+        
+        <tr>
+            <td><code>cur_macro_observations</code></td>
+            <td>FRED macro data with revision tracking</td>
+            <td class="hide-mobile"><span class="badge badge-green">confirmed</span></td>
+        </tr>
+        
+        <tr>
+            <td><code>cur_world_events</code></td>
+            <td>GDELT events with latency-aware timestamps</td>
+            <td class="hide-mobile"><span class="badge badge-green">confirmed</span></td>
+        </tr>
+        
+        <tr>
+            <td><code>cur_contract_prices</code></td>
+            <td>Polymarket prices normalized 0-1</td>
+            <td class="hide-mobile"><span class="badge badge-green">confirmed</span></td>
+        </tr>
+        
+        <tr>
+            <td><code>cur_contract_trades</code></td>
+            <td>Polymarket trade executions</td>
+            <td class="hide-mobile"><span class="badge badge-green">confirmed</span></td>
+        </tr>
+        
+        <tr>
+            <td><code>cur_contract_state_daily</code></td>
+            <td>Daily contract status snapshots</td>
+            <td class="hide-mobile"><span class="badge badge-yellow">inferred</span></td>
+        </tr>
+        
+        <tr>
+            <td><code>cur_factor_returns_daily</code></td>
+            <td>Fama-French 6-factor daily returns</td>
+            <td class="hide-mobile"><span class="badge badge-green">confirmed</span></td>
+        </tr>
+        
+        <tr>
+            <td><code>cur_corporate_actions</code></td>
+            <td>Stock splits and dividend adjustments</td>
+            <td class="hide-mobile"><span class="badge badge-green">confirmed</span></td>
+        </tr>
+        
+    </tbody>
+</table>
+
+
+<h2 class="section-title">Feature Engineering</h2>
+<div class="card-grid">
+    
+    <div class="info-card">
+        <div class="card-title">Trend</div>
+        <div class="card-detail">SMA(20), SMA(50), SMA(200), EMA(12), EMA(26)</div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">Momentum</div>
+        <div class="card-detail">RSI(14), MACD, Stochastic(14,3), Williams %R, ROC</div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">Volatility</div>
+        <div class="card-detail">Bollinger Bands, ATR(14), Realized Vol, Parkinson Vol</div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">Volume</div>
+        <div class="card-detail">OBV, Volume SMA(20), Volume ratio</div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">Risk</div>
+        <div class="card-detail">VaR(95%), Max Drawdown, Yang-Zhang Vol, Garman-Klass Vol</div>
+    </div>
+    
+    <div class="info-card">
+        <div class="card-title">Seasonal</div>
+        <div class="card-detail">Day-of-week, Month, Quarter-end, Week-of-year</div>
+    </div>
+    
+</div>
+
+
+<h2 class="section-title">Data Quality Checks</h2>
+<p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+    CRITICAL alerts block the pipeline. Validated after every transform step.
+</p>
+<table>
+    <thead>
+        <tr>
+            <th>Check</th>
+            <th>Severity</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        
+        <tr>
+            <td><strong>Freshness</strong></td>
+            <td><span class="badge badge-green">CRITICAL</span></td>
+            <td>Data within staleness threshold per source.</td>
+        </tr>
+        
+        <tr>
+            <td><strong>Completeness</strong></td>
+            <td><span class="badge badge-yellow">ERROR</span></td>
+            <td>Min 95% non-null in required columns.</td>
+        </tr>
+        
+        <tr>
+            <td><strong>Time Monotonicity</strong></td>
+            <td><span class="badge badge-green">CRITICAL</span></td>
+            <td>available_time &gt;= event_time in all tables.</td>
+        </tr>
+        
+        <tr>
+            <td><strong>PK Uniqueness</strong></td>
+            <td><span class="badge badge-green">CRITICAL</span></td>
+            <td>No duplicate composite primary keys.</td>
+        </tr>
+        
+        <tr>
+            <td><strong>Referential Integrity</strong></td>
+            <td><span class="badge badge-yellow">ERROR</span></td>
+            <td>Foreign keys resolve to valid parent rows.</td>
+        </tr>
+        
+        <tr>
+            <td><strong>Coverage Sanity</strong></td>
+            <td><span class="badge badge-muted">WARNING</span></td>
+            <td>No negative prices/volume, prices in [0,1].</td>
+        </tr>
+        
+        <tr>
+            <td><strong>OHLC Logic</strong></td>
+            <td><span class="badge badge-yellow">ERROR</span></td>
+            <td>low &lt;= open,close &lt;= high for all bars.</td>
+        </tr>
+        
+    </tbody>
+</table>
+
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>Generated 2026-03-28 02:41 UTC &mdash; Not financial advice. Signals are algorithmic and for informational purposes only.</p>
+        </div>
+    </footer>
+</body>
+</html>

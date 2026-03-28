@@ -22,6 +22,7 @@ _TRADING_DAYS = 252
 # Benchmark configuration
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class BenchmarkConfig:
     """Configuration for a single benchmark."""
@@ -51,6 +52,7 @@ class BenchmarkSuite:
 # ---------------------------------------------------------------------------
 # Relative performance metrics
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class BenchmarkAnalysis:
@@ -111,8 +113,7 @@ def compute_benchmark_analysis(
     cov = np.cov(s_ret.values, b_ret.values)
     beta = float(cov[0, 1] / cov[1, 1]) if cov[1, 1] > 0 else np.nan
     alpha = (
-        float(s_ret.mean() - beta * b_ret.mean()) * _TRADING_DAYS
-        if not np.isnan(beta) else np.nan
+        float(s_ret.mean() - beta * b_ret.mean()) * _TRADING_DAYS if not np.isnan(beta) else np.nan
     )
 
     # Capture ratios
@@ -136,11 +137,13 @@ def compute_benchmark_analysis(
     b_excess = b_ret - rf_daily
     s_sharpe = (
         float(s_excess.mean() / s_excess.std() * np.sqrt(_TRADING_DAYS))
-        if s_excess.std() > 0 else np.nan
+        if s_excess.std() > 0
+        else np.nan
     )
     b_sharpe = (
         float(b_excess.mean() / b_excess.std() * np.sqrt(_TRADING_DAYS))
-        if b_excess.std() > 0 else np.nan
+        if b_excess.std() > 0
+        else np.nan
     )
 
     # Total returns

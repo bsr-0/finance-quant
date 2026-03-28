@@ -48,9 +48,7 @@ class SecFundamentalsExtractor:
             timeout=30.0,
             headers={"User-Agent": SEC_USER_AGENT},
         )
-        self._circuit = get_circuit_breaker(
-            "sec_edgar", failure_threshold=5, recovery_timeout=60.0
-        )
+        self._circuit = get_circuit_breaker("sec_edgar", failure_threshold=5, recovery_timeout=60.0)
         self._metrics = PipelineMetrics("sec_fundamentals_extractor")
         self._rate_limit_delay = 0.12  # SEC asks for <=10 req/s
 
@@ -287,11 +285,12 @@ def point_in_time_fundamentals(
     available = df[filing_col <= as_of]
     if available.empty:
         return available
-    idx = available.groupby(
-        ["ticker", "metric_name", "fiscal_period_end"]
-    )["filing_date"].transform("max")
+    idx = available.groupby(["ticker", "metric_name", "fiscal_period_end"])[
+        "filing_date"
+    ].transform("max")
     return available[available["filing_date"] == idx].drop_duplicates(
-        subset=["ticker", "metric_name", "fiscal_period_end"], keep="last",
+        subset=["ticker", "metric_name", "fiscal_period_end"],
+        keep="last",
     )
 
 

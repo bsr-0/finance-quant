@@ -166,81 +166,83 @@ class PositionReconciler:
 
             if sys_pos is None and brk_pos is not None:
                 # Broker has it, system doesn't
-                discrepancies.append(Discrepancy(
-                    symbol=symbol,
-                    type=DiscrepancyType.MISSING_IN_SYSTEM,
-                    severity=Severity.CRITICAL,
-                    system_qty=0.0,
-                    broker_qty=brk_pos.qty,
-                    system_value=0.0,
-                    broker_value=brk_pos.market_value,
-                    message=(
-                        f"Broker holds {brk_pos.qty} shares "
-                        f"(${brk_pos.market_value:.2f}) but system has no record"
-                    ),
-                    timestamp=now,
-                ))
+                discrepancies.append(
+                    Discrepancy(
+                        symbol=symbol,
+                        type=DiscrepancyType.MISSING_IN_SYSTEM,
+                        severity=Severity.CRITICAL,
+                        system_qty=0.0,
+                        broker_qty=brk_pos.qty,
+                        system_value=0.0,
+                        broker_value=brk_pos.market_value,
+                        message=(
+                            f"Broker holds {brk_pos.qty} shares "
+                            f"(${brk_pos.market_value:.2f}) but system has no record"
+                        ),
+                        timestamp=now,
+                    )
+                )
 
             elif sys_pos is not None and brk_pos is None:
                 # System thinks it has it, broker doesn't
-                discrepancies.append(Discrepancy(
-                    symbol=symbol,
-                    type=DiscrepancyType.MISSING_IN_BROKER,
-                    severity=Severity.CRITICAL,
-                    system_qty=sys_pos.qty,
-                    broker_qty=0.0,
-                    system_value=sys_pos.qty * sys_pos.avg_entry_price,
-                    broker_value=0.0,
-                    message=(
-                        f"System thinks it holds {sys_pos.qty} shares "
-                        f"but broker has no position"
-                    ),
-                    timestamp=now,
-                ))
+                discrepancies.append(
+                    Discrepancy(
+                        symbol=symbol,
+                        type=DiscrepancyType.MISSING_IN_BROKER,
+                        severity=Severity.CRITICAL,
+                        system_qty=sys_pos.qty,
+                        broker_qty=0.0,
+                        system_value=sys_pos.qty * sys_pos.avg_entry_price,
+                        broker_value=0.0,
+                        message=(
+                            f"System thinks it holds {sys_pos.qty} shares "
+                            f"but broker has no position"
+                        ),
+                        timestamp=now,
+                    )
+                )
 
             elif sys_pos is not None and brk_pos is not None:
                 # Both have it — check quantities
                 qty_diff = abs(sys_pos.qty - brk_pos.qty)
                 if qty_diff > self.qty_tolerance:
-                    severity = (
-                        Severity.CRITICAL if qty_diff > 1.0
-                        else Severity.WARNING
+                    severity = Severity.CRITICAL if qty_diff > 1.0 else Severity.WARNING
+                    discrepancies.append(
+                        Discrepancy(
+                            symbol=symbol,
+                            type=DiscrepancyType.QTY_MISMATCH,
+                            severity=severity,
+                            system_qty=sys_pos.qty,
+                            broker_qty=brk_pos.qty,
+                            system_value=sys_pos.qty * sys_pos.avg_entry_price,
+                            broker_value=brk_pos.market_value,
+                            message=(
+                                f"Qty mismatch: system={sys_pos.qty}, "
+                                f"broker={brk_pos.qty} (diff={qty_diff:.4f})"
+                            ),
+                            timestamp=now,
+                        )
                     )
-                    discrepancies.append(Discrepancy(
-                        symbol=symbol,
-                        type=DiscrepancyType.QTY_MISMATCH,
-                        severity=severity,
-                        system_qty=sys_pos.qty,
-                        broker_qty=brk_pos.qty,
-                        system_value=sys_pos.qty * sys_pos.avg_entry_price,
-                        broker_value=brk_pos.market_value,
-                        message=(
-                            f"Qty mismatch: system={sys_pos.qty}, "
-                            f"broker={brk_pos.qty} (diff={qty_diff:.4f})"
-                        ),
-                        timestamp=now,
-                    ))
 
                 # Check side
                 if sys_pos.side != brk_pos.side:
-                    discrepancies.append(Discrepancy(
-                        symbol=symbol,
-                        type=DiscrepancyType.SIDE_MISMATCH,
-                        severity=Severity.CRITICAL,
-                        system_qty=sys_pos.qty,
-                        broker_qty=brk_pos.qty,
-                        system_value=sys_pos.qty * sys_pos.avg_entry_price,
-                        broker_value=brk_pos.market_value,
-                        message=(
-                            f"Side mismatch: system={sys_pos.side}, "
-                            f"broker={brk_pos.side}"
-                        ),
-                        timestamp=now,
-                    ))
+                    discrepancies.append(
+                        Discrepancy(
+                            symbol=symbol,
+                            type=DiscrepancyType.SIDE_MISMATCH,
+                            severity=Severity.CRITICAL,
+                            system_qty=sys_pos.qty,
+                            broker_qty=brk_pos.qty,
+                            system_value=sys_pos.qty * sys_pos.avg_entry_price,
+                            broker_value=brk_pos.market_value,
+                            message=(
+                                f"Side mismatch: system={sys_pos.side}, " f"broker={brk_pos.side}"
+                            ),
+                            timestamp=now,
+                        )
+                    )
 
-        system_total = sum(
-            sp.qty * sp.avg_entry_price for sp in system_positions.values()
-        )
+        system_total = sum(sp.qty * sp.avg_entry_price for sp in system_positions.values())
         broker_total = sum(bp.market_value for bp in broker_positions.values())
 
         is_clean = len(discrepancies) == 0

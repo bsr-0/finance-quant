@@ -127,9 +127,7 @@ class TestCalibratedModelWrapper:
         def eval_fn(y_true: pd.Series, y_pred: pd.Series) -> dict[str, float]:
             return {"hit_rate": float((y_true == (y_pred > 0.5).astype(float)).mean())}
 
-        wrapper = CalibratedModelWrapper(
-            train_fn, predict_fn, target_col="target"
-        )
+        wrapper = CalibratedModelWrapper(train_fn, predict_fn, target_col="target")
 
         result = walk_forward_validate(
             df,

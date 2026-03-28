@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Entry condition results
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class EntryCheckResult:
     """Result of evaluating a single entry condition."""
@@ -53,6 +54,7 @@ class EntryDecision:
 # ---------------------------------------------------------------------------
 # Individual entry conditions
 # ---------------------------------------------------------------------------
+
 
 class EntryCondition(ABC):
     """Base class for a single entry condition (predicate)."""
@@ -104,6 +106,7 @@ class EntryContext:
 # Built-in entry conditions
 # ---------------------------------------------------------------------------
 
+
 class SignalThresholdCondition(EntryCondition):
     """Signal must exceed a threshold."""
 
@@ -116,8 +119,11 @@ class SignalThresholdCondition(EntryCondition):
         return self._name
 
     def evaluate(
-        self, ticker: str, date: pd.Timestamp,
-        signal_value: float, context: EntryContext,
+        self,
+        ticker: str,
+        date: pd.Timestamp,
+        signal_value: float,
+        context: EntryContext,
     ) -> EntryCheckResult:
         passed = signal_value >= self.threshold
         return EntryCheckResult(
@@ -140,8 +146,11 @@ class RegimeCondition(EntryCondition):
         return "regime_filter"
 
     def evaluate(
-        self, ticker: str, date: pd.Timestamp,
-        signal_value: float, context: EntryContext,
+        self,
+        ticker: str,
+        date: pd.Timestamp,
+        signal_value: float,
+        context: EntryContext,
     ) -> EntryCheckResult:
         passed = context.regime not in self.blocked_regimes
         return EntryCheckResult(
@@ -159,8 +168,11 @@ class MaxPositionsCondition(EntryCondition):
         return "max_positions"
 
     def evaluate(
-        self, ticker: str, date: pd.Timestamp,
-        signal_value: float, context: EntryContext,
+        self,
+        ticker: str,
+        date: pd.Timestamp,
+        signal_value: float,
+        context: EntryContext,
     ) -> EntryCheckResult:
         passed = context.open_position_count < context.max_positions
         return EntryCheckResult(
@@ -180,8 +192,11 @@ class NoDuplicatePositionCondition(EntryCondition):
         return "no_duplicate_position"
 
     def evaluate(
-        self, ticker: str, date: pd.Timestamp,
-        signal_value: float, context: EntryContext,
+        self,
+        ticker: str,
+        date: pd.Timestamp,
+        signal_value: float,
+        context: EntryContext,
     ) -> EntryCheckResult:
         passed = ticker not in context.held_tickers
         return EntryCheckResult(
@@ -199,8 +214,11 @@ class RiskBudgetCondition(EntryCondition):
         return "risk_budget"
 
     def evaluate(
-        self, ticker: str, date: pd.Timestamp,
-        signal_value: float, context: EntryContext,
+        self,
+        ticker: str,
+        date: pd.Timestamp,
+        signal_value: float,
+        context: EntryContext,
     ) -> EntryCheckResult:
         passed = context.current_portfolio_risk_pct < context.max_portfolio_risk_pct
         return EntryCheckResult(
@@ -223,8 +241,11 @@ class SectorExposureCondition(EntryCondition):
         return "sector_exposure"
 
     def evaluate(
-        self, ticker: str, date: pd.Timestamp,
-        signal_value: float, context: EntryContext,
+        self,
+        ticker: str,
+        date: pd.Timestamp,
+        signal_value: float,
+        context: EntryContext,
     ) -> EntryCheckResult:
         sector = context.ticker_sector
         if not sector:
@@ -250,8 +271,11 @@ class VolatilityFilterCondition(EntryCondition):
         return "volatility_filter"
 
     def evaluate(
-        self, ticker: str, date: pd.Timestamp,
-        signal_value: float, context: EntryContext,
+        self,
+        ticker: str,
+        date: pd.Timestamp,
+        signal_value: float,
+        context: EntryContext,
     ) -> EntryCheckResult:
         if context.atr_pct_min <= 0 and context.atr_pct_max == float("inf"):
             return EntryCheckResult(condition_name=self.name, passed=True)
@@ -261,9 +285,13 @@ class VolatilityFilterCondition(EntryCondition):
             condition_name=self.name,
             passed=passed,
             value=context.atr_pct,
-            reason="" if passed else (
-                f"ATR% {context.atr_pct:.2f} outside "
-                f"[{context.atr_pct_min:.2f}, {context.atr_pct_max:.2f}]"
+            reason=(
+                ""
+                if passed
+                else (
+                    f"ATR% {context.atr_pct:.2f} outside "
+                    f"[{context.atr_pct_min:.2f}, {context.atr_pct_max:.2f}]"
+                )
             ),
         )
 
@@ -279,8 +307,11 @@ class MinCashCondition(EntryCondition):
         return "min_cash"
 
     def evaluate(
-        self, ticker: str, date: pd.Timestamp,
-        signal_value: float, context: EntryContext,
+        self,
+        ticker: str,
+        date: pd.Timestamp,
+        signal_value: float,
+        context: EntryContext,
     ) -> EntryCheckResult:
         passed = context.available_cash > self.min_trade_value
         return EntryCheckResult(
@@ -295,6 +326,7 @@ class MinCashCondition(EntryCondition):
 # ---------------------------------------------------------------------------
 # Entry rule set (AND of all conditions)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class EntryRuleSet:
@@ -342,6 +374,7 @@ class EntryRuleSet:
 # ---------------------------------------------------------------------------
 # Pre-built entry rule sets
 # ---------------------------------------------------------------------------
+
 
 def institutional_entry_rules(
     signal_threshold: float = 0.0,

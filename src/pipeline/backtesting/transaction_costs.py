@@ -21,16 +21,18 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Trade:
     """A single trade to be costed."""
+
     symbol: str
-    side: str        # "buy" or "sell"
+    side: str  # "buy" or "sell"
     quantity: float  # number of shares / contracts
-    price: float     # reference price (e.g. mid)
-    adv: float = 0   # average daily volume (shares) – needed for impact models
+    price: float  # reference price (e.g. mid)
+    adv: float = 0  # average daily volume (shares) – needed for impact models
 
 
 @dataclass
 class TradeCost:
     """Breakdown of costs for a trade."""
+
     spread_cost: float = 0.0
     commission: float = 0.0
     market_impact: float = 0.0
@@ -57,6 +59,7 @@ class CostModel(ABC):
 # ---------------------------------------------------------------------------
 # Model 1: Fixed + Spread
 # ---------------------------------------------------------------------------
+
 
 class FixedPlusSpreadModel(CostModel):
     """Simple model: half-spread crossing + fixed per-share commission.
@@ -87,6 +90,7 @@ class FixedPlusSpreadModel(CostModel):
 # ---------------------------------------------------------------------------
 # Model 2: Square-Root Market Impact
 # ---------------------------------------------------------------------------
+
 
 class SquareRootImpactModel(CostModel):
     """Square-root market impact model.
@@ -140,6 +144,7 @@ class SquareRootImpactModel(CostModel):
 # ---------------------------------------------------------------------------
 # Model 3: Feedback Loop Impact
 # ---------------------------------------------------------------------------
+
 
 class FeedbackImpactModel(CostModel):
     """Square-root impact model with price feedback loop.
@@ -225,6 +230,7 @@ class FeedbackImpactModel(CostModel):
 # Convenience: apply costs to a backtest returns series
 # ---------------------------------------------------------------------------
 
+
 def apply_transaction_costs(
     positions: pd.DataFrame,
     prices: pd.DataFrame,
@@ -258,13 +264,15 @@ def apply_transaction_costs(
                 continue
             price = prices.loc[dt, sym]
             avg_vol = adv.loc[dt, sym] if adv is not None and sym in adv.columns else 0
-            tc = model.estimate(Trade(
-                symbol=sym,
-                side="buy" if qty > 0 else "sell",
-                quantity=qty,
-                price=price,
-                adv=avg_vol,
-            ))
+            tc = model.estimate(
+                Trade(
+                    symbol=sym,
+                    side="buy" if qty > 0 else "sell",
+                    quantity=qty,
+                    price=price,
+                    adv=avg_vol,
+                )
+            )
             day_cost += tc.total
         daily_costs[dt] = day_cost
 
@@ -277,9 +285,11 @@ def apply_transaction_costs(
 
     net_return = gross_return - cost_drag
 
-    return pd.DataFrame({
-        "gross_return": gross_return,
-        "total_cost": daily_costs,
-        "cost_drag_pct": cost_drag,
-        "net_return": net_return,
-    })
+    return pd.DataFrame(
+        {
+            "gross_return": gross_return,
+            "total_cost": daily_costs,
+            "cost_drag_pct": cost_drag,
+            "net_return": net_return,
+        }
+    )

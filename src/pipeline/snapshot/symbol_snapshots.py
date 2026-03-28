@@ -162,8 +162,7 @@ class SymbolSnapshotBuilder:
         """
         results = self.db.run_query(query, {"asof_ts": asof_ts})
         return {
-            r["series_code"]: float(r["value"]) if r["value"] is not None else None
-            for r in results
+            r["series_code"]: float(r["value"]) if r["value"] is not None else None for r in results
         }
 
     def _get_news_counts(self, asof_ts: datetime) -> dict:
@@ -186,13 +185,16 @@ class SymbolSnapshotBuilder:
     def _get_fundamentals(self, symbol_id: UUID, asof_ts: datetime, price: float | None) -> dict:
         """Get latest fundamental ratios as of asof_ts."""
         result: dict[str, float | None] = {
-            "pe_ratio": None, "pb_ratio": None,
-            "debt_to_equity": None, "roe": None,
+            "pe_ratio": None,
+            "pb_ratio": None,
+            "debt_to_equity": None,
+            "roe": None,
         }
         if not self.db.table_exists("cur_fundamentals_quarterly"):
             return result
 
-        rows = self.db.run_query("""
+        rows = self.db.run_query(
+            """
             SELECT metric_name, metric_value
             FROM cur_fundamentals_quarterly
             WHERE symbol_id = :symbol_id
@@ -201,14 +203,17 @@ class SymbolSnapshotBuilder:
                   SELECT MAX(fiscal_period_end) FROM cur_fundamentals_quarterly
                   WHERE symbol_id = :symbol_id AND available_time <= :asof_ts
               )
-        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts})
+        """,
+            {"symbol_id": str(symbol_id), "asof_ts": asof_ts},
+        )
 
         if not rows:
             return result
 
         metrics = {
             r["metric_name"]: float(r["metric_value"])
-            for r in rows if r["metric_value"] is not None
+            for r in rows
+            if r["metric_value"] is not None
         }
 
         eps = metrics.get("EarningsPerShareDiluted") or metrics.get("EarningsPerShareBasic")
@@ -242,7 +247,8 @@ class SymbolSnapshotBuilder:
             return result
 
         start_ts = asof_ts - timedelta(days=90)
-        rows = self.db.run_query("""
+        rows = self.db.run_query(
+            """
             SELECT
                 COALESCE(SUM(CASE WHEN transaction_type = 'P' THEN shares
                                   WHEN transaction_type = 'S' THEN -shares
@@ -252,7 +258,9 @@ class SymbolSnapshotBuilder:
             WHERE symbol_id = :symbol_id
               AND available_time <= :asof_ts
               AND event_time >= :start_ts
-        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts, "start_ts": start_ts})
+        """,
+            {"symbol_id": str(symbol_id), "asof_ts": asof_ts, "start_ts": start_ts},
+        )
 
         if rows and rows[0]["net_shares"] is not None:
             result["insider_net_shares_90d"] = float(rows[0]["net_shares"])
@@ -266,7 +274,8 @@ class SymbolSnapshotBuilder:
         if not self.db.table_exists("cur_institutional_holdings"):
             return result
 
-        rows = self.db.run_query("""
+        rows = self.db.run_query(
+            """
             SELECT COUNT(DISTINCT filer_name) AS holder_count
             FROM cur_institutional_holdings
             WHERE symbol_id = :symbol_id
@@ -275,7 +284,9 @@ class SymbolSnapshotBuilder:
                   SELECT MAX(report_date) FROM cur_institutional_holdings
                   WHERE symbol_id = :symbol_id AND available_time <= :asof_ts
               )
-        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts})
+        """,
+            {"symbol_id": str(symbol_id), "asof_ts": asof_ts},
+        )
 
         if rows and rows[0]["holder_count"]:
             result["institutional_holders_count"] = int(rows[0]["holder_count"])
@@ -292,14 +303,17 @@ class SymbolSnapshotBuilder:
         if not self.db.table_exists("cur_options_summary_daily"):
             return result
 
-        rows = self.db.run_query("""
+        rows = self.db.run_query(
+            """
             SELECT iv_30d, put_call_volume_ratio, skew_25d
             FROM cur_options_summary_daily
             WHERE symbol_id = :symbol_id
               AND available_time <= :asof_ts
             ORDER BY date DESC
             LIMIT 1
-        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts})
+        """,
+            {"symbol_id": str(symbol_id), "asof_ts": asof_ts},
+        )
 
         if rows:
             row = rows[0]
@@ -322,28 +336,34 @@ class SymbolSnapshotBuilder:
             return result
 
         # Last earnings surprise
-        rows = self.db.run_query("""
+        rows = self.db.run_query(
+            """
             SELECT eps_surprise_pct
             FROM cur_earnings_events
             WHERE symbol_id = :symbol_id
               AND available_time <= :asof_ts
             ORDER BY report_date DESC
             LIMIT 1
-        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts})
+        """,
+            {"symbol_id": str(symbol_id), "asof_ts": asof_ts},
+        )
 
         if rows and rows[0]["eps_surprise_pct"] is not None:
             result["last_eps_surprise_pct"] = float(rows[0]["eps_surprise_pct"])
 
         # Days to next earnings (future event we know about)
         asof_date = asof_ts.date()
-        rows = self.db.run_query("""
+        rows = self.db.run_query(
+            """
             SELECT report_date
             FROM cur_earnings_events
             WHERE symbol_id = :symbol_id
               AND report_date > :asof_date
             ORDER BY report_date ASC
             LIMIT 1
-        """, {"symbol_id": str(symbol_id), "asof_date": asof_date})
+        """,
+            {"symbol_id": str(symbol_id), "asof_date": asof_date},
+        )
 
         if rows and rows[0]["report_date"]:
             delta = rows[0]["report_date"] - asof_date
@@ -357,14 +377,17 @@ class SymbolSnapshotBuilder:
         if not self.db.table_exists("cur_short_interest"):
             return result
 
-        rows = self.db.run_query("""
+        rows = self.db.run_query(
+            """
             SELECT days_to_cover
             FROM cur_short_interest
             WHERE symbol_id = :symbol_id
               AND available_time <= :asof_ts
             ORDER BY settlement_date DESC
             LIMIT 1
-        """, {"symbol_id": str(symbol_id), "asof_ts": asof_ts})
+        """,
+            {"symbol_id": str(symbol_id), "asof_ts": asof_ts},
+        )
 
         if rows and rows[0]["days_to_cover"] is not None:
             result["short_interest_ratio"] = float(rows[0]["days_to_cover"])
@@ -404,8 +427,7 @@ class SymbolSnapshotBuilder:
 
     def _save_snapshot(self, snapshot: dict) -> None:
         with self.db.engine.connect() as conn:
-            insert = text(
-                """
+            insert = text("""
                 INSERT INTO snap_symbol_features
                     (symbol_id, asof_ts, price_latest, price_change_1d, price_change_7d,
                      volume_avg_20d, volatility_20d, macro_panel, news_counts,
@@ -448,8 +470,7 @@ class SymbolSnapshotBuilder:
                     last_eps_surprise_pct = EXCLUDED.last_eps_surprise_pct,
                     short_interest_ratio = EXCLUDED.short_interest_ratio,
                     updated_at = NOW()
-            """
-            )
+            """)
 
             conn.execute(
                 insert,

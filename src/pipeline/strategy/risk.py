@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 class DrawdownLevel(IntEnum):
     """Drawdown severity levels for circuit breakers."""
 
-    GREEN = 0   # Normal operation
+    GREEN = 0  # Normal operation
     YELLOW = 1  # 5% drawdown — reduce size
     ORANGE = 2  # 10% drawdown — no new entries
-    RED = 3     # 15% drawdown — close everything, cooldown
+    RED = 3  # 15% drawdown — close everything, cooldown
 
 
 @dataclass
@@ -164,7 +164,8 @@ class SwingRiskManager:
             self._cooldown_remaining = self.cooldown_days
             logger.critical(
                 "RED ALERT: %.1f%% drawdown. Entering %d-day cooldown.",
-                abs(dd_pct) * 100, self.cooldown_days,
+                abs(dd_pct) * 100,
+                self.cooldown_days,
             )
             notify(
                 AlertSeverity.CRITICAL,

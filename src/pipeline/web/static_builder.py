@@ -56,6 +56,289 @@ def _pnl_class(pnl: float | None) -> str:
     return "pnl-positive" if pnl >= 0 else "pnl-negative"
 
 
+# ---------------------------------------------------------------------------
+# Dashboard metadata (static descriptions of the pipeline architecture)
+# ---------------------------------------------------------------------------
+
+_DATA_SOURCES = [
+    {
+        "name": "Yahoo Finance",
+        "category": "Prices",
+        "description": "Daily OHLCV for ETFs and equities with corporate actions adjustment.",
+        "dot": "dot-green",
+        "badge_class": "badge-green",
+        "latency": "~15 min",
+    },
+    {
+        "name": "FRED",
+        "category": "Macro",
+        "description": "28 economic series: GDP, CPI, unemployment, yields, VIX, and more.",
+        "dot": "dot-green",
+        "badge_class": "badge-blue",
+        "latency": "~1 day",
+    },
+    {
+        "name": "GDELT",
+        "category": "Events",
+        "description": "Global geopolitical events with actor, location, and tone scoring.",
+        "dot": "dot-green",
+        "badge_class": "badge-yellow",
+        "latency": "~3 hours",
+    },
+    {
+        "name": "Polymarket",
+        "category": "Prediction",
+        "description": "Prediction market prices, trades, and orderbook snapshots.",
+        "dot": "dot-green",
+        "badge_class": "badge-yellow",
+        "latency": "~2 min",
+    },
+    {
+        "name": "SEC EDGAR",
+        "category": "Fundamentals",
+        "description": "Company fundamentals, insider trades, and 13F institutional holdings.",
+        "dot": "dot-green",
+        "badge_class": "badge-blue",
+        "latency": "~1 day",
+    },
+    {
+        "name": "Options Chains",
+        "category": "Derivatives",
+        "description": "Strike-level options data with implied volatility and open interest.",
+        "dot": "dot-green",
+        "badge_class": "badge-muted",
+        "latency": "~15 min",
+    },
+    {
+        "name": "Reddit Sentiment",
+        "category": "Sentiment",
+        "description": "Posts from r/wallstreetbets, r/stocks, r/investing with ticker extraction.",
+        "dot": "dot-yellow",
+        "badge_class": "badge-yellow",
+        "latency": "~5 min",
+    },
+    {
+        "name": "Fama-French",
+        "category": "Factors",
+        "description": "6-factor model returns: MKT, SMB, HML, RMW, CMA, MOM.",
+        "dot": "dot-green",
+        "badge_class": "badge-muted",
+        "latency": "~1 day",
+    },
+]
+
+_STRATEGY_COMPONENTS = [
+    {
+        "name": "Trend Alignment",
+        "weight": 40,
+        "description": "Close > SMA50, SMA50 > SMA200, positive slope confirmation.",
+    },
+    {
+        "name": "Pullback Depth",
+        "weight": 30,
+        "description": "RSI < 35, price at Bollinger lower band, Stochastic K < 20.",
+    },
+    {
+        "name": "Volume Confirmation",
+        "weight": 15,
+        "description": "Volume below 20-day MA (dry-up), positive OBV slope.",
+    },
+    {
+        "name": "Volatility & Momentum",
+        "weight": 15,
+        "description": "ATR within range, MACD histogram rising, Williams %R < -80.",
+    },
+]
+
+_DQ_GATES = [
+    {
+        "name": "Freshness",
+        "description": "Prices < 48h old, contracts < 2h, macro < 168h.",
+        "dot": "dot-green",
+    },
+    {
+        "name": "Completeness",
+        "description": "Min 95% non-null in required columns.",
+        "dot": "dot-green",
+    },
+    {
+        "name": "Time Monotonicity",
+        "description": "available_time >= event_time for all rows.",
+        "dot": "dot-green",
+    },
+    {
+        "name": "PK Uniqueness",
+        "description": "No duplicate primary keys across curated tables.",
+        "dot": "dot-green",
+    },
+    {
+        "name": "Referential Integrity",
+        "description": "All foreign keys resolve; no orphan records.",
+        "dot": "dot-green",
+    },
+]
+
+_RAW_TABLES = [
+    {
+        "name": "raw_fred_observations",
+        "source": "FRED",
+        "pk": "series_code, date, realtime_start",
+    },
+    {"name": "raw_gdelt_events", "source": "GDELT", "pk": "gdelt_event_id"},
+    {"name": "raw_polymarket_markets", "source": "Polymarket", "pk": "venue_market_id"},
+    {
+        "name": "raw_polymarket_prices",
+        "source": "Polymarket",
+        "pk": "venue_market_id, ts, outcome",
+    },
+    {"name": "raw_polymarket_trades", "source": "Polymarket", "pk": "trade_id"},
+    {"name": "raw_prices_ohlcv", "source": "Yahoo Finance", "pk": "ticker, date"},
+    {"name": "raw_factor_returns", "source": "Fama-French", "pk": "date"},
+    {
+        "name": "raw_sec_fundamentals",
+        "source": "SEC EDGAR",
+        "pk": "ticker, metric, period, form, accession",
+    },
+    {
+        "name": "raw_sec_insider_trades",
+        "source": "SEC EDGAR",
+        "pk": "accession, insider_cik, date, type",
+    },
+    {
+        "name": "raw_options_chain",
+        "source": "Yahoo Finance",
+        "pk": "ticker, date, expiry, strike, type",
+    },
+    {"name": "raw_earnings_calendar", "source": "Yahoo Finance", "pk": "ticker, report_date"},
+    {"name": "raw_reddit_posts", "source": "Reddit", "pk": "post_id"},
+    {"name": "raw_short_interest", "source": "FINRA", "pk": "ticker, settlement_date"},
+    {"name": "raw_etf_flows", "source": "Yahoo Finance", "pk": "ticker, date"},
+]
+
+_CURATED_TABLES = [
+    {
+        "name": "cur_prices_ohlcv_daily",
+        "description": "Adjusted daily prices with corporate actions",
+        "quality": "confirmed",
+        "badge": "badge-green",
+    },
+    {
+        "name": "cur_macro_observations",
+        "description": "FRED macro data with revision tracking",
+        "quality": "confirmed",
+        "badge": "badge-green",
+    },
+    {
+        "name": "cur_world_events",
+        "description": "GDELT events with latency-aware timestamps",
+        "quality": "confirmed",
+        "badge": "badge-green",
+    },
+    {
+        "name": "cur_contract_prices",
+        "description": "Polymarket prices normalized 0-1",
+        "quality": "confirmed",
+        "badge": "badge-green",
+    },
+    {
+        "name": "cur_contract_trades",
+        "description": "Polymarket trade executions",
+        "quality": "confirmed",
+        "badge": "badge-green",
+    },
+    {
+        "name": "cur_contract_state_daily",
+        "description": "Daily contract status snapshots",
+        "quality": "inferred",
+        "badge": "badge-yellow",
+    },
+    {
+        "name": "cur_factor_returns_daily",
+        "description": "Fama-French 6-factor daily returns",
+        "quality": "confirmed",
+        "badge": "badge-green",
+    },
+    {
+        "name": "cur_corporate_actions",
+        "description": "Stock splits and dividend adjustments",
+        "quality": "confirmed",
+        "badge": "badge-green",
+    },
+]
+
+_FEATURE_FAMILIES = [
+    {
+        "name": "Trend",
+        "indicators": ["SMA(20)", "SMA(50)", "SMA(200)", "EMA(12)", "EMA(26)"],
+    },
+    {
+        "name": "Momentum",
+        "indicators": ["RSI(14)", "MACD", "Stochastic(14,3)", "Williams %R", "ROC"],
+    },
+    {
+        "name": "Volatility",
+        "indicators": ["Bollinger Bands", "ATR(14)", "Realized Vol", "Parkinson Vol"],
+    },
+    {
+        "name": "Volume",
+        "indicators": ["OBV", "Volume SMA(20)", "Volume ratio"],
+    },
+    {
+        "name": "Risk",
+        "indicators": ["VaR(95%)", "Max Drawdown", "Yang-Zhang Vol", "Garman-Klass Vol"],
+    },
+    {
+        "name": "Seasonal",
+        "indicators": ["Day-of-week", "Month", "Quarter-end", "Week-of-year"],
+    },
+]
+
+_DQ_CHECKS = [
+    {
+        "name": "Freshness",
+        "severity": "CRITICAL",
+        "description": "Data within staleness threshold per source.",
+        "badge": "badge-green",
+    },
+    {
+        "name": "Completeness",
+        "severity": "ERROR",
+        "description": "Min 95% non-null in required columns.",
+        "badge": "badge-yellow",
+    },
+    {
+        "name": "Time Monotonicity",
+        "severity": "CRITICAL",
+        "description": "available_time >= event_time in all tables.",
+        "badge": "badge-green",
+    },
+    {
+        "name": "PK Uniqueness",
+        "severity": "CRITICAL",
+        "description": "No duplicate composite primary keys.",
+        "badge": "badge-green",
+    },
+    {
+        "name": "Referential Integrity",
+        "severity": "ERROR",
+        "description": "Foreign keys resolve to valid parent rows.",
+        "badge": "badge-yellow",
+    },
+    {
+        "name": "Coverage Sanity",
+        "severity": "WARNING",
+        "description": "No negative prices/volume, prices in [0,1].",
+        "badge": "badge-muted",
+    },
+    {
+        "name": "OHLC Logic",
+        "severity": "ERROR",
+        "description": "low <= open,close <= high for all bars.",
+        "badge": "badge-yellow",
+    },
+]
+
+
 def build_static_site(
     output_dir: str | Path = "site",
     signals_dir: str | Path = "data/signals",
@@ -102,7 +385,6 @@ def build_static_site(
     signal_date = "N/A"
     if latest_csv:
         signals_df = pd.read_csv(latest_csv)
-        # Extract date from filename: signals_YYYY-MM-DD.csv
         try:
             signal_date = latest_csv.stem.replace("signals_", "")
         except Exception:
@@ -114,9 +396,16 @@ def build_static_site(
     # Load prediction history
     history_data: dict = {"predictions": [], "last_updated": ""}
     stats: dict = {
-        "total": 0, "active": 0, "resolved": 0, "hit_target": 0,
-        "stopped_out": 0, "expired": 0, "win_rate": 0.0,
-        "avg_pnl_pct": 0.0, "avg_win_pct": 0.0, "avg_loss_pct": 0.0,
+        "total": 0,
+        "active": 0,
+        "resolved": 0,
+        "hit_target": 0,
+        "stopped_out": 0,
+        "expired": 0,
+        "win_rate": 0.0,
+        "avg_pnl_pct": 0.0,
+        "avg_win_pct": 0.0,
+        "avg_loss_pct": 0.0,
     }
     if history_path.exists():
         try:
@@ -129,26 +418,40 @@ def build_static_site(
             logger.warning("Could not load history: %s", exc)
 
     predictions = history_data.get("predictions", [])
-
-    # Get unique tickers from history
     tickers = sorted({p["ticker"] for p in predictions})
 
-    # Build context shared across all pages
     config = _load_config()
     universe = config.get("universe", [])
+    signals_list = signals_df.to_dict("records") if not signals_df.empty else []
+    indicator_count = sum(len(f["indicators"]) for f in _FEATURE_FAMILIES)
+
     base_ctx = {
         "signal_date": signal_date,
         "universe": universe,
         "tickers": tickers,
         "stats": stats,
+        "signals": signals_list,
+        "data_sources": _DATA_SOURCES,
+        "strategy_components": _STRATEGY_COMPONENTS,
+        "dq_gates": _DQ_GATES,
+        "indicator_count": indicator_count,
+        "raw_tables": _RAW_TABLES,
+        "curated_tables": _CURATED_TABLES,
+        "feature_families": _FEATURE_FAMILIES,
+        "dq_checks": _DQ_CHECKS,
     }
 
     # --- Render index.html (dashboard) ---
-    signals_list = signals_df.to_dict("records") if not signals_df.empty else []
     index_tmpl = env.get_template("index.html")
-    index_html = index_tmpl.render(signals=signals_list, **base_ctx)
+    index_html = index_tmpl.render(**base_ctx)
     (output_dir / "index.html").write_text(index_html)
     logger.info("Wrote index.html (%d signals)", len(signals_list))
+
+    # --- Render pipeline.html ---
+    pipeline_tmpl = env.get_template("pipeline.html")
+    pipeline_html = pipeline_tmpl.render(**base_ctx)
+    (output_dir / "pipeline.html").write_text(pipeline_html)
+    logger.info("Wrote pipeline.html")
 
     # --- Render history.html ---
     recent = sorted(predictions, key=lambda p: p["signal_date"], reverse=True)[:100]
@@ -159,12 +462,11 @@ def build_static_site(
 
     # --- Render performance.html ---
     perf_tmpl = env.get_template("performance.html")
-    # Group by month for monthly breakdown
     monthly: dict[str, dict] = {}
     for p in predictions:
         if p.get("outcome") == "active":
             continue
-        month = p["signal_date"][:7]  # YYYY-MM
+        month = p["signal_date"][:7]
         if month not in monthly:
             monthly[month] = {"total": 0, "wins": 0, "pnl_sum": 0.0}
         monthly[month]["total"] += 1
@@ -176,13 +478,15 @@ def build_static_site(
     monthly_stats = []
     for month in sorted(monthly.keys(), reverse=True):
         m = monthly[month]
-        monthly_stats.append({
-            "month": month,
-            "total": m["total"],
-            "wins": m["wins"],
-            "win_rate": round(m["wins"] / m["total"] * 100, 1) if m["total"] else 0,
-            "total_pnl": round(m["pnl_sum"], 2),
-        })
+        monthly_stats.append(
+            {
+                "month": month,
+                "total": m["total"],
+                "wins": m["wins"],
+                "win_rate": round(m["wins"] / m["total"] * 100, 1) if m["total"] else 0,
+                "total_pnl": round(m["pnl_sum"], 2),
+            }
+        )
 
     perf_html = perf_tmpl.render(monthly_stats=monthly_stats, **base_ctx)
     (output_dir / "performance.html").write_text(perf_html)
@@ -232,7 +536,5 @@ def _compute_ticker_stats(predictions: list[dict]) -> dict:
         "hit_target": hit,
         "win_rate": round(hit / resolved * 100, 1) if resolved else 0.0,
         "avg_pnl": round(sum(pnls) / len(pnls), 2) if pnls else 0.0,
-        "avg_score": round(
-            sum(p["score"] for p in predictions) / total, 1
-        ),
+        "avg_score": round(sum(p["score"] for p in predictions) / total, 1),
     }

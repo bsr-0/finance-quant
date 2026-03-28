@@ -32,10 +32,10 @@ logger = logging.getLogger(__name__)
 class InventoryLevel(IntEnum):
     """De-risking severity levels based on inventory utilization."""
 
-    NORMAL = 0       # |inventory| < 50% of limit
-    ELEVATED = 1     # |inventory| >= 50% of limit — skew quotes
-    CRITICAL = 2     # |inventory| >= 80% of limit — reduce size + skew
-    BREACH = 3       # |inventory| >= 100% of limit — hard flat trigger
+    NORMAL = 0  # |inventory| < 50% of limit
+    ELEVATED = 1  # |inventory| >= 50% of limit — skew quotes
+    CRITICAL = 2  # |inventory| >= 80% of limit — reduce size + skew
+    BREACH = 3  # |inventory| >= 100% of limit — hard flat trigger
 
 
 @dataclass
@@ -159,7 +159,12 @@ class InventoryManager:
 
         logger.debug(
             "FILL %s: qty=%.1f @ %.4f → pos=%.1f, avg_cost=%.4f, rpnl=%.2f",
-            symbol, quantity, price, new_pos, inv.avg_cost, inv.realized_pnl,
+            symbol,
+            quantity,
+            price,
+            new_pos,
+            inv.avg_cost,
+            inv.realized_pnl,
         )
 
     def normalized_inventory(self, symbol: str) -> float:
@@ -181,7 +186,7 @@ class InventoryManager:
         """
         inv = self.get_or_create(symbol)
         deviation = inv.position - self.config.target_position
-        return self.config.gamma * deviation ** 2
+        return self.config.gamma * deviation**2
 
     def get_inventory_level(self, symbol: str) -> InventoryLevel:
         """Determine the de-risking severity level for a symbol."""

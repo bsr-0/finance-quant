@@ -171,8 +171,10 @@ class QuoteEngine:
         if elapsed_us > self.config.latency_warn_us:
             logger.warning(
                 "Latency budget exceeded: %.0f us (budget: %.0f us) for %s %s",
-                elapsed_us, self.config.latency_budget_us,
-                event.event_type.value, event.symbol,
+                elapsed_us,
+                self.config.latency_budget_us,
+                event.event_type.value,
+                event.symbol,
             )
 
         return result
@@ -205,9 +207,7 @@ class QuoteEngine:
         # Update mid estimate from trade price (simple EWM)
         if sym in self._current_mid:
             alpha = 2.0 / (self.config.vol_update_ewm_span + 1)
-            self._current_mid[sym] = (
-                alpha * event.price + (1 - alpha) * self._current_mid[sym]
-            )
+            self._current_mid[sym] = alpha * event.price + (1 - alpha) * self._current_mid[sym]
         else:
             self._current_mid[sym] = event.price
 
@@ -220,12 +220,20 @@ class QuoteEngine:
                 self._pulled_until[sym] = event.timestamp_ns + pull_duration_ns
                 logger.info(
                     "PULL %s: large trade size=%.0f vs avg=%.0f",
-                    sym, abs(event.quantity), avg_size,
+                    sym,
+                    abs(event.quantity),
+                    avg_size,
                 )
                 return QuoteUpdate(
-                    symbol=sym, bid=0, ask=0, bid_size=0, ask_size=0,
-                    timestamp_ns=event.timestamp_ns, spread_bps=0,
-                    pulled=True, reason="large_trade",
+                    symbol=sym,
+                    bid=0,
+                    ask=0,
+                    bid_size=0,
+                    ask_size=0,
+                    timestamp_ns=event.timestamp_ns,
+                    spread_bps=0,
+                    pulled=True,
+                    reason="large_trade",
                 )
 
         return self._maybe_requote(sym, event.timestamp_ns)
@@ -312,11 +320,7 @@ class QuoteEngine:
     @property
     def diagnostics(self) -> dict:
         """Return engine-level diagnostics."""
-        avg_latency = (
-            self._total_latency_us / self._event_count
-            if self._event_count > 0
-            else 0.0
-        )
+        avg_latency = self._total_latency_us / self._event_count if self._event_count > 0 else 0.0
         return {
             "event_count": self._event_count,
             "avg_latency_us": avg_latency,

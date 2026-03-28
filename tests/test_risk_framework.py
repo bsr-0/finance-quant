@@ -28,6 +28,7 @@ from pipeline.infrastructure.risk_dashboard import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def correlated_returns():
     """Returns for instruments with known correlation structure."""
@@ -36,12 +37,15 @@ def correlated_returns():
     idx = pd.bdate_range("2024-01-01", periods=n)
     market = np.random.normal(0.001, 0.01, n)
 
-    return pd.DataFrame({
-        "AAPL": market + np.random.normal(0, 0.003, n),  # High corr with market
-        "MSFT": market + np.random.normal(0, 0.003, n),  # High corr with market
-        "GOLD": np.random.normal(0.0005, 0.008, n),      # Low corr
-        "BTC": np.random.normal(0.002, 0.03, n),          # Low corr
-    }, index=idx)
+    return pd.DataFrame(
+        {
+            "AAPL": market + np.random.normal(0, 0.003, n),  # High corr with market
+            "MSFT": market + np.random.normal(0, 0.003, n),  # High corr with market
+            "GOLD": np.random.normal(0.0005, 0.008, n),  # Low corr
+            "BTC": np.random.normal(0.002, 0.03, n),  # Low corr
+        },
+        index=idx,
+    )
 
 
 @pytest.fixture
@@ -98,12 +102,13 @@ class TestCorrelationMonitor:
     def test_factor_exposures(self, correlated_returns):
         monitor = CorrelationMonitor()
         portfolio = correlated_returns.mean(axis=1)
-        factor_returns = pd.DataFrame({
-            "market": correlated_returns.mean(axis=1),
-        }, index=correlated_returns.index)
-        exposures = monitor.compute_factor_exposures(
-            portfolio, factor_returns, nav=1_000_000
+        factor_returns = pd.DataFrame(
+            {
+                "market": correlated_returns.mean(axis=1),
+            },
+            index=correlated_returns.index,
         )
+        exposures = monitor.compute_factor_exposures(portfolio, factor_returns, nav=1_000_000)
         assert len(exposures) >= 1
         assert exposures[0].factor == "market"
 

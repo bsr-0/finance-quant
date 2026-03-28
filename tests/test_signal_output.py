@@ -21,6 +21,7 @@ from pipeline.strategy.signals import SignalScore, compute_indicators
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _make_price_df(
     n: int = 200,
     start_price: float = 100.0,
@@ -69,6 +70,7 @@ def _make_signal_score(
 # Signal Output Tests
 # ---------------------------------------------------------------------------
 
+
 class TestFormatSignals:
     def test_basic_format(self):
         df = _make_price_df(200)
@@ -80,9 +82,18 @@ class TestFormatSignals:
 
         assert not result.empty
         expected_cols = [
-            "date", "ticker", "direction", "score", "entry_price",
-            "stop_price", "target_1", "target_2", "atr", "regime",
-            "confidence", "strategy_id",
+            "date",
+            "ticker",
+            "direction",
+            "score",
+            "entry_price",
+            "stop_price",
+            "target_1",
+            "target_2",
+            "atr",
+            "regime",
+            "confidence",
+            "strategy_id",
         ]
         for col in expected_cols:
             assert col in result.columns, f"Missing column: {col}"
@@ -158,11 +169,13 @@ class TestFormatSignals:
 
 class TestWriteSignalCSV:
     def test_write_creates_file(self):
-        df = pd.DataFrame({
-            "date": [pd.Timestamp("2023-10-20")],
-            "ticker": ["TEST"],
-            "score": [75],
-        })
+        df = pd.DataFrame(
+            {
+                "date": [pd.Timestamp("2023-10-20")],
+                "ticker": ["TEST"],
+                "score": [75],
+            }
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
             path = write_signal_csv(df, tmpdir, pd.Timestamp("2023-10-20"))
             assert path.exists()
@@ -179,6 +192,7 @@ class TestWriteSignalCSV:
 # ---------------------------------------------------------------------------
 # Pre-Trade Checks Tests
 # ---------------------------------------------------------------------------
+
 
 class TestPreTradeChecks:
     def test_passing_checks(self):
@@ -274,8 +288,7 @@ class TestPreTradeChecks:
         )
         assert not result.passed
         assert any(
-            "cash" in r.lower() or "insufficient" in r.lower()
-            for r in result.failure_reasons
+            "cash" in r.lower() or "insufficient" in r.lower() for r in result.failure_reasons
         )
 
     def test_empty_price_data_fails(self):
@@ -317,6 +330,7 @@ class TestFilterSignals:
 # Evaluator Look-Ahead Fix Test
 # ---------------------------------------------------------------------------
 
+
 class TestEvaluatorHitRate:
     def test_hit_rate_uses_current_day_return(self):
         """Verify that _signal_hit_rate uses pct_change() not pct_change().shift(-1)."""
@@ -326,18 +340,22 @@ class TestEvaluatorHitRate:
 
         # Construct prices where we KNOW the returns
         dates = pd.bdate_range("2023-01-01", periods=5)
-        prices = pd.DataFrame({
-            "date": dates.tolist() * 2,
-            "symbol": ["A"] * 5 + ["A"] * 5,
-            "price": [100, 102, 101, 103, 105] + [100, 102, 101, 103, 105],
-        })
+        prices = pd.DataFrame(
+            {
+                "date": dates.tolist() * 2,
+                "symbol": ["A"] * 5 + ["A"] * 5,
+                "price": [100, 102, 101, 103, 105] + [100, 102, 101, 103, 105],
+            }
+        )
 
         # Signal: positive on all days
-        signals = pd.DataFrame({
-            "date": dates.tolist(),
-            "symbol": ["A"] * 5,
-            "signal": [1.0, 1.0, 1.0, 1.0, 1.0],
-        })
+        signals = pd.DataFrame(
+            {
+                "date": dates.tolist(),
+                "symbol": ["A"] * 5,
+                "signal": [1.0, 1.0, 1.0, 1.0, 1.0],
+            }
+        )
 
         # The method should NOT use future returns (shift(-1)),
         # but should use same-day pct_change
@@ -357,6 +375,7 @@ class TestEvaluatorHitRate:
 # ---------------------------------------------------------------------------
 # Daily Loss Limit Tests
 # ---------------------------------------------------------------------------
+
 
 class TestDailyLossLimit:
     def test_daily_loss_blocks_entries(self):

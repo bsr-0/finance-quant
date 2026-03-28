@@ -256,9 +256,7 @@ class ModelSearcher:
             family_specs = self._expand_grid(space)
 
             if len(family_specs) > max_per_family:
-                indices = self.rng.choice(
-                    len(family_specs), size=max_per_family, replace=False
-                )
+                indices = self.rng.choice(len(family_specs), size=max_per_family, replace=False)
                 family_specs = [family_specs[i] for i in sorted(indices)]
 
             if space.model_family in bad_families:

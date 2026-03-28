@@ -230,8 +230,7 @@ universe = builder.build(instruments)
                 if config.formula:
                     parts.append(f"\n```\n{config.formula}\n```")
                 parts.append(
-                    f"\nNormalization: {norm_label},"
-                    f" lookback: {config.lookback_window} days\n"
+                    f"\nNormalization: {norm_label}," f" lookback: {config.lookback_window} days\n"
                 )
 
             parts.append("#### Composite Signal\n")
@@ -580,15 +579,9 @@ vs. {primary.name} ({primary.ticker}):
         if self.result and self.result.decay_monitor:
             dm = self.result.decay_monitor
             m = dm.evaluate()
-            wr_ok = m.rolling_win_rate >= wr_floor or np.isnan(
-                m.rolling_win_rate
-            )
-            pf_ok = m.rolling_profit_factor >= pf_floor or np.isnan(
-                m.rolling_profit_factor
-            )
-            sh_ok = m.rolling_sharpe >= sharpe_floor or np.isnan(
-                m.rolling_sharpe
-            )
+            wr_ok = m.rolling_win_rate >= wr_floor or np.isnan(m.rolling_win_rate)
+            pf_ok = m.rolling_profit_factor >= pf_floor or np.isnan(m.rolling_profit_factor)
+            sh_ok = m.rolling_sharpe >= sharpe_floor or np.isnan(m.rolling_sharpe)
             wr_status = "OK" if wr_ok else "BREACH"
             pf_status = "OK" if pf_ok else "BREACH"
             sh_status = "OK" if sh_ok else "BREACH"

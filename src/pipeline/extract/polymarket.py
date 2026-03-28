@@ -237,7 +237,10 @@ class PolymarketExtractor:
             d.mkdir(parents=True, exist_ok=True)
 
         saved_files: dict[str, list[Path]] = {
-            "markets": [], "prices": [], "trades": [], "orderbooks": [],
+            "markets": [],
+            "prices": [],
+            "trades": [],
+            "orderbooks": [],
         }
 
         # Get markets based on universe mode
@@ -287,7 +290,9 @@ class PolymarketExtractor:
                     trades_df = pd.DataFrame(trades)
                     if "timestamp" in trades_df.columns:
                         trades_df["timestamp"] = pd.to_datetime(
-                            trades_df["timestamp"], unit="s", utc=True,
+                            trades_df["timestamp"],
+                            unit="s",
+                            utc=True,
                         )
                     trades_df["market_id"] = market_id
                     trades_df["extracted_at"] = datetime.now(UTC)

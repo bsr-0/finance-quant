@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 # Winsorization
 # ---------------------------------------------------------------------------
 
+
 def winsorize(
     series: pd.Series,
     lower_pct: float = 0.01,
@@ -43,6 +44,7 @@ def rolling_winsorize(
 # ---------------------------------------------------------------------------
 # Median Absolute Deviation (MAD)
 # ---------------------------------------------------------------------------
+
 
 def mad(series: pd.Series) -> float:
     """Median Absolute Deviation (population)."""
@@ -83,8 +85,10 @@ def mad_zscore(
 # Robust Rolling Statistics
 # ---------------------------------------------------------------------------
 
+
 def robust_mean(series: pd.Series, window: int = 60, trim_pct: float = 0.05) -> pd.Series:
     """Trimmed mean: remove top/bottom *trim_pct* before averaging."""
+
     def _trimmed_mean(x: np.ndarray) -> float:
         s = np.sort(x)
         n = len(s)
@@ -112,6 +116,7 @@ def iqr(series: pd.Series, window: int = 60) -> pd.Series:
 # ---------------------------------------------------------------------------
 # Outlier Detection
 # ---------------------------------------------------------------------------
+
 
 def detect_outliers_zscore(
     series: pd.Series,
@@ -153,6 +158,7 @@ def detect_outliers_iqr(
 # Covariance Estimation
 # ---------------------------------------------------------------------------
 
+
 def ledoit_wolf_shrinkage(returns: pd.DataFrame) -> tuple[pd.DataFrame, float]:
     """Ledoit-Wolf shrinkage estimator for the covariance matrix.
 
@@ -178,10 +184,10 @@ def ledoit_wolf_shrinkage(returns: pd.DataFrame) -> tuple[pd.DataFrame, float]:
 
     # Optimal shrinkage intensity (Ledoit & Wolf 2004)
     delta = s - f
-    sum_sq = (delta ** 2).sum()
+    sum_sq = (delta**2).sum()
 
-    x2 = x_centered ** 2
-    phi_mat = (x2.T @ x2) / n - s ** 2
+    x2 = x_centered**2
+    phi_mat = (x2.T @ x2) / n - s**2
     phi = phi_mat.sum()
 
     kappa = (phi / sum_sq) if sum_sq > 0 else 1.0
@@ -194,12 +200,13 @@ def ledoit_wolf_shrinkage(returns: pd.DataFrame) -> tuple[pd.DataFrame, float]:
 
 def ewm_correlation(returns: pd.DataFrame, span: int = 60) -> pd.DataFrame:
     """Exponentially-weighted correlation matrix (latest observation)."""
-    return returns.ewm(span=span, min_periods=10).corr().iloc[-len(returns.columns):]
+    return returns.ewm(span=span, min_periods=10).corr().iloc[-len(returns.columns) :]
 
 
 # ---------------------------------------------------------------------------
 # Convenience: clean a return series before feeding to models
 # ---------------------------------------------------------------------------
+
 
 def clean_returns(
     returns: pd.Series,
@@ -221,6 +228,7 @@ def clean_returns(
 # ---------------------------------------------------------------------------
 # Stationarity Testing
 # ---------------------------------------------------------------------------
+
 
 def adf_stationarity_test(
     series: pd.Series,

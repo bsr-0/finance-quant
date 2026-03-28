@@ -89,9 +89,7 @@ class UniverseProvider(Protocol):
         """Return all available instruments with metadata."""
         ...
 
-    def get_prices(
-        self, tickers: list[str], start: str, end: str
-    ) -> dict[str, pd.DataFrame]:
+    def get_prices(self, tickers: list[str], start: str, end: str) -> dict[str, pd.DataFrame]:
         """Return OHLCV DataFrames keyed by ticker."""
         ...
 
@@ -139,19 +137,21 @@ class Universe:
         """Return instrument metadata as a DataFrame."""
         records = []
         for inst in self.instruments:
-            records.append({
-                "ticker": inst.ticker,
-                "name": inst.name,
-                "asset_class": inst.asset_class.value,
-                "sector": inst.sector,
-                "industry": inst.industry,
-                "country": inst.country,
-                "region": inst.region.value,
-                "exchange": inst.exchange.value,
-                "market_cap": inst.market_cap,
-                "adv_dollars": inst.adv_dollars,
-                "avg_spread_bps": inst.avg_spread_bps,
-            })
+            records.append(
+                {
+                    "ticker": inst.ticker,
+                    "name": inst.name,
+                    "asset_class": inst.asset_class.value,
+                    "sector": inst.sector,
+                    "industry": inst.industry,
+                    "country": inst.country,
+                    "region": inst.region.value,
+                    "exchange": inst.exchange.value,
+                    "market_cap": inst.market_cap,
+                    "adv_dollars": inst.adv_dollars,
+                    "avg_spread_bps": inst.avg_spread_bps,
+                }
+            )
         return pd.DataFrame(records)
 
     def __len__(self) -> int:
@@ -180,7 +180,9 @@ class UniverseBuilder:
 
         logger.info(
             "Universe built: %d / %d instruments passed filters (as_of=%s)",
-            len(eligible), len(instruments), as_of_date,
+            len(eligible),
+            len(instruments),
+            as_of_date,
         )
         return Universe(
             instruments=eligible,
@@ -241,20 +243,22 @@ class UniverseBuilder:
             adv_shares = float(volume.tail(20).mean()) if len(volume) >= 20 else 0.0
             adv_dollars = adv_shares * last_price
 
-            instruments.append(InstrumentMetadata(
-                ticker=ticker,
-                name=meta.get("name", ticker),
-                asset_class=AssetClass(meta.get("asset_class", "equity")),
-                sector=meta.get("sector", ""),
-                industry=meta.get("industry", ""),
-                country=meta.get("country", "US"),
-                region=Region(meta.get("region", "US")),
-                exchange=Exchange(meta.get("exchange", "NYSE")),
-                market_cap=meta.get("market_cap", 0.0),
-                adv_shares=adv_shares,
-                adv_dollars=adv_dollars,
-                avg_spread_bps=meta.get("avg_spread_bps", 2.0),
-            ))
+            instruments.append(
+                InstrumentMetadata(
+                    ticker=ticker,
+                    name=meta.get("name", ticker),
+                    asset_class=AssetClass(meta.get("asset_class", "equity")),
+                    sector=meta.get("sector", ""),
+                    industry=meta.get("industry", ""),
+                    country=meta.get("country", "US"),
+                    region=Region(meta.get("region", "US")),
+                    exchange=Exchange(meta.get("exchange", "NYSE")),
+                    market_cap=meta.get("market_cap", 0.0),
+                    adv_shares=adv_shares,
+                    adv_dollars=adv_dollars,
+                    avg_spread_bps=meta.get("avg_spread_bps", 2.0),
+                )
+            )
 
         return self.build(instruments, as_of_date)
 

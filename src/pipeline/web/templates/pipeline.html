@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% set active_page = 'pipeline' %}
+
+{% block title %}Pipeline - Finance Quant{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Data Pipeline</h1>
+    <div class="subtitle">Extract &rarr; Load &rarr; Transform &rarr; Features &rarr; Signals</div>
+</div>
+
+{# ── Pipeline overview stats ── #}
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-value">{{ raw_tables | length }}</div>
+        <div class="stat-label">Raw Tables</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ curated_tables | length }}</div>
+        <div class="stat-label">Curated Tables</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ dq_checks | length }}</div>
+        <div class="stat-label">DQ Checks</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ indicator_count }}</div>
+        <div class="stat-label">Indicators</div>
+    </div>
+</div>
+
+{# ── Extract layer ── #}
+<h2 class="section-title">Extract Layer</h2>
+<p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+    Multi-source data ingestion with circuit breakers, retry logic, and rate limiting.
+</p>
+<div class="card-grid">
+    {% for src in data_sources %}
+    <div class="info-card">
+        <div class="card-title">
+            <span class="dot {{ src.dot }}"></span>
+            {{ src.name }}
+        </div>
+        <div class="card-detail">
+            <span class="badge {{ src.badge_class }}">{{ src.category }}</span><br>
+            {{ src.description }}
+            {% if src.latency %}<br>Latency: <code>{{ src.latency }}</code>{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{# ── Load layer ── #}
+<h2 class="section-title">Load Layer (Raw Tables)</h2>
+<p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+    Append-only raw tables with idempotent upserts, corruption quarantine, and batch insert.
+</p>
+<table>
+    <thead>
+        <tr>
+            <th>Table</th>
+            <th>Source</th>
+            <th class="hide-mobile">Primary Key</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for t in raw_tables %}
+        <tr>
+            <td><code>{{ t.name }}</code></td>
+            <td>{{ t.source }}</td>
+            <td class="hide-mobile"><code>{{ t.pk }}</code></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{# ── Transform layer ── #}
+<h2 class="section-title">Transform Layer (Curated Tables)</h2>
+<p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+    Deduplicated, typed tables with point-in-time <code>available_time</code> and <code>event_time</code> columns.
+</p>
+<table>
+    <thead>
+        <tr>
+            <th>Table</th>
+            <th>Description</th>
+            <th class="hide-mobile">Time Quality</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for t in curated_tables %}
+        <tr>
+            <td><code>{{ t.name }}</code></td>
+            <td>{{ t.description }}</td>
+            <td class="hide-mobile"><span class="badge {{ t.badge }}">{{ t.quality }}</span></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{# ── Features ── #}
+<h2 class="section-title">Feature Engineering</h2>
+<div class="card-grid">
+    {% for fam in feature_families %}
+    <div class="info-card">
+        <div class="card-title">{{ fam.name }}</div>
+        <div class="card-detail">{{ fam.indicators | join(', ') }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+{# ── Data Quality ── #}
+<h2 class="section-title">Data Quality Checks</h2>
+<p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+    CRITICAL alerts block the pipeline. Validated after every transform step.
+</p>
+<table>
+    <thead>
+        <tr>
+            <th>Check</th>
+            <th>Severity</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in dq_checks %}
+        <tr>
+            <td><strong>{{ c.name }}</strong></td>
+            <td><span class="badge {{ c.badge }}">{{ c.severity }}</span></td>
+            <td>{{ c.description }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

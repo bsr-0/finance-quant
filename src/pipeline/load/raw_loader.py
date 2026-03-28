@@ -122,9 +122,7 @@ class RawLoader:
                 }
             )
 
-        records = self._filter_valid_records(
-            records, ["series_code", "date"], handler, file_path
-        )
+        records = self._filter_valid_records(records, ["series_code", "date"], handler, file_path)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
@@ -224,9 +222,7 @@ class RawLoader:
                 }
             )
 
-        records = self._filter_valid_records(
-            records, ["market_id"], handler, file_path
-        )
+        records = self._filter_valid_records(records, ["market_id"], handler, file_path)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
@@ -278,9 +274,7 @@ class RawLoader:
                 }
             )
 
-        records = self._filter_valid_records(
-            records, ["market_id", "ts"], handler, file_path
-        )
+        records = self._filter_valid_records(records, ["market_id", "ts"], handler, file_path)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
@@ -338,9 +332,7 @@ class RawLoader:
                 }
             )
 
-        records = self._filter_valid_records(
-            records, ["market_id", "trade_id"], handler, file_path
-        )
+        records = self._filter_valid_records(records, ["market_id", "trade_id"], handler, file_path)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
@@ -401,9 +393,7 @@ class RawLoader:
                 }
             )
 
-        records = self._filter_valid_records(
-            records, ["market_id", "ts"], handler, file_path
-        )
+        records = self._filter_valid_records(records, ["market_id", "ts"], handler, file_path)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
@@ -474,9 +464,7 @@ class RawLoader:
                 }
             )
 
-        records = self._filter_valid_records(
-            records, ["ticker", "date"], handler, file_path
-        )
+        records = self._filter_valid_records(records, ["ticker", "date"], handler, file_path)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
@@ -539,9 +527,7 @@ class RawLoader:
                 }
             )
 
-        records = self._filter_valid_records(
-            records, ["date"], handler, file_path
-        )
+        records = self._filter_valid_records(records, ["date"], handler, file_path)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
@@ -586,12 +572,28 @@ class RawLoader:
             row["run_id"] = run_id
             row["raw_data"] = json.dumps(row, default=str)
             row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
-            records.append({k: row.get(k) for k in [
-                "ticker", "cik", "metric_name", "metric_label", "metric_value",
-                "units", "fiscal_period_end", "filing_date", "form_type",
-                "accession_number", "fiscal_year", "fiscal_period",
-                "raw_data", "extracted_at", "run_id",
-            ]})
+            records.append(
+                {
+                    k: row.get(k)
+                    for k in [
+                        "ticker",
+                        "cik",
+                        "metric_name",
+                        "metric_label",
+                        "metric_value",
+                        "units",
+                        "fiscal_period_end",
+                        "filing_date",
+                        "form_type",
+                        "accession_number",
+                        "fiscal_year",
+                        "fiscal_period",
+                        "raw_data",
+                        "extracted_at",
+                        "run_id",
+                    ]
+                }
+            )
 
         records = self._filter_valid_records(
             records, ["ticker", "metric_name", "accession_number"], handler, file_path
@@ -641,12 +643,29 @@ class RawLoader:
             row["run_id"] = run_id
             row["raw_data"] = json.dumps(row, default=str)
             row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
-            records.append({k: row.get(k) for k in [
-                "ticker", "cik", "insider_cik", "insider_name", "insider_title",
-                "transaction_date", "transaction_type", "shares", "price_per_share",
-                "shares_after", "ownership_type", "accession_number", "filing_date",
-                "raw_data", "extracted_at", "run_id",
-            ]})
+            records.append(
+                {
+                    k: row.get(k)
+                    for k in [
+                        "ticker",
+                        "cik",
+                        "insider_cik",
+                        "insider_name",
+                        "insider_title",
+                        "transaction_date",
+                        "transaction_type",
+                        "shares",
+                        "price_per_share",
+                        "shares_after",
+                        "ownership_type",
+                        "accession_number",
+                        "filing_date",
+                        "raw_data",
+                        "extracted_at",
+                        "run_id",
+                    ]
+                }
+            )
 
         records = self._filter_valid_records(
             records, ["ticker", "accession_number", "insider_cik"], handler, file_path
@@ -696,14 +715,32 @@ class RawLoader:
             row["run_id"] = run_id
             row["raw_data"] = json.dumps(row, default=str)
             row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
-            records.append({k: row.get(k) for k in [
-                "filer_cik", "filer_name", "report_date", "filing_date", "cusip",
-                "issuer_name", "class_title", "market_value", "shares_held",
-                "shares_type", "put_call", "investment_discretion",
-                "voting_authority_sole", "voting_authority_shared",
-                "voting_authority_none", "accession_number",
-                "raw_data", "extracted_at", "run_id",
-            ]})
+            records.append(
+                {
+                    k: row.get(k)
+                    for k in [
+                        "filer_cik",
+                        "filer_name",
+                        "report_date",
+                        "filing_date",
+                        "cusip",
+                        "issuer_name",
+                        "class_title",
+                        "market_value",
+                        "shares_held",
+                        "shares_type",
+                        "put_call",
+                        "investment_discretion",
+                        "voting_authority_sole",
+                        "voting_authority_shared",
+                        "voting_authority_none",
+                        "accession_number",
+                        "raw_data",
+                        "extracted_at",
+                        "run_id",
+                    ]
+                }
+            )
 
         records = self._filter_valid_records(
             records, ["filer_cik", "accession_number", "cusip"], handler, file_path
@@ -753,12 +790,28 @@ class RawLoader:
             row["run_id"] = run_id
             row["raw_data"] = json.dumps(row, default=str)
             row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
-            records.append({k: row.get(k) for k in [
-                "ticker", "quote_date", "expiration", "strike", "option_type",
-                "last_price", "bid", "ask", "volume", "open_interest",
-                "implied_volatility", "in_the_money",
-                "raw_data", "extracted_at", "run_id",
-            ]})
+            records.append(
+                {
+                    k: row.get(k)
+                    for k in [
+                        "ticker",
+                        "quote_date",
+                        "expiration",
+                        "strike",
+                        "option_type",
+                        "last_price",
+                        "bid",
+                        "ask",
+                        "volume",
+                        "open_interest",
+                        "implied_volatility",
+                        "in_the_money",
+                        "raw_data",
+                        "extracted_at",
+                        "run_id",
+                    ]
+                }
+            )
 
         records = self._filter_valid_records(
             records, ["ticker", "quote_date", "expiration", "strike"], handler, file_path
@@ -809,16 +862,26 @@ class RawLoader:
             row["run_id"] = run_id
             row["raw_data"] = json.dumps(row, default=str)
             row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
-            records.append({k: row.get(k) for k in [
-                "ticker", "report_date", "fiscal_quarter_end",
-                "eps_estimate", "eps_actual",
-                "revenue_estimate", "revenue_actual", "report_time",
-                "raw_data", "extracted_at", "run_id",
-            ]})
+            records.append(
+                {
+                    k: row.get(k)
+                    for k in [
+                        "ticker",
+                        "report_date",
+                        "fiscal_quarter_end",
+                        "eps_estimate",
+                        "eps_actual",
+                        "revenue_estimate",
+                        "revenue_actual",
+                        "report_time",
+                        "raw_data",
+                        "extracted_at",
+                        "run_id",
+                    ]
+                }
+            )
 
-        records = self._filter_valid_records(
-            records, ["ticker", "report_date"], handler, file_path
-        )
+        records = self._filter_valid_records(records, ["ticker", "report_date"], handler, file_path)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
@@ -864,25 +927,25 @@ class RawLoader:
             row["raw_data"] = json.dumps(row, default=str)
             row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
             tickers = row.get("tickers_mentioned")
-            records.append({
-                "post_id": row.get("post_id"),
-                "subreddit": row.get("subreddit"),
-                "title": row.get("title"),
-                "selftext": row.get("selftext"),
-                "author": row.get("author"),
-                "score": row.get("score"),
-                "upvote_ratio": row.get("upvote_ratio"),
-                "num_comments": row.get("num_comments"),
-                "created_utc": row.get("created_utc"),
-                "tickers_mentioned": json.dumps(tickers) if tickers else None,
-                "raw_data": row.get("raw_data"),
-                "extracted_at": row.get("extracted_at"),
-                "run_id": row.get("run_id"),
-            })
+            records.append(
+                {
+                    "post_id": row.get("post_id"),
+                    "subreddit": row.get("subreddit"),
+                    "title": row.get("title"),
+                    "selftext": row.get("selftext"),
+                    "author": row.get("author"),
+                    "score": row.get("score"),
+                    "upvote_ratio": row.get("upvote_ratio"),
+                    "num_comments": row.get("num_comments"),
+                    "created_utc": row.get("created_utc"),
+                    "tickers_mentioned": json.dumps(tickers) if tickers else None,
+                    "raw_data": row.get("raw_data"),
+                    "extracted_at": row.get("extracted_at"),
+                    "run_id": row.get("run_id"),
+                }
+            )
 
-        records = self._filter_valid_records(
-            records, ["post_id"], handler, file_path
-        )
+        records = self._filter_valid_records(records, ["post_id"], handler, file_path)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:
@@ -924,11 +987,21 @@ class RawLoader:
             row["run_id"] = run_id
             row["raw_data"] = json.dumps(row, default=str)
             row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
-            records.append({k: row.get(k) for k in [
-                "ticker", "settlement_date", "short_interest",
-                "avg_daily_volume", "days_to_cover",
-                "raw_data", "extracted_at", "run_id",
-            ]})
+            records.append(
+                {
+                    k: row.get(k)
+                    for k in [
+                        "ticker",
+                        "settlement_date",
+                        "short_interest",
+                        "avg_daily_volume",
+                        "days_to_cover",
+                        "raw_data",
+                        "extracted_at",
+                        "run_id",
+                    ]
+                }
+            )
 
         records = self._filter_valid_records(
             records, ["ticker", "settlement_date"], handler, file_path
@@ -974,14 +1047,23 @@ class RawLoader:
             row["run_id"] = run_id
             row["raw_data"] = json.dumps(row, default=str)
             row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
-            records.append({k: row.get(k) for k in [
-                "ticker", "date", "fund_flow", "aum", "shares_outstanding",
-                "raw_data", "extracted_at", "run_id",
-            ]})
+            records.append(
+                {
+                    k: row.get(k)
+                    for k in [
+                        "ticker",
+                        "date",
+                        "fund_flow",
+                        "aum",
+                        "shares_outstanding",
+                        "raw_data",
+                        "extracted_at",
+                        "run_id",
+                    ]
+                }
+            )
 
-        records = self._filter_valid_records(
-            records, ["ticker", "date"], handler, file_path
-        )
+        records = self._filter_valid_records(records, ["ticker", "date"], handler, file_path)
 
         rows_loaded = 0
         with self.db.engine.connect() as conn:

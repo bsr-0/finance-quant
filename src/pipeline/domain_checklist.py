@@ -89,8 +89,7 @@ def financial_risk_register() -> list[RiskEntry]:
             description="Execution latency causing fill price divergence from signal price",
             severity="medium",
             mitigation=(
-                "Latency estimation via historical/latency.py;"
-                " conservative fill assumptions"
+                "Latency estimation via historical/latency.py;" " conservative fill assumptions"
             ),
         ),
         RiskEntry(
@@ -262,8 +261,7 @@ def sports_betting_data_quirks() -> list[QuirkEntry]:
             quirk_id="SPT-Q03",
             data_source="Player statistics",
             description=(
-                "Rest days, travel, back-to-back effects"
-                " are material but easy to miscalculate"
+                "Rest days, travel, back-to-back effects" " are material but easy to miscalculate"
             ),
             impact="Ignoring rest/travel features misses significant signal",
             handling="Calculate rest days from schedule; track travel distance and time zones",
@@ -324,8 +322,7 @@ def elections_risk_register() -> list[RiskEntry]:
             risk_id="ELC-R01",
             category="data",
             description=(
-                "Polling data has known biases"
-                " (mode effects, likely voter screens, herding)"
+                "Polling data has known biases" " (mode effects, likely voter screens, herding)"
             ),
             severity="high",
             mitigation="Weight polls by historical accuracy; model house effects explicitly",
@@ -450,8 +447,7 @@ def fantasy_risk_register() -> list[RiskEntry]:
             description="Optimizing for projection accuracy instead of contest-specific scoring",
             severity="high",
             mitigation=(
-                "Optimize for contest objective"
-                " (cash floor vs GPP ceiling); not raw accuracy"
+                "Optimize for contest objective" " (cash floor vs GPP ceiling); not raw accuracy"
             ),
         ),
         RiskEntry(
@@ -510,8 +506,7 @@ def fantasy_data_quirks() -> list[QuirkEntry]:
             data_source="Late-swap rules",
             description="Some platforms allow roster changes after games start",
             impact=(
-                "Creates information asymmetry;"
-                " late-swap strategies differ from lock strategies"
+                "Creates information asymmetry;" " late-swap strategies differ from lock strategies"
             ),
             handling="Model late-swap separately; track which contests allow late swap",
         ),

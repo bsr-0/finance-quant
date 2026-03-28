@@ -34,8 +34,7 @@ def _store_latency_metrics(
             if value is None:
                 continue
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO meta_latency_stats
                         (source_name, metric_name, metric_value,
                          sample_size, window_start, window_end)
@@ -46,8 +45,7 @@ def _store_latency_metrics(
                         metric_value = EXCLUDED.metric_value,
                         sample_size = EXCLUDED.sample_size,
                         computed_at = NOW()
-                """
-                ),
+                """),
                 {
                     "source_name": source_name,
                     "metric_name": metric_name,
@@ -260,19 +258,21 @@ def get_latency_minutes(
     if not db.table_exists("meta_latency_stats"):
         return float(fallback_minutes)
     with db.engine.connect() as conn:
-        row = conn.execute(
-            text(
-                """
+        row = (
+            conn.execute(
+                text("""
                 SELECT metric_value, sample_size, computed_at
                 FROM meta_latency_stats
                 WHERE source_name = :source_name
                   AND metric_name = :metric_name
                 ORDER BY computed_at DESC
                 LIMIT 1
-            """
-            ),
-            {"source_name": source_name, "metric_name": metric_name},
-        ).mappings().first()
+            """),
+                {"source_name": source_name, "metric_name": metric_name},
+            )
+            .mappings()
+            .first()
+        )
 
     if not row:
         return float(fallback_minutes)

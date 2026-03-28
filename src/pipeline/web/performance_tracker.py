@@ -76,19 +76,14 @@ class PerformanceTracker:
     def save(self) -> None:
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
         self.history.last_updated = datetime.now(UTC).isoformat()
-        self.history_path.write_text(
-            json.dumps(self.history.to_dict(), indent=2, default=str)
-        )
+        self.history_path.write_text(json.dumps(self.history.to_dict(), indent=2, default=str))
 
     def add_signals(self, signals_df: pd.DataFrame, signal_date: str) -> int:
         """Add new signals from today's generate-signals output.
 
         Returns the number of new predictions added.
         """
-        existing = {
-            (p["signal_date"], p["ticker"])
-            for p in self.history.predictions
-        }
+        existing = {(p["signal_date"], p["ticker"]) for p in self.history.predictions}
 
         added = 0
         for _, row in signals_df.iterrows():
@@ -174,9 +169,7 @@ class PerformanceTracker:
                     pred["outcome"] = "stopped_out"
                     pred["resolved_date"] = str(bar_date.date())
                     pred["resolved_price"] = stop_price
-                    pred["pnl_pct"] = round(
-                        (stop_price - entry_price) / entry_price * 100, 2
-                    )
+                    pred["pnl_pct"] = round((stop_price - entry_price) / entry_price * 100, 2)
                     pred["days_held"] = (bar_date - signal_date).days
                     summary["stopped_out"] += 1
                     resolved = True
@@ -186,9 +179,7 @@ class PerformanceTracker:
                     pred["outcome"] = "hit_target"
                     pred["resolved_date"] = str(bar_date.date())
                     pred["resolved_price"] = target_price
-                    pred["pnl_pct"] = round(
-                        (target_price - entry_price) / entry_price * 100, 2
-                    )
+                    pred["pnl_pct"] = round((target_price - entry_price) / entry_price * 100, 2)
                     pred["days_held"] = (bar_date - signal_date).days
                     summary["hit_target"] += 1
                     resolved = True
@@ -203,9 +194,7 @@ class PerformanceTracker:
                         pred["outcome"] = "expired"
                         pred["resolved_date"] = str(as_of_date.date())
                         pred["resolved_price"] = float(last_close)
-                        pred["pnl_pct"] = round(
-                            (last_close - entry_price) / entry_price * 100, 2
-                        )
+                        pred["pnl_pct"] = round((last_close - entry_price) / entry_price * 100, 2)
                         pred["days_held"] = days_elapsed
                         summary["expired"] += 1
                 else:
@@ -219,9 +208,16 @@ class PerformanceTracker:
         total = len(preds)
         if total == 0:
             return {
-                "total": 0, "active": 0, "resolved": 0, "hit_target": 0,
-                "stopped_out": 0, "expired": 0, "win_rate": 0.0,
-                "avg_pnl_pct": 0.0, "avg_win_pct": 0.0, "avg_loss_pct": 0.0,
+                "total": 0,
+                "active": 0,
+                "resolved": 0,
+                "hit_target": 0,
+                "stopped_out": 0,
+                "expired": 0,
+                "win_rate": 0.0,
+                "avg_pnl_pct": 0.0,
+                "avg_win_pct": 0.0,
+                "avg_loss_pct": 0.0,
             }
 
         active = sum(1 for p in preds if p["outcome"] == "active")
@@ -234,12 +230,8 @@ class PerformanceTracker:
 
         pnls = [p["pnl_pct"] for p in preds if p["pnl_pct"] is not None]
         avg_pnl = sum(pnls) / len(pnls) if pnls else 0.0
-        avg_win = (
-            sum(p for p in pnls if p > 0) / max(sum(1 for p in pnls if p > 0), 1)
-        )
-        avg_loss = (
-            sum(p for p in pnls if p < 0) / max(sum(1 for p in pnls if p < 0), 1)
-        )
+        avg_win = sum(p for p in pnls if p > 0) / max(sum(1 for p in pnls if p > 0), 1)
+        avg_loss = sum(p for p in pnls if p < 0) / max(sum(1 for p in pnls if p < 0), 1)
 
         return {
             "total": total,
@@ -257,13 +249,9 @@ class PerformanceTracker:
     def get_recent_predictions(self, days: int = 30) -> list[dict]:
         """Get predictions from the last N days, sorted by date descending."""
         cutoff = (pd.Timestamp.now() - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
-        recent = [
-            p for p in self.history.predictions if p["signal_date"] >= cutoff
-        ]
+        recent = [p for p in self.history.predictions if p["signal_date"] >= cutoff]
         return sorted(recent, key=lambda p: (p["signal_date"], -p["score"]), reverse=True)
 
     def get_ticker_history(self, ticker: str) -> list[dict]:
         """Get all predictions for a specific ticker."""
-        return [
-            p for p in self.history.predictions if p["ticker"] == ticker
-        ]
+        return [p for p in self.history.predictions if p["ticker"] == ticker]

@@ -214,7 +214,7 @@ class SignalEngine:
             eligible = (
                 regime != "BEAR"
                 and trend >= 25  # Must have primary uptrend
-                and pb > 0      # Must have some pullback signal
+                and pb > 0  # Must have some pullback signal
                 and total >= threshold
             )
 
@@ -265,12 +265,7 @@ class SignalEngine:
                 regime = "NEUTRAL"
 
             threshold = self.neutral_threshold if regime == "NEUTRAL" else self.entry_threshold
-            eligible = (
-                regime != "BEAR"
-                and trend >= 25
-                and pb > 0
-                and total >= threshold
-            )
+            eligible = regime != "BEAR" and trend >= 25 and pb > 0 and total >= threshold
 
             records.append(
                 {

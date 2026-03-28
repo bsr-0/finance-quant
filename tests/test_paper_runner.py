@@ -26,6 +26,7 @@ from pipeline.execution.paper_runner import (
 # Mock broker for paper runner tests
 # ---------------------------------------------------------------------------
 
+
 class PaperMockBroker(BaseBroker):
     """Mock broker that simulates paper trading mode."""
 
@@ -74,8 +75,12 @@ class PaperMockBroker(BaseBroker):
 
     def close_position(self, symbol: str) -> Order:
         return Order(
-            symbol=symbol, side=OrderSide.SELL, order_type=OrderType.MARKET,
-            qty=1.0, order_id="close-1", status=OrderStatus.SUBMITTED,
+            symbol=symbol,
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            qty=1.0,
+            order_id="close-1",
+            status=OrderStatus.SUBMITTED,
         )
 
     def close_all_positions(self) -> list[Order]:
@@ -86,27 +91,30 @@ class PaperMockBroker(BaseBroker):
 # Helper to write signal CSVs
 # ---------------------------------------------------------------------------
 
+
 def _make_signal_csv(tmp_path: Path, date_str: str = "20240115") -> Path:
     """Create a signal CSV in the given directory."""
-    rows = [{
-        "date": "2024-01-15",
-        "ticker": "AAPL",
-        "direction": "LONG",
-        "score": 80,
-        "trend_pts": 30,
-        "pullback_pts": 15,
-        "volume_pts": 10,
-        "volatility_pts": 25,
-        "entry_price": 150.0,
-        "stop_price": 145.0,
-        "target_1": 160.0,
-        "target_2": 165.0,
-        "atr": 5.0,
-        "atr_pct": 3.33,
-        "regime": "BULL",
-        "confidence": "HIGH",
-        "strategy_id": "QSG-MICRO-SWING-001",
-    }]
+    rows = [
+        {
+            "date": "2024-01-15",
+            "ticker": "AAPL",
+            "direction": "LONG",
+            "score": 80,
+            "trend_pts": 30,
+            "pullback_pts": 15,
+            "volume_pts": 10,
+            "volatility_pts": 25,
+            "entry_price": 150.0,
+            "stop_price": 145.0,
+            "target_1": 160.0,
+            "target_2": 165.0,
+            "atr": 5.0,
+            "atr_pct": 3.33,
+            "regime": "BULL",
+            "confidence": "HIGH",
+            "strategy_id": "QSG-MICRO-SWING-001",
+        }
+    ]
     df = pd.DataFrame(rows)
     filepath = tmp_path / f"signals_{date_str}.csv"
     df.to_csv(filepath, index=False)
@@ -116,6 +124,7 @@ def _make_signal_csv(tmp_path: Path, date_str: str = "20240115") -> Path:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestPaperRunnerInit:
     def test_creates_with_custom_broker(self, tmp_path):

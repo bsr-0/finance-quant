@@ -37,10 +37,26 @@ def _generate_synthetic_universe(
     """
     np.random.RandomState(seed)
     tickers = [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META",
-        "NVDA", "TSLA", "JPM", "V", "UNH",
-        "HD", "PG", "MA", "DIS", "NFLX",
-        "ADBE", "CRM", "PYPL", "INTC", "CSCO",
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "AMZN",
+        "META",
+        "NVDA",
+        "TSLA",
+        "JPM",
+        "V",
+        "UNH",
+        "HD",
+        "PG",
+        "MA",
+        "DIS",
+        "NFLX",
+        "ADBE",
+        "CRM",
+        "PYPL",
+        "INTC",
+        "CSCO",
     ][:n_stocks]
 
     dates = pd.bdate_range("2021-01-01", periods=n_days, freq="B")
@@ -99,6 +115,7 @@ def run_example() -> str:
     # 3. Build universe from price data
     # Use relaxed filters for synthetic data (no real ADV/market cap metadata)
     from pipeline.strategy.universe import UniverseFilter
+
     synthetic_filter = UniverseFilter(
         min_adv_dollars=0,
         min_price=5.0,

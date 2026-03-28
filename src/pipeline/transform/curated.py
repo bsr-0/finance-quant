@@ -37,6 +37,7 @@ class CuratedTransformer:
             return rows
         # DuckDB returns -1 for INSERT...SELECT; fall back to a COUNT query.
         from pipeline.db import _validate_identifier
+
         count_result = conn.execute(
             text(f"SELECT COUNT(*) AS n FROM {_validate_identifier(target_table)}")
         )
@@ -763,7 +764,8 @@ class CuratedTransformer:
         # If the latest trading day for a ticker is >30 days before the
         # global max trading day across all tickers, mark it delisted.
         with self.db.engine.connect() as conn:
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 WITH last_dates AS (
                     SELECT ticker, MAX(date) AS last_date
                     FROM raw_prices_ohlcv
@@ -778,7 +780,9 @@ class CuratedTransformer:
                 FROM last_dates ld, global_max gm
                 WHERE s.ticker = ld.ticker
                   AND ld.last_date < gm.max_date - (CAST(:gap AS INTEGER) * INTERVAL '1' DAY)
-            """), {"gap": _DELISTING_GAP_DAYS})
+            """),
+                {"gap": _DELISTING_GAP_DAYS},
+            )
             conn.commit()
             logger.info("Updated delisting flags on dim_symbol")
 

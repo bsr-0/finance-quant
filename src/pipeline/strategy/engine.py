@@ -197,12 +197,18 @@ class SwingStrategyEngine:
             self.decay_monitor.record_daily_return(daily_ret, equity)
 
             # --- Risk state ---
-            total_risk_pct = sum(
-                (pos.entry_price - pos.stop_price) * pos.shares / equity
-                for pos in open_positions
-            ) if equity > 0 else 0
+            total_risk_pct = (
+                sum(
+                    (pos.entry_price - pos.stop_price) * pos.shares / equity
+                    for pos in open_positions
+                )
+                if equity > 0
+                else 0
+            )
             risk_state = self.risk_mgr.get_risk_state(
-                equity, len(open_positions), total_risk_pct,
+                equity,
+                len(open_positions),
+                total_risk_pct,
                 daily_return=daily_ret,
             )
             self.risk_mgr.tick_cooldown()
@@ -299,11 +305,7 @@ class SwingStrategyEngine:
                     score_total, trend, pb, vol_pts, volat_pts = self.signal_engine._score_row(row)
 
                     # Check entry conditions
-                    eligible = (
-                        trend >= 25
-                        and pb > 0
-                        and score_total >= min_score
-                    )
+                    eligible = trend >= 25 and pb > 0 and score_total >= min_score
                     if not eligible:
                         continue
 
@@ -313,10 +315,14 @@ class SwingStrategyEngine:
                         continue
 
                     # Recompute risk budget
-                    current_risk = sum(
-                        (p.entry_price - p.stop_price) * p.shares / equity
-                        for p in open_positions
-                    ) if equity > 0 else 0
+                    current_risk = (
+                        sum(
+                            (p.entry_price - p.stop_price) * p.shares / equity
+                            for p in open_positions
+                        )
+                        if equity > 0
+                        else 0
+                    )
 
                     size_result = self.sizer.compute(
                         equity=equity,
@@ -371,7 +377,10 @@ class SwingStrategyEngine:
                     )
                     logger.info(
                         "ENTRY %s: %d shares @ $%.2f, score=%d, stop=$%.2f",
-                        sym, size_result.shares, entry_price, score_total,
+                        sym,
+                        size_result.shares,
+                        entry_price,
+                        score_total,
                         size_result.stop_price,
                     )
 
@@ -388,17 +397,19 @@ class SwingStrategyEngine:
             else:
                 dd_pct = 0
 
-            snapshots.append(DailySnapshot(
-                date=date,
-                equity=equity,
-                cash=cash,
-                positions_value=positions_value,
-                num_positions=len(open_positions),
-                daily_return=daily_ret,
-                drawdown_pct=dd_pct,
-                drawdown_level=risk_state.drawdown_level,
-                regime=regime,
-            ))
+            snapshots.append(
+                DailySnapshot(
+                    date=date,
+                    equity=equity,
+                    cash=cash,
+                    positions_value=positions_value,
+                    num_positions=len(open_positions),
+                    daily_return=daily_ret,
+                    drawdown_pct=dd_pct,
+                    drawdown_level=risk_state.drawdown_level,
+                    regime=regime,
+                )
+            )
 
             prev_equity = equity
 
@@ -423,17 +434,13 @@ class BacktestResult:
     def equity_curve(self) -> pd.Series:
         if not self.snapshots:
             return pd.Series(dtype=float)
-        return pd.Series(
-            {s.date: s.equity for s in self.snapshots}
-        ).sort_index()
+        return pd.Series({s.date: s.equity for s in self.snapshots}).sort_index()
 
     @property
     def daily_returns(self) -> pd.Series:
         if not self.snapshots:
             return pd.Series(dtype=float)
-        return pd.Series(
-            {s.date: s.daily_return for s in self.snapshots}
-        ).sort_index()
+        return pd.Series({s.date: s.daily_return for s in self.snapshots}).sort_index()
 
     @property
     def trade_df(self) -> pd.DataFrame:
@@ -441,20 +448,22 @@ class BacktestResult:
             return pd.DataFrame()
         records = []
         for t in self.trades:
-            records.append({
-                "symbol": t.symbol,
-                "entry_date": t.entry_date,
-                "entry_price": t.entry_price,
-                "shares": t.shares,
-                "exit_date": t.exit_date,
-                "exit_price": t.exit_price,
-                "exit_reason": t.exit_reason,
-                "pnl_dollars": t.pnl_dollars,
-                "pnl_pct": t.pnl_pct,
-                "days_held": t.days_held,
-                "signal_score": t.signal_score,
-                "hit_target": t.hit_target,
-            })
+            records.append(
+                {
+                    "symbol": t.symbol,
+                    "entry_date": t.entry_date,
+                    "entry_price": t.entry_price,
+                    "shares": t.shares,
+                    "exit_date": t.exit_date,
+                    "exit_price": t.exit_price,
+                    "exit_reason": t.exit_reason,
+                    "pnl_dollars": t.pnl_dollars,
+                    "pnl_pct": t.pnl_pct,
+                    "days_held": t.days_held,
+                    "signal_score": t.signal_score,
+                    "hit_target": t.hit_target,
+                }
+            )
         return pd.DataFrame(records)
 
     def summary(self) -> dict:
@@ -475,7 +484,7 @@ class BacktestResult:
         # Sortino
         downside = rets[rets < 0]
         if len(downside) > 0:
-            ds_std = np.sqrt((downside ** 2).mean())
+            ds_std = np.sqrt((downside**2).mean())
             sortino = rets.mean() / ds_std * np.sqrt(252) if ds_std > 0 else np.nan
         else:
             sortino = np.nan

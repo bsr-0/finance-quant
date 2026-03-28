@@ -17,6 +17,7 @@ from pipeline.infrastructure.risk_controls import (
 # KillSwitch
 # ---------------------------------------------------------------------------
 
+
 class TestKillSwitch:
     def test_initial_state_not_engaged(self):
         ks = KillSwitch()
@@ -50,6 +51,7 @@ class TestKillSwitch:
 # ---------------------------------------------------------------------------
 # IntradayRiskMonitor
 # ---------------------------------------------------------------------------
+
 
 class TestIntradayRiskMonitor:
     def setup_method(self):
@@ -115,6 +117,7 @@ class TestIntradayRiskMonitor:
 # PortfolioState
 # ---------------------------------------------------------------------------
 
+
 class TestPortfolioState:
     def test_gross_exposure(self):
         ps = PortfolioState(
@@ -146,6 +149,7 @@ class TestPortfolioState:
 # ---------------------------------------------------------------------------
 # PreTradeChecker
 # ---------------------------------------------------------------------------
+
 
 class TestPreTradeChecker:
     def setup_method(self):

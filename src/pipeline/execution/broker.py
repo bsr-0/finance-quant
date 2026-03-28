@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # Order types
 # ---------------------------------------------------------------------------
 
+
 class OrderSide(Enum):
     BUY = "buy"
     SELL = "sell"
@@ -87,6 +88,7 @@ class Position:
 # ---------------------------------------------------------------------------
 # Abstract broker
 # ---------------------------------------------------------------------------
+
 
 class BaseBroker(ABC):
     """Abstract broker interface.

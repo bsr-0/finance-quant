@@ -129,19 +129,21 @@ class MicrostructureAnalyzer:
 
         hour = (timestamp_ns // (3_600 * 10**9)) % 24
 
-        self._fills.append({
-            "symbol": symbol,
-            "side": side,
-            "price": price,
-            "size": size,
-            "mid": mid_at_fill,
-            "spread_bps": spread_at_fill,
-            "inventory": inventory_at_fill,
-            "distance_bps": distance_from_mid,
-            "pnl": pnl,
-            "hour": hour,
-            "timestamp_ns": timestamp_ns,
-        })
+        self._fills.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "price": price,
+                "size": size,
+                "mid": mid_at_fill,
+                "spread_bps": spread_at_fill,
+                "inventory": inventory_at_fill,
+                "distance_bps": distance_from_mid,
+                "pnl": pnl,
+                "hour": hour,
+                "timestamp_ns": timestamp_ns,
+            }
+        )
 
         self._trade_sizes.append(size)
         self._pnl_by_hour[hour].append(pnl)
@@ -151,18 +153,18 @@ class MicrostructureAnalyzer:
 
     def record_book_snapshot(self, book: OrderBookSnapshot) -> None:
         """Record an order-book snapshot."""
-        self._book_snapshots.append({
-            "symbol": book.symbol,
-            "mid": book.mid,
-            "spread": book.spread,
-            "imbalance": book.imbalance,
-            "depth_ratio": book.depth_ratio,
-            "timestamp_ns": book.timestamp_ns,
-        })
+        self._book_snapshots.append(
+            {
+                "symbol": book.symbol,
+                "mid": book.mid,
+                "spread": book.spread,
+                "imbalance": book.imbalance,
+                "depth_ratio": book.depth_ratio,
+                "timestamp_ns": book.timestamp_ns,
+            }
+        )
 
-    def fill_probability_by_distance(
-        self, bins: int = 10
-    ) -> pd.DataFrame:
+    def fill_probability_by_distance(self, bins: int = 10) -> pd.DataFrame:
         """Compute fill probability as a function of distance from mid.
 
         Returns a DataFrame with columns: distance_bps_bin, fill_count,
@@ -188,14 +190,18 @@ class MicrostructureAnalyzer:
         records = []
         for hour in sorted(self._pnl_by_hour.keys()):
             pnls = self._pnl_by_hour[hour]
-            records.append({
-                "hour": hour,
-                "avg_pnl": float(np.mean(pnls)),
-                "total_pnl": float(np.sum(pnls)),
-                "count": len(pnls),
-            })
-        return pd.DataFrame(records) if records else pd.DataFrame(
-            columns=["hour", "avg_pnl", "total_pnl", "count"]
+            records.append(
+                {
+                    "hour": hour,
+                    "avg_pnl": float(np.mean(pnls)),
+                    "total_pnl": float(np.sum(pnls)),
+                    "count": len(pnls),
+                }
+            )
+        return (
+            pd.DataFrame(records)
+            if records
+            else pd.DataFrame(columns=["hour", "avg_pnl", "total_pnl", "count"])
         )
 
     def pnl_by_spread_width(self, bins: int = 5) -> pd.DataFrame:
@@ -205,10 +211,15 @@ class MicrostructureAnalyzer:
 
         df = pd.DataFrame(self._pnl_by_spread, columns=["spread_bps", "pnl"])
         df["bin"] = pd.cut(df["spread_bps"], bins=bins)
-        grouped = df.groupby("bin", observed=True).agg(
-            avg_pnl=("pnl", "mean"),
-            count=("pnl", "size"),
-        ).reset_index().rename(columns={"bin": "spread_bin"})
+        grouped = (
+            df.groupby("bin", observed=True)
+            .agg(
+                avg_pnl=("pnl", "mean"),
+                count=("pnl", "size"),
+            )
+            .reset_index()
+            .rename(columns={"bin": "spread_bin"})
+        )
         return grouped
 
     def pnl_by_inventory_level(self, bins: int = 5) -> pd.DataFrame:
@@ -218,10 +229,15 @@ class MicrostructureAnalyzer:
 
         df = pd.DataFrame(self._pnl_by_inventory, columns=["inventory", "pnl"])
         df["bin"] = pd.cut(df["inventory"], bins=bins)
-        grouped = df.groupby("bin", observed=True).agg(
-            avg_pnl=("pnl", "mean"),
-            count=("pnl", "size"),
-        ).reset_index().rename(columns={"bin": "inventory_bin"})
+        grouped = (
+            df.groupby("bin", observed=True)
+            .agg(
+                avg_pnl=("pnl", "mean"),
+                count=("pnl", "size"),
+            )
+            .reset_index()
+            .rename(columns={"bin": "inventory_bin"})
+        )
         return grouped
 
     def trade_size_distribution(self) -> dict[str, float]:
@@ -257,12 +273,10 @@ class MicrostructureAnalyzer:
             "trade_size_distribution": self.trade_size_distribution(),
             "book_imbalance_stats": self.book_imbalance_stats(),
             "pnl_by_hour_count": len(self._pnl_by_hour),
-            "avg_fill_distance_bps": float(
-                np.mean([f["distance_bps"] for f in self._fills])
-            ) if self._fills else 0.0,
-            "avg_fill_pnl": float(
-                np.mean([f["pnl"] for f in self._fills])
-            ) if self._fills else 0.0,
+            "avg_fill_distance_bps": (
+                float(np.mean([f["distance_bps"] for f in self._fills])) if self._fills else 0.0
+            ),
+            "avg_fill_pnl": float(np.mean([f["pnl"] for f in self._fills])) if self._fills else 0.0,
         }
 
     @staticmethod

@@ -40,7 +40,7 @@ class WalkForwardConfig:
     """Configuration for walk-forward validation of a strategy."""
 
     train_days: int = 504  # 2 years in-sample
-    test_days: int = 63    # 3 months out-of-sample
+    test_days: int = 63  # 3 months out-of-sample
     step_days: int | None = None  # Defaults to test_days (non-overlapping)
     expanding: bool = True
     embargo_days: int = 5
@@ -109,7 +109,10 @@ class WalkForwardResult:
 
         # Add mean row
         mean_row: dict[str, Any] = {
-            "fold": "MEAN", "test_start": "", "test_end": "", "test_size": "",
+            "fold": "MEAN",
+            "test_start": "",
+            "test_end": "",
+            "test_size": "",
         }
         mean_row.update(self.oos_mean_metrics)
         rows.append(mean_row)

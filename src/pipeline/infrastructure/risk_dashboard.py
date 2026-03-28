@@ -157,15 +157,9 @@ class DailyRiskDashboard:
         warnings: list[str] = []
 
         # Exposure calculations
-        long_notional = sum(
-            qty * prices.get(sym, 0)
-            for sym, qty in positions.items()
-            if qty > 0
-        )
+        long_notional = sum(qty * prices.get(sym, 0) for sym, qty in positions.items() if qty > 0)
         short_notional = sum(
-            abs(qty) * prices.get(sym, 0)
-            for sym, qty in positions.items()
-            if qty < 0
+            abs(qty) * prices.get(sym, 0) for sym, qty in positions.items() if qty < 0
         )
         gross = long_notional + short_notional
         net = abs(long_notional - short_notional)
@@ -188,9 +182,7 @@ class DailyRiskDashboard:
         dd = (cfg.nav + total_pnl - peak) / peak if peak > 0 else 0
 
         # Limit utilizations
-        limits = self._compute_limit_utilizations(
-            gross, net, leverage, total_pnl, dd
-        )
+        limits = self._compute_limit_utilizations(gross, net, leverage, total_pnl, dd)
 
         # Stress tests
         stress_results = {}
@@ -253,38 +245,63 @@ class DailyRiskDashboard:
 
         # Gross exposure
         gross_util = gross / cfg.max_gross_exposure if cfg.max_gross_exposure > 0 else 0
-        limits.append(LimitUtilization(
-            "gross_exposure", gross, cfg.max_gross_exposure,
-            gross_util * 100, _status(gross_util),
-        ))
+        limits.append(
+            LimitUtilization(
+                "gross_exposure",
+                gross,
+                cfg.max_gross_exposure,
+                gross_util * 100,
+                _status(gross_util),
+            )
+        )
 
         # Net exposure
         net_util = net / cfg.max_net_exposure if cfg.max_net_exposure > 0 else 0
-        limits.append(LimitUtilization(
-            "net_exposure", net, cfg.max_net_exposure,
-            net_util * 100, _status(net_util),
-        ))
+        limits.append(
+            LimitUtilization(
+                "net_exposure",
+                net,
+                cfg.max_net_exposure,
+                net_util * 100,
+                _status(net_util),
+            )
+        )
 
         # Leverage
         lev_util = leverage / cfg.max_leverage if cfg.max_leverage > 0 else 0
-        limits.append(LimitUtilization(
-            "leverage", leverage, cfg.max_leverage,
-            lev_util * 100, _status(lev_util),
-        ))
+        limits.append(
+            LimitUtilization(
+                "leverage",
+                leverage,
+                cfg.max_leverage,
+                lev_util * 100,
+                _status(lev_util),
+            )
+        )
 
         # Daily loss
         loss_util = abs(min(pnl, 0)) / cfg.max_daily_loss if cfg.max_daily_loss > 0 else 0
-        limits.append(LimitUtilization(
-            "daily_loss", pnl, -cfg.max_daily_loss,
-            loss_util * 100, _status(loss_util),
-        ))
+        limits.append(
+            LimitUtilization(
+                "daily_loss",
+                pnl,
+                -cfg.max_daily_loss,
+                loss_util * 100,
+                _status(loss_util),
+            )
+        )
 
         # Drawdown
         dd_util = abs(min(drawdown, 0)) / cfg.max_drawdown_pct if cfg.max_drawdown_pct > 0 else 0
-        limits.append(LimitUtilization(
-            "drawdown", drawdown, -cfg.max_drawdown_pct,
-            dd_util * 100, _status(dd_util),
-        ))
+        limits.append(
+            LimitUtilization(
+                "drawdown",
+                drawdown,
+                -cfg.max_drawdown_pct,
+                dd_util * 100,
+                _status(dd_util),
+            )
+        )
 
         return limits
 
@@ -298,41 +315,49 @@ class DailyRiskDashboard:
         checks: list[tuple[str, bool, str]] = []
 
         # Data sanity: prices available for all positions
-        missing_prices = [
-            sym for sym in positions
-            if positions[sym] != 0 and sym not in prices
-        ]
-        checks.append((
-            "prices_available",
-            len(missing_prices) == 0,
-            f"Missing: {missing_prices}" if missing_prices else "OK",
-        ))
+        missing_prices = [sym for sym in positions if positions[sym] != 0 and sym not in prices]
+        checks.append(
+            (
+                "prices_available",
+                len(missing_prices) == 0,
+                f"Missing: {missing_prices}" if missing_prices else "OK",
+            )
+        )
 
         # Returns history adequate for risk models
         has_returns = returns is not None and len(returns.dropna()) >= 60
-        checks.append((
-            "returns_history_adequate",
-            has_returns,
-            (f"Length={len(returns.dropna()) if returns is not None else 0}"
-             if not has_returns else "OK"),
-        ))
+        checks.append(
+            (
+                "returns_history_adequate",
+                has_returns,
+                (
+                    f"Length={len(returns.dropna()) if returns is not None else 0}"
+                    if not has_returns
+                    else "OK"
+                ),
+            )
+        )
 
         # Limits configured
         cfg = self.config
         limits_ok = cfg.max_daily_loss > 0 and cfg.max_gross_exposure > 0
-        checks.append((
-            "limits_configured",
-            limits_ok,
-            f"max_loss={cfg.max_daily_loss:,.0f}" if limits_ok else "MISSING",
-        ))
+        checks.append(
+            (
+                "limits_configured",
+                limits_ok,
+                f"max_loss={cfg.max_daily_loss:,.0f}" if limits_ok else "MISSING",
+            )
+        )
 
         # NAV is positive and reasonable
         nav_ok = cfg.nav > 0
-        checks.append((
-            "nav_positive",
-            nav_ok,
-            f"NAV={cfg.nav:,.0f}" if nav_ok else "NAV <= 0",
-        ))
+        checks.append(
+            (
+                "nav_positive",
+                nav_ok,
+                f"NAV={cfg.nav:,.0f}" if nav_ok else "NAV <= 0",
+            )
+        )
 
         return checks
 

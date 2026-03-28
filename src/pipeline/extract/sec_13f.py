@@ -67,9 +67,7 @@ class Sec13FExtractor:
 
         return self._circuit.call(_do)
 
-    def _get_13f_filings(
-        self, cik: int, start_date: date | None = None
-    ) -> list[dict]:
+    def _get_13f_filings(self, cik: int, start_date: date | None = None) -> list[dict]:
         """Get list of 13F-HR filings for a filer."""
         data = self._fetch_submissions(cik)
         recent = data.get("filings", {}).get("recent", {})
@@ -86,12 +84,14 @@ class Sec13FExtractor:
             filing_date = dates[i] if i < len(dates) else None
             if start_date and filing_date and filing_date < start_date.isoformat():
                 continue
-            filings.append({
-                "accession_number": accessions[i] if i < len(accessions) else None,
-                "filing_date": filing_date,
-                "primary_document": primary_docs[i] if i < len(primary_docs) else None,
-                "report_date": report_dates[i] if i < len(report_dates) else None,
-            })
+            filings.append(
+                {
+                    "accession_number": accessions[i] if i < len(accessions) else None,
+                    "filing_date": filing_date,
+                    "primary_document": primary_docs[i] if i < len(primary_docs) else None,
+                    "report_date": report_dates[i] if i < len(report_dates) else None,
+                }
+            )
 
         return filings
 
@@ -139,17 +139,22 @@ class Sec13FExtractor:
         # Try with and without namespace
         info_tables = root.findall(".//ns:infoTable", _NS)
         if not info_tables:
-            info_tables = root.findall(".//{http://www.sec.gov/edgar/document/thirteenf/informationtable}infoTable")
+            info_tables = root.findall(
+                ".//{http://www.sec.gov/edgar/document/thirteenf/informationtable}infoTable"
+            )
         if not info_tables:
             # Try without namespace
             info_tables = root.findall(".//infoTable")
 
         for entry in info_tables:
+
             def _text(path: str, entry: ET.Element = entry) -> str | None:
                 # Try with namespace
                 el = entry.find(f"ns:{path}", _NS)
                 if el is None:
-                    el = entry.find(f"{{http://www.sec.gov/edgar/document/thirteenf/informationtable}}{path}")
+                    el = entry.find(
+                        f"{{http://www.sec.gov/edgar/document/thirteenf/informationtable}}{path}"
+                    )
                 if el is None:
                     el = entry.find(path)
                 return el.text.strip() if el is not None and el.text else None
@@ -164,7 +169,9 @@ class Sec13FExtractor:
             # Shares info
             shares_el = entry.find("ns:shrsOrPrnAmt", _NS)
             if shares_el is None:
-                shares_el = entry.find("{http://www.sec.gov/edgar/document/thirteenf/informationtable}shrsOrPrnAmt")
+                shares_el = entry.find(
+                    "{http://www.sec.gov/edgar/document/thirteenf/informationtable}shrsOrPrnAmt"
+                )
             if shares_el is None:
                 shares_el = entry.find("shrsOrPrnAmt")
 
@@ -173,12 +180,16 @@ class Sec13FExtractor:
             if shares_el is not None:
                 sh_val = shares_el.find("ns:sshPrnamt", _NS)
                 if sh_val is None:
-                    sh_val = shares_el.find("{http://www.sec.gov/edgar/document/thirteenf/informationtable}sshPrnamt")
+                    sh_val = shares_el.find(
+                        "{http://www.sec.gov/edgar/document/thirteenf/informationtable}sshPrnamt"
+                    )
                 if sh_val is None:
                     sh_val = shares_el.find("sshPrnamt")
                 sh_type = shares_el.find("ns:sshPrnamtType", _NS)
                 if sh_type is None:
-                    sh_type = shares_el.find("{http://www.sec.gov/edgar/document/thirteenf/informationtable}sshPrnamtType")
+                    sh_type = shares_el.find(
+                        "{http://www.sec.gov/edgar/document/thirteenf/informationtable}sshPrnamtType"
+                    )
                 if sh_type is None:
                     sh_type = shares_el.find("sshPrnamtType")
 
@@ -191,7 +202,9 @@ class Sec13FExtractor:
             # Voting authority
             voting_el = entry.find("ns:votingAuthority", _NS)
             if voting_el is None:
-                voting_el = entry.find("{http://www.sec.gov/edgar/document/thirteenf/informationtable}votingAuthority")
+                voting_el = entry.find(
+                    "{http://www.sec.gov/edgar/document/thirteenf/informationtable}votingAuthority"
+                )
             if voting_el is None:
                 voting_el = entry.find("votingAuthority")
 
@@ -200,7 +213,9 @@ class Sec13FExtractor:
                 for tag, attr in [("Sole", "sole"), ("Shared", "shared"), ("None", "none")]:
                     vel = voting_el.find(f"ns:{attr}", _NS)
                     if vel is None:
-                        vel = voting_el.find(f"{{http://www.sec.gov/edgar/document/thirteenf/informationtable}}{attr}")
+                        vel = voting_el.find(
+                            f"{{http://www.sec.gov/edgar/document/thirteenf/informationtable}}{attr}"
+                        )
                     if vel is None:
                         vel = voting_el.find(attr)
                     if vel is not None and vel.text:
@@ -220,23 +235,25 @@ class Sec13FExtractor:
                 with contextlib.suppress(ValueError):
                     market_value = int(value_str) * 1000  # 13F reports values in thousands
 
-            rows.append({
-                "filer_cik": filer_cik,
-                "filer_name": filer_name,
-                "report_date": report_date,
-                "filing_date": filing_date,
-                "cusip": cusip,
-                "issuer_name": issuer,
-                "class_title": class_title,
-                "market_value": market_value,
-                "shares_held": shares,
-                "shares_type": shares_type,
-                "put_call": put_call,
-                "investment_discretion": discretion,
-                "voting_authority_sole": vote_sole,
-                "voting_authority_shared": vote_shared,
-                "voting_authority_none": vote_none,
-            })
+            rows.append(
+                {
+                    "filer_cik": filer_cik,
+                    "filer_name": filer_name,
+                    "report_date": report_date,
+                    "filing_date": filing_date,
+                    "cusip": cusip,
+                    "issuer_name": issuer,
+                    "class_title": class_title,
+                    "market_value": market_value,
+                    "shares_held": shares,
+                    "shares_type": shares_type,
+                    "put_call": put_call,
+                    "investment_discretion": discretion,
+                    "voting_authority_sole": vote_sole,
+                    "voting_authority_shared": vote_shared,
+                    "voting_authority_none": vote_none,
+                }
+            )
 
         return rows
 
@@ -275,8 +292,11 @@ class Sec13FExtractor:
                     xml_text = self._fetch_13f_table(filer_cik, accession)
                     if xml_text:
                         rows = self._parse_13f_xml(
-                            xml_text, filer_cik, filer_name,
-                            str(report_date or ""), str(filing_date or ""),
+                            xml_text,
+                            filer_cik,
+                            filer_name,
+                            str(report_date or ""),
+                            str(filing_date or ""),
                         )
                         for row in rows:
                             row["accession_number"] = accession
@@ -318,5 +338,7 @@ def extract_sec_13f(
     end = date.fromisoformat(end_date) if end_date else None
     return extractor.extract_to_raw(
         output_dir=output_dir,
-        start_date=start, end_date=end, run_id=run_id,
+        start_date=start,
+        end_date=end,
+        run_id=run_id,
     )

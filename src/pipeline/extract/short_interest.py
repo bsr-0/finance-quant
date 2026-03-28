@@ -64,10 +64,9 @@ class ShortInterestExtractor:
             stats = result[0].get("defaultKeyStatistics", {})
             short_interest = stats.get("sharesShort", {}).get("raw")
             short_date = stats.get("dateShortInterest", {}).get("raw")
-            avg_volume = (
-                stats.get("averageDailyVolume10Day", {}).get("raw")
-                or stats.get("averageVolume", {}).get("raw")
-            )
+            avg_volume = stats.get("averageDailyVolume10Day", {}).get("raw") or stats.get(
+                "averageVolume", {}
+            ).get("raw")
             float_shares = stats.get("floatShares", {}).get("raw")
             short_ratio = stats.get("shortRatio", {}).get("raw")
             short_pct = stats.get("shortPercentOfFloat", {}).get("raw")
@@ -81,15 +80,17 @@ class ShortInterestExtractor:
                 else date.today()
             )
 
-            return [{
-                "ticker": ticker,
-                "settlement_date": settlement,
-                "short_interest": int(short_interest),
-                "avg_daily_volume": int(avg_volume) if avg_volume else None,
-                "days_to_cover": float(short_ratio) if short_ratio else None,
-                "short_pct_float": float(short_pct) if short_pct else None,
-                "float_shares": int(float_shares) if float_shares else None,
-            }]
+            return [
+                {
+                    "ticker": ticker,
+                    "settlement_date": settlement,
+                    "short_interest": int(short_interest),
+                    "avg_daily_volume": int(avg_volume) if avg_volume else None,
+                    "days_to_cover": float(short_ratio) if short_ratio else None,
+                    "short_pct_float": float(short_pct) if short_pct else None,
+                    "float_shares": int(float_shares) if float_shares else None,
+                }
+            ]
 
         return self._circuit.call(_do)
 
@@ -142,5 +143,7 @@ def extract_short_interest(
     """CLI-friendly wrapper."""
     extractor = ShortInterestExtractor()
     return extractor.extract_to_raw(
-        output_dir=output_dir, tickers=tickers, run_id=run_id,
+        output_dir=output_dir,
+        tickers=tickers,
+        run_id=run_id,
     )

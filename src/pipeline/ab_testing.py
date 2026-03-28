@@ -55,9 +55,7 @@ class ABTestConfig:
     effect_size: float = 0.2  # Cohen's d or similar
     n_interim_looks: int = 4  # number of interim analyses
     status: TestStatus = TestStatus.DESIGNED
-    created_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -74,6 +72,7 @@ class ABTestConfig:
 # ---------------------------------------------------------------------------
 # Power Analysis (Section 18.5)
 # ---------------------------------------------------------------------------
+
 
 class PowerAnalysis:
     """Pre-compute minimum sample size for a given effect and power."""
@@ -116,6 +115,7 @@ class PowerAnalysis:
 # Sequential Testing Boundaries (O'Brien-Fleming, Section 18.5)
 # ---------------------------------------------------------------------------
 
+
 class SequentialTestBoundary:
     """O'Brien-Fleming group sequential boundaries for early stopping.
 
@@ -142,15 +142,17 @@ class SequentialTestBoundary:
             # O'Brien-Fleming: z_k = z_final / sqrt(info_fraction)
             z_final = norm.ppf(1 - self.alpha / (2 if self.two_sided else 1))
             z_boundary = z_final / math.sqrt(info_fraction)
-            boundaries.append({
-                "look": k,
-                "info_fraction": round(info_fraction, 4),
-                "z_boundary": round(z_boundary, 4),
-                "p_boundary": round(
-                    2 * norm.sf(z_boundary) if self.two_sided else norm.sf(z_boundary),
-                    6,
-                ),
-            })
+            boundaries.append(
+                {
+                    "look": k,
+                    "info_fraction": round(info_fraction, 4),
+                    "z_boundary": round(z_boundary, 4),
+                    "p_boundary": round(
+                        2 * norm.sf(z_boundary) if self.two_sided else norm.sf(z_boundary),
+                        6,
+                    ),
+                }
+            )
         return boundaries
 
     def should_stop(self, look: int, z_statistic: float) -> bool:
@@ -168,6 +170,7 @@ class SequentialTestBoundary:
 # A/B Test Record
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ABTestObservation:
     """A single observation in the A/B test."""
@@ -177,9 +180,7 @@ class ABTestObservation:
     entity_id: str = ""  # stratification entity
     primary_value: float = 0.0
     secondary_values: dict[str, float] = field(default_factory=dict)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 @dataclass
@@ -206,6 +207,7 @@ class ABTestResult:
 # ---------------------------------------------------------------------------
 # A/B Test Manager
 # ---------------------------------------------------------------------------
+
 
 class ABTestManager:
     """Manages A/B test lifecycle per Section 18.5.
@@ -292,7 +294,10 @@ class ABTestManager:
         self._save()
         logger.info(
             "Designed A/B test %s: %s vs %s (min_n=%d per group)",
-            config.test_id, candidate_id, incumbent_id, min_n,
+            config.test_id,
+            candidate_id,
+            incumbent_id,
+            min_n,
         )
         return config
 
@@ -345,18 +350,14 @@ class ABTestManager:
         c_std = float(np.std(candidate_vals, ddof=1))
         i_std = float(np.std(incumbent_vals, ddof=1))
 
-        pooled_se = math.sqrt(
-            c_std**2 / len(candidate_vals) + i_std**2 / len(incumbent_vals)
-        )
+        pooled_se = math.sqrt(c_std**2 / len(candidate_vals) + i_std**2 / len(incumbent_vals))
         if pooled_se == 0:
             return None
 
         z = (c_mean - i_mean) / pooled_se
         p = float(2 * norm.sf(abs(z)))
 
-        boundary = SequentialTestBoundary(
-            n_looks=config.n_interim_looks, alpha=config.alpha
-        )
+        boundary = SequentialTestBoundary(n_looks=config.n_interim_looks, alpha=config.alpha)
         should_stop = boundary.should_stop(look, z)
 
         if should_stop:
@@ -440,9 +441,7 @@ class ABTestManager:
         config = self._tests.get(test_id)
         if not config:
             return {}
-        boundary = SequentialTestBoundary(
-            n_looks=config.n_interim_looks, alpha=config.alpha
-        )
+        boundary = SequentialTestBoundary(n_looks=config.n_interim_looks, alpha=config.alpha)
         return {
             "report_type": "ab_test_protocol",
             "config": config.to_dict(),

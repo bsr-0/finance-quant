@@ -105,12 +105,18 @@ def walk_forward_ic(
     if len(common_dates) < train_size + test_size + embargo_size:
         logger.warning(
             "Insufficient data for walk-forward IC: %d dates, need %d",
-            len(common_dates), train_size + test_size + embargo_size,
+            len(common_dates),
+            train_size + test_size + embargo_size,
         )
         return SignalAlphaResult(
-            signal_name=signal_name, ic_mean=np.nan, ic_std=np.nan,
-            ic_t_stat=np.nan, ic_p_value=np.nan, deflated_sharpe_prob=np.nan,
-            n_folds=0, passed=False,
+            signal_name=signal_name,
+            ic_mean=np.nan,
+            ic_std=np.nan,
+            ic_t_stat=np.nan,
+            ic_p_value=np.nan,
+            deflated_sharpe_prob=np.nan,
+            n_folds=0,
+            passed=False,
         )
 
     signals_aligned = signals.loc[common_dates]
@@ -118,7 +124,11 @@ def walk_forward_ic(
 
     per_fold_ic: list[float] = []
     for _train_idx, test_idx in walk_forward_splits(
-        common_dates, train_size, test_size, embargo_size=embargo_size, expanding=expanding,
+        common_dates,
+        train_size,
+        test_size,
+        embargo_size=embargo_size,
+        expanding=expanding,
     ):
         test_dates = common_dates[test_idx]
         daily_ics: list[float] = []
@@ -135,9 +145,15 @@ def walk_forward_ic(
     n_folds = len(per_fold_ic)
     if n_folds < 2:
         return SignalAlphaResult(
-            signal_name=signal_name, ic_mean=np.nan, ic_std=np.nan,
-            ic_t_stat=np.nan, ic_p_value=np.nan, deflated_sharpe_prob=np.nan,
-            n_folds=n_folds, per_fold_ic=per_fold_ic, passed=False,
+            signal_name=signal_name,
+            ic_mean=np.nan,
+            ic_std=np.nan,
+            ic_t_stat=np.nan,
+            ic_p_value=np.nan,
+            deflated_sharpe_prob=np.nan,
+            n_folds=n_folds,
+            per_fold_ic=per_fold_ic,
+            passed=False,
         )
 
     ic_arr = np.array(per_fold_ic)
@@ -167,7 +183,13 @@ def walk_forward_ic(
 
     logger.info(
         "Signal '%s': IC mean=%.4f, std=%.4f, t=%.2f, p=%.4f, DSR=%.3f, passed=%s",
-        signal_name, ic_mean, ic_std, ic_t_stat, ic_p_value, dsr_prob, passed,
+        signal_name,
+        ic_mean,
+        ic_std,
+        ic_t_stat,
+        ic_p_value,
+        dsr_prob,
+        passed,
     )
 
     return SignalAlphaResult(

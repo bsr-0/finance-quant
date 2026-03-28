@@ -212,6 +212,120 @@
             font-size: 0.82rem;
             color: var(--yellow);
         }
+
+        /* Section headings */
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 32px 0 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* Source / feature cards grid */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .info-card .card-title {
+            font-weight: 600;
+            font-size: 0.92rem;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .info-card .card-detail {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        .info-card .card-detail code {
+            background: rgba(110,118,129,0.15);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 0.78rem;
+        }
+
+        /* Status dot */
+        .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .dot-green { background: var(--green); }
+        .dot-yellow { background: var(--yellow); }
+        .dot-red { background: var(--red); }
+        .dot-muted { background: var(--text-muted); }
+
+        /* Architecture diagram */
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            overflow-x: auto;
+            padding: 16px 0;
+            margin-bottom: 24px;
+        }
+        .arch-step {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 18px;
+            text-align: center;
+            min-width: 130px;
+            flex-shrink: 0;
+        }
+        .arch-step .step-label {
+            font-weight: 600;
+            font-size: 0.88rem;
+            margin-bottom: 4px;
+        }
+        .arch-step .step-detail {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .arch-arrow {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            padding: 0 6px;
+            flex-shrink: 0;
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-green { background: rgba(63,185,80,0.15); color: var(--green); }
+        .badge-yellow { background: rgba(210,153,34,0.15); color: var(--yellow); }
+        .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
+        .badge-muted { background: rgba(139,148,158,0.15); color: var(--text-muted); }
+
+        /* Two-column layout */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 768px) {
+            .two-col { grid-template-columns: 1fr; }
+            .arch-flow { flex-wrap: wrap; justify-content: center; }
+            .card-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -220,6 +334,7 @@
             <span class="logo">StockSignals</span>
             <div class="nav-links">
                 <a href="index.html" >Dashboard</a>
+                <a href="pipeline.html" >Pipeline</a>
                 <a href="history.html" >History</a>
                 <a href="performance.html" class="active">Performance</a>
             </div>
@@ -282,7 +397,7 @@
 
     <footer>
         <div class="container">
-            <p>Generated 2026-03-28 01:38 UTC &mdash; Not financial advice. Signals are algorithmic and for informational purposes only.</p>
+            <p>Generated 2026-03-28 02:41 UTC &mdash; Not financial advice. Signals are algorithmic and for informational purposes only.</p>
         </div>
     </footer>
 </body>

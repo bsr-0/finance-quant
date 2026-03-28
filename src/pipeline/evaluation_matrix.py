@@ -90,9 +90,7 @@ class EvaluationMatrix:
             y_p = y_p.loc[y_t.index].dropna()
             y_t = y_t.loc[y_p.index]
             if not y_t.empty:
-                entry.predictive_accuracy["rmse"] = float(
-                    np.sqrt(((y_t - y_p) ** 2).mean())
-                )
+                entry.predictive_accuracy["rmse"] = float(np.sqrt(((y_t - y_p) ** 2).mean()))
                 entry.predictive_accuracy["mae"] = float((y_t - y_p).abs().mean())
                 entry.predictive_accuracy["hit_rate"] = hit_rate(y_t, y_p)
 
@@ -118,21 +116,19 @@ class EvaluationMatrix:
                 over_confident = ((df["p"] > 0.5) & (df["y"] == 0)).sum()
                 under_confident = ((df["p"] < 0.5) & (df["y"] == 1)).sum()
                 total = len(df)
-                entry.calibration["over_confidence_rate"] = float(
-                    over_confident / total
-                ) if total > 0 else 0.0
-                entry.calibration["under_confidence_rate"] = float(
-                    under_confident / total
-                ) if total > 0 else 0.0
+                entry.calibration["over_confidence_rate"] = (
+                    float(over_confident / total) if total > 0 else 0.0
+                )
+                entry.calibration["under_confidence_rate"] = (
+                    float(under_confident / total) if total > 0 else 0.0
+                )
 
         # --- Decision utility ---
         if returns is not None:
             returns = returns.dropna()
             if not returns.empty:
                 sharpe, sortino = sharpe_sortino(returns)
-                entry.decision_utility["total_return"] = float(
-                    (1 + returns).prod() - 1
-                )
+                entry.decision_utility["total_return"] = float((1 + returns).prod() - 1)
                 entry.decision_utility["sharpe"] = sharpe
                 entry.decision_utility["sortino"] = sortino
 
@@ -141,14 +137,12 @@ class EvaluationMatrix:
             returns = returns.dropna()
             if not returns.empty:
                 entry.risk["max_drawdown"] = max_drawdown(returns)
-                entry.risk["volatility"] = float(
-                    returns.std() * np.sqrt(252)
-                )
+                entry.risk["volatility"] = float(returns.std() * np.sqrt(252))
                 # Worst month
                 if hasattr(returns.index, "to_period"):
-                    monthly = returns.groupby(
-                        returns.index.to_period("M")
-                    ).apply(lambda x: (1 + x).prod() - 1)
+                    monthly = returns.groupby(returns.index.to_period("M")).apply(
+                        lambda x: (1 + x).prod() - 1
+                    )
                     entry.risk["worst_month"] = float(monthly.min())
                 entry.risk["var_95"] = float(returns.quantile(0.05))
 

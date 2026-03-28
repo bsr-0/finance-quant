@@ -168,9 +168,7 @@ class RealtimePriceFeed:
         self._stop_event.clear()
 
         if self._mode == "websocket":
-            self._thread = threading.Thread(
-                target=self._ws_loop, daemon=True, name="realtime-ws"
-            )
+            self._thread = threading.Thread(target=self._ws_loop, daemon=True, name="realtime-ws")
         else:
             self._thread = threading.Thread(
                 target=self._poll_loop, daemon=True, name="realtime-poll"
@@ -270,19 +268,20 @@ class RealtimePriceFeed:
                 if not self._running:
                     break
                 retries += 1
-                delay = self._reconnect_backoff_base ** retries
+                delay = self._reconnect_backoff_base**retries
                 logger.warning(
                     "WebSocket disconnected (%s), retry %d/%d in %.1fs",
-                    e, retries, self._reconnect_max_retries, delay,
+                    e,
+                    retries,
+                    self._reconnect_max_retries,
+                    delay,
                 )
                 self._connected.clear()
                 if self._stop_event.wait(timeout=delay):
                     break
 
         if self._running and retries > self._reconnect_max_retries:
-            logger.error(
-                "WebSocket max retries exceeded, falling back to polling"
-            )
+            logger.error("WebSocket max retries exceeded, falling back to polling")
             self._mode = "polling"
             self._poll_loop()
 
@@ -420,7 +419,8 @@ class RealtimePriceFeed:
         self._connected.set()
         logger.info(
             "Polling feed started: interval=%ds, symbols=%d",
-            self._poll_interval, len(self._symbols),
+            self._poll_interval,
+            len(self._symbols),
         )
 
         while self._running:

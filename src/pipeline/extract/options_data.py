@@ -59,9 +59,7 @@ class OptionsDataExtractor:
             return []
         return result[0].get("expirationDates", [])
 
-    def _parse_chain(
-        self, data: dict, ticker: str, quote_date: date
-    ) -> list[dict]:
+    def _parse_chain(self, data: dict, ticker: str, quote_date: date) -> list[dict]:
         """Parse options chain response into flat records."""
         result = data.get("optionChain", {}).get("result", [])
         if not result:
@@ -77,20 +75,22 @@ class OptionsDataExtractor:
             for opt_type, key in [("call", "calls"), ("put", "puts")]:
                 for contract in chain.get(key, []):
                     iv = contract.get("impliedVolatility")
-                    rows.append({
-                        "ticker": ticker,
-                        "quote_date": quote_date,
-                        "expiration": expiration,
-                        "strike": contract.get("strike"),
-                        "option_type": opt_type,
-                        "last_price": contract.get("lastPrice"),
-                        "bid": contract.get("bid"),
-                        "ask": contract.get("ask"),
-                        "volume": contract.get("volume", 0) or 0,
-                        "open_interest": contract.get("openInterest", 0) or 0,
-                        "implied_volatility": iv,
-                        "in_the_money": contract.get("inTheMoney", False),
-                    })
+                    rows.append(
+                        {
+                            "ticker": ticker,
+                            "quote_date": quote_date,
+                            "expiration": expiration,
+                            "strike": contract.get("strike"),
+                            "option_type": opt_type,
+                            "last_price": contract.get("lastPrice"),
+                            "bid": contract.get("bid"),
+                            "ask": contract.get("ask"),
+                            "volume": contract.get("volume", 0) or 0,
+                            "open_interest": contract.get("openInterest", 0) or 0,
+                            "implied_volatility": iv,
+                            "in_the_money": contract.get("inTheMoney", False),
+                        }
+                    )
 
         return rows
 
@@ -157,5 +157,7 @@ def extract_options(
     """CLI-friendly wrapper."""
     extractor = OptionsDataExtractor()
     return extractor.extract_to_raw(
-        output_dir=output_dir, tickers=tickers, run_id=run_id,
+        output_dir=output_dir,
+        tickers=tickers,
+        run_id=run_id,
     )

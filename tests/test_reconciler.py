@@ -15,6 +15,7 @@ from pipeline.execution.reconciler import (
 # Mock broker
 # ---------------------------------------------------------------------------
 
+
 class MockBroker(BaseBroker):
     """Minimal broker mock for reconciler tests."""
 
@@ -23,24 +24,37 @@ class MockBroker(BaseBroker):
 
     def get_account_snapshot(self) -> AccountSnapshot:
         return AccountSnapshot(
-            equity=1000, cash=500, buying_power=500,
-            positions_market_value=500, position_count=len(self._positions),
+            equity=1000,
+            cash=500,
+            buying_power=500,
+            positions_market_value=500,
+            position_count=len(self._positions),
             is_margin_account=False,
         )
 
     def get_positions(self) -> list[Position]:
         return self._positions
 
-    def submit_order(self, order): raise NotImplementedError
-    def get_order_status(self, order_id): raise NotImplementedError
-    def cancel_order(self, order_id): raise NotImplementedError
-    def close_position(self, symbol): raise NotImplementedError
-    def close_all_positions(self): raise NotImplementedError
+    def submit_order(self, order):
+        raise NotImplementedError
+
+    def get_order_status(self, order_id):
+        raise NotImplementedError
+
+    def cancel_order(self, order_id):
+        raise NotImplementedError
+
+    def close_position(self, symbol):
+        raise NotImplementedError
+
+    def close_all_positions(self):
+        raise NotImplementedError
 
 
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestCleanReconciliation:
     def test_both_empty(self):
@@ -50,21 +64,27 @@ class TestCleanReconciliation:
         assert len(result.discrepancies) == 0
 
     def test_matching_positions(self):
-        broker = MockBroker(positions=[
-            Position("AAPL", 2.0, 300.0, 150.0, 155.0, 10.0, "long"),
-        ])
+        broker = MockBroker(
+            positions=[
+                Position("AAPL", 2.0, 300.0, 150.0, 155.0, 10.0, "long"),
+            ]
+        )
         recon = PositionReconciler(broker=broker)
-        result = recon.reconcile({
-            "AAPL": SystemPosition("AAPL", 2.0, 150.0, "long"),
-        })
+        result = recon.reconcile(
+            {
+                "AAPL": SystemPosition("AAPL", 2.0, 150.0, "long"),
+            }
+        )
         assert result.is_clean
 
 
 class TestMissingInSystem:
     def test_broker_has_unknown_position(self):
-        broker = MockBroker(positions=[
-            Position("AAPL", 5.0, 750.0, 150.0, 155.0, 25.0, "long"),
-        ])
+        broker = MockBroker(
+            positions=[
+                Position("AAPL", 5.0, 750.0, 150.0, 155.0, 25.0, "long"),
+            ]
+        )
         recon = PositionReconciler(broker=broker)
         result = recon.reconcile({})  # system has nothing
 
@@ -81,9 +101,11 @@ class TestMissingInBroker:
     def test_system_has_phantom_position(self):
         broker = MockBroker(positions=[])  # broker has nothing
         recon = PositionReconciler(broker=broker)
-        result = recon.reconcile({
-            "MSFT": SystemPosition("MSFT", 3.0, 400.0, "long"),
-        })
+        result = recon.reconcile(
+            {
+                "MSFT": SystemPosition("MSFT", 3.0, 400.0, "long"),
+            }
+        )
 
         assert not result.is_clean
         d = result.discrepancies[0]
@@ -93,13 +115,17 @@ class TestMissingInBroker:
 
 class TestQtyMismatch:
     def test_different_quantities(self):
-        broker = MockBroker(positions=[
-            Position("AAPL", 5.0, 750.0, 150.0, 155.0, 25.0, "long"),
-        ])
+        broker = MockBroker(
+            positions=[
+                Position("AAPL", 5.0, 750.0, 150.0, 155.0, 25.0, "long"),
+            ]
+        )
         recon = PositionReconciler(broker=broker)
-        result = recon.reconcile({
-            "AAPL": SystemPosition("AAPL", 3.0, 150.0, "long"),
-        })
+        result = recon.reconcile(
+            {
+                "AAPL": SystemPosition("AAPL", 3.0, 150.0, "long"),
+            }
+        )
 
         assert not result.is_clean
         d = result.discrepancies[0]
@@ -109,25 +135,33 @@ class TestQtyMismatch:
 
     def test_tiny_rounding_diff_ignored(self):
         """Fractional share rounding within tolerance."""
-        broker = MockBroker(positions=[
-            Position("AAPL", 2.005, 300.0, 150.0, 155.0, 10.0, "long"),
-        ])
+        broker = MockBroker(
+            positions=[
+                Position("AAPL", 2.005, 300.0, 150.0, 155.0, 10.0, "long"),
+            ]
+        )
         recon = PositionReconciler(broker=broker, qty_tolerance=0.01)
-        result = recon.reconcile({
-            "AAPL": SystemPosition("AAPL", 2.0, 150.0, "long"),
-        })
+        result = recon.reconcile(
+            {
+                "AAPL": SystemPosition("AAPL", 2.0, 150.0, "long"),
+            }
+        )
         assert result.is_clean
 
 
 class TestSideMismatch:
     def test_long_vs_short(self):
-        broker = MockBroker(positions=[
-            Position("SPY", 10.0, 4500.0, 450.0, 455.0, 50.0, "short"),
-        ])
+        broker = MockBroker(
+            positions=[
+                Position("SPY", 10.0, 4500.0, 450.0, 455.0, 50.0, "short"),
+            ]
+        )
         recon = PositionReconciler(broker=broker)
-        result = recon.reconcile({
-            "SPY": SystemPosition("SPY", 10.0, 450.0, "long"),
-        })
+        result = recon.reconcile(
+            {
+                "SPY": SystemPosition("SPY", 10.0, 450.0, "long"),
+            }
+        )
 
         assert not result.is_clean
         side_d = [d for d in result.discrepancies if d.type == DiscrepancyType.SIDE_MISMATCH]
@@ -150,9 +184,11 @@ class TestConsecutiveClean:
         recon.reconcile({})
 
         # Now a dirty one
-        dirty_broker = MockBroker(positions=[
-            Position("AAPL", 1.0, 150.0, 150.0, 155.0, 5.0, "long"),
-        ])
+        dirty_broker = MockBroker(
+            positions=[
+                Position("AAPL", 1.0, 150.0, 150.0, 155.0, 5.0, "long"),
+            ]
+        )
         recon.broker = dirty_broker
         recon.reconcile({})
         assert recon.consecutive_clean_count == 0

@@ -22,21 +22,21 @@ class SizingConfig:
     """Configuration for the position sizer."""
 
     # Risk fraction schedule (by account equity bracket)
-    risk_fraction_small: float = 0.015   # $100-$500: 1.5%
-    risk_fraction_large: float = 0.010   # $500+: 1.0%
+    risk_fraction_small: float = 0.015  # $100-$500: 1.5%
+    risk_fraction_large: float = 0.010  # $500+: 1.0%
     risk_bracket_threshold: float = 500.0
 
     # Maximum position as fraction of equity (by account bracket)
-    max_position_pct_tiny: float = 1.00   # $100-$250: 100%
+    max_position_pct_tiny: float = 1.00  # $100-$250: 100%
     max_position_pct_small: float = 0.60  # $250-$500: 60%
-    max_position_pct_medium: float = 0.40 # $500-$1000: 40%
+    max_position_pct_medium: float = 0.40  # $500-$1000: 40%
     max_position_pct_large: float = 0.30  # $1000+: 30%
 
     # Max simultaneous positions (by bracket)
-    max_positions_tiny: int = 1    # $100-$250
-    max_positions_small: int = 2   # $250-$500
+    max_positions_tiny: int = 1  # $100-$250
+    max_positions_small: int = 2  # $250-$500
     max_positions_medium: int = 3  # $500-$1000
-    max_positions_large: int = 4   # $1000+
+    max_positions_large: int = 4  # $1000+
 
     # Portfolio-level risk cap
     max_portfolio_risk_pct: float = 0.03  # 3% total portfolio risk
@@ -121,15 +121,24 @@ class PositionSizer:
         # --- Pre-checks ---
         if regime == "BEAR":
             return SizeResult(
-                shares=0, position_value=0, risk_per_share=0,
-                total_risk=0, risk_pct_of_equity=0, stop_price=0,
-                rejected=True, reject_reason="BEAR regime — no new positions",
+                shares=0,
+                position_value=0,
+                risk_per_share=0,
+                total_risk=0,
+                risk_pct_of_equity=0,
+                stop_price=0,
+                rejected=True,
+                reject_reason="BEAR regime — no new positions",
             )
 
         if entry_price < cfg.min_share_price:
             return SizeResult(
-                shares=0, position_value=0, risk_per_share=0,
-                total_risk=0, risk_pct_of_equity=0, stop_price=0,
+                shares=0,
+                position_value=0,
+                risk_per_share=0,
+                total_risk=0,
+                risk_pct_of_equity=0,
+                stop_price=0,
                 rejected=True,
                 reject_reason=f"Price ${entry_price:.2f} below minimum ${cfg.min_share_price:.2f}",
             )
@@ -137,9 +146,14 @@ class PositionSizer:
         max_pos = self.max_positions(equity)
         if current_positions >= max_pos:
             return SizeResult(
-                shares=0, position_value=0, risk_per_share=0,
-                total_risk=0, risk_pct_of_equity=0, stop_price=0,
-                rejected=True, reject_reason=f"Max positions ({max_pos}) reached",
+                shares=0,
+                position_value=0,
+                risk_per_share=0,
+                total_risk=0,
+                risk_pct_of_equity=0,
+                stop_price=0,
+                rejected=True,
+                reject_reason=f"Max positions ({max_pos}) reached",
             )
 
         # --- Stop price ---
@@ -149,9 +163,14 @@ class PositionSizer:
 
         if risk_per_share <= 0:
             return SizeResult(
-                shares=0, position_value=0, risk_per_share=0,
-                total_risk=0, risk_pct_of_equity=0, stop_price=0,
-                rejected=True, reject_reason="ATR is zero or negative",
+                shares=0,
+                position_value=0,
+                risk_per_share=0,
+                total_risk=0,
+                risk_pct_of_equity=0,
+                stop_price=0,
+                rejected=True,
+                reject_reason="ATR is zero or negative",
             )
 
         # --- Risk budget ---
@@ -175,9 +194,14 @@ class PositionSizer:
         remaining_risk = cfg.max_portfolio_risk_pct - current_portfolio_risk_pct
         if remaining_risk <= 0:
             return SizeResult(
-                shares=0, position_value=0, risk_per_share=0,
-                total_risk=0, risk_pct_of_equity=0, stop_price=stop_price,
-                rejected=True, reject_reason="Portfolio risk budget exhausted",
+                shares=0,
+                position_value=0,
+                risk_per_share=0,
+                total_risk=0,
+                risk_pct_of_equity=0,
+                stop_price=stop_price,
+                rejected=True,
+                reject_reason="Portfolio risk budget exhausted",
             )
         max_risk_for_this_trade = equity * remaining_risk
         risk_budget = min(risk_budget, max_risk_for_this_trade)
@@ -200,9 +224,14 @@ class PositionSizer:
 
         if shares <= 0:
             return SizeResult(
-                shares=0, position_value=0, risk_per_share=risk_per_share,
-                total_risk=0, risk_pct_of_equity=0, stop_price=stop_price,
-                rejected=True, reject_reason="Insufficient equity for minimum position",
+                shares=0,
+                position_value=0,
+                risk_per_share=risk_per_share,
+                total_risk=0,
+                risk_pct_of_equity=0,
+                stop_price=stop_price,
+                rejected=True,
+                reject_reason="Insufficient equity for minimum position",
             )
 
         position_value = shares * entry_price

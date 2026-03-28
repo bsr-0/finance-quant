@@ -200,7 +200,8 @@ class TestQuoteEngine:
             event_type=EventType.QUOTE_UPDATE,
             symbol="AAPL",
             timestamp_ns=1_000_000_000,
-            bid=149.0, ask=151.0,
+            bid=149.0,
+            ask=151.0,
         )
         result1 = engine.on_event(event1)
         assert result1 is not None
@@ -210,7 +211,8 @@ class TestQuoteEngine:
             event_type=EventType.QUOTE_UPDATE,
             symbol="AAPL",
             timestamp_ns=1_010_000_000,  # 10ms later
-            bid=149.1, ask=151.1,
+            bid=149.1,
+            ask=151.1,
         )
         result2 = engine.on_event(event2)
         assert result2 is None  # Throttled
@@ -221,13 +223,15 @@ class TestQuoteEngine:
 
         # Establish trade size baseline
         for i in range(20):
-            engine.on_event(MarketEvent(
-                event_type=EventType.TRADE,
-                symbol="AAPL",
-                timestamp_ns=i * 1_000_000_000,
-                price=150.0,
-                quantity=100,
-            ))
+            engine.on_event(
+                MarketEvent(
+                    event_type=EventType.TRADE,
+                    symbol="AAPL",
+                    timestamp_ns=i * 1_000_000_000,
+                    price=150.0,
+                    quantity=100,
+                )
+            )
 
         # Large trade should trigger pull
         large = MarketEvent(
@@ -247,7 +251,8 @@ class TestQuoteEngine:
             event_type=EventType.QUOTE_UPDATE,
             symbol="AAPL",
             timestamp_ns=1_000_000_000,
-            bid=149.0, ask=151.0,
+            bid=149.0,
+            ask=151.0,
         )
         result = engine.on_event(event)
         assert result is not None
@@ -264,15 +269,17 @@ class TestQuoteEngine:
 class TestAdverseSelectionDetector:
     def _make_fill(self, symbol: str, side: str, price: float, mid: float) -> FillRecord:
         return FillRecord(
-            symbol=symbol, side=side, fill_price=price,
-            fill_size=100, mid_at_fill=mid,
-            timestamp_ns=0, spread_at_fill=0.02,
+            symbol=symbol,
+            side=side,
+            fill_price=price,
+            fill_size=100,
+            mid_at_fill=mid,
+            timestamp_ns=0,
+            spread_at_fill=0.02,
         )
 
     def test_not_enough_data_not_toxic(self):
-        detector = AdverseSelectionDetector(
-            AdverseConfig(min_fills_for_signal=20)
-        )
+        detector = AdverseSelectionDetector(AdverseConfig(min_fills_for_signal=20))
         for _ in range(5):
             fill = self._make_fill("AAPL", "buy", 150.0, 150.0)
             detector.record_fill(fill)
@@ -380,9 +387,13 @@ class TestMicrostructureAnalyzer:
         analyzer = MicrostructureAnalyzer()
         for i in range(20):
             analyzer.record_fill(
-                symbol="AAPL", side="buy", price=150.0,
-                size=100, mid_at_fill=150.0,
-                spread_at_fill=5.0, inventory_at_fill=i * 100,
+                symbol="AAPL",
+                side="buy",
+                price=150.0,
+                size=100,
+                mid_at_fill=150.0,
+                spread_at_fill=5.0,
+                inventory_at_fill=i * 100,
                 timestamp_ns=i * 3_600_000_000_000,
             )
         report = analyzer.diagnostic_report()
@@ -404,9 +415,13 @@ class TestMicrostructureAnalyzer:
         analyzer = MicrostructureAnalyzer()
         for _ in range(50):
             analyzer.record_fill(
-                symbol="X", side="buy", price=10.0,
-                size=np.random.uniform(50, 200), mid_at_fill=10.0,
-                spread_at_fill=1.0, inventory_at_fill=0,
+                symbol="X",
+                side="buy",
+                price=10.0,
+                size=np.random.uniform(50, 200),
+                mid_at_fill=10.0,
+                spread_at_fill=1.0,
+                inventory_at_fill=0,
                 timestamp_ns=0,
             )
         stats = analyzer.trade_size_distribution()
@@ -428,7 +443,8 @@ class TestMarketMakingEngine:
             event_type=EventType.QUOTE_UPDATE,
             symbol="AAPL",
             timestamp_ns=1_000_000_000,
-            bid=149.0, ask=151.0,
+            bid=149.0,
+            ask=151.0,
         )
         quote = engine.on_event(event)
         assert quote is not None or quote is None  # Either is valid
@@ -456,7 +472,8 @@ class TestMarketMakingEngine:
             event_type=EventType.QUOTE_UPDATE,
             symbol="AAPL",
             timestamp_ns=2_000_000_000,
-            bid=149.0, ask=151.0,
+            bid=149.0,
+            ask=151.0,
         )
         engine.on_event(event)
         assert engine._state.is_shutdown

@@ -49,9 +49,7 @@ class CorrelationConfig:
     high_corr_threshold: float = 0.70
     max_cluster_notional: float = 1_000_000_000.0
     recompute_interval_days: int = 5
-    factor_names: list[str] = field(
-        default_factory=lambda: ["market", "size", "value", "momentum"]
-    )
+    factor_names: list[str] = field(default_factory=lambda: ["market", "size", "value", "momentum"])
     max_factor_exposure_pct: float = 0.30
 
 
@@ -114,9 +112,7 @@ class CorrelationMonitor:
         if self._returns_history is None:
             self._returns_history = returns
         else:
-            self._returns_history = pd.concat(
-                [self._returns_history, returns]
-            ).sort_index()
+            self._returns_history = pd.concat([self._returns_history, returns]).sort_index()
             # Keep only recent data
             max_rows = self.config.rolling_window * 3
             if len(self._returns_history) > max_rows:
@@ -181,13 +177,15 @@ class CorrelationMonitor:
             else:
                 avg_corr = 1.0
 
-            clusters.append(ClusterInfo(
-                cluster_id=cluster_id,
-                members=members,
-                avg_correlation=avg_corr,
-                aggregate_notional=0.0,
-                within_limit=True,
-            ))
+            clusters.append(
+                ClusterInfo(
+                    cluster_id=cluster_id,
+                    members=members,
+                    avg_correlation=avg_corr,
+                    aggregate_notional=0.0,
+                    within_limit=True,
+                )
+            )
             cluster_id += 1
 
         self._clusters = clusters
@@ -212,16 +210,14 @@ class CorrelationMonitor:
 
         for cluster in self._clusters:
             notional = sum(
-                abs(positions.get(sym, 0) * prices.get(sym, 0))
-                for sym in cluster.members
+                abs(positions.get(sym, 0) * prices.get(sym, 0)) for sym in cluster.members
             )
             cluster.aggregate_notional = notional
             cluster.within_limit = notional <= self.config.max_cluster_notional
 
             if not cluster.within_limit:
                 logger.warning(
-                    "Cluster %d LIMIT BREACH: notional=%.0f > limit=%.0f, "
-                    "members=%s",
+                    "Cluster %d LIMIT BREACH: notional=%.0f > limit=%.0f, " "members=%s",
                     cluster.cluster_id,
                     notional,
                     self.config.max_cluster_notional,
@@ -246,9 +242,7 @@ class CorrelationMonitor:
         Returns:
             List of ``FactorExposure`` objects.
         """
-        aligned_port, aligned_factors = portfolio_returns.align(
-            factor_returns, join="inner"
-        )
+        aligned_port, aligned_factors = portfolio_returns.align(factor_returns, join="inner")
         if len(aligned_port) < 20:
             return []
 
@@ -274,19 +268,22 @@ class CorrelationMonitor:
 
             within_limit = pct_of_nav <= self.config.max_factor_exposure_pct
 
-            exposures.append(FactorExposure(
-                factor=factor_col,
-                beta=beta,
-                notional_exposure=notional_exposure,
-                pct_of_nav=pct_of_nav,
-                within_limit=within_limit,
-            ))
+            exposures.append(
+                FactorExposure(
+                    factor=factor_col,
+                    beta=beta,
+                    notional_exposure=notional_exposure,
+                    pct_of_nav=pct_of_nav,
+                    within_limit=within_limit,
+                )
+            )
 
             if not within_limit:
                 logger.warning(
-                    "Factor exposure LIMIT: %s beta=%.3f (%.1f%% of NAV, "
-                    "limit=%.1f%%)",
-                    factor_col, beta, pct_of_nav * 100,
+                    "Factor exposure LIMIT: %s beta=%.3f (%.1f%% of NAV, " "limit=%.1f%%)",
+                    factor_col,
+                    beta,
+                    pct_of_nav * 100,
                     self.config.max_factor_exposure_pct * 100,
                 )
 
@@ -296,14 +293,10 @@ class CorrelationMonitor:
         """Return a summary of the current monitoring state."""
         return {
             "correlation_matrix_size": (
-                self._correlation_matrix.shape
-                if self._correlation_matrix is not None
-                else (0, 0)
+                self._correlation_matrix.shape if self._correlation_matrix is not None else (0, 0)
             ),
             "num_clusters": len(self._clusters),
-            "clusters_in_breach": sum(
-                1 for c in self._clusters if not c.within_limit
-            ),
+            "clusters_in_breach": sum(1 for c in self._clusters if not c.within_limit),
             "return_history_length": (
                 len(self._returns_history) if self._returns_history is not None else 0
             ),

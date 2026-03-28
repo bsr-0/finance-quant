@@ -176,8 +176,14 @@ class EnsembleBuilder:
                 continue
             try:
                 result = walk_forward_validate(
-                    df, comp.train_fn, comp.predict_fn, eval_fn,
-                    target_col, train_size, test_size, embargo_size=embargo_size,
+                    df,
+                    comp.train_fn,
+                    comp.predict_fn,
+                    eval_fn,
+                    target_col,
+                    train_size,
+                    test_size,
+                    embargo_size=embargo_size,
                 )
                 val = result.mean_metrics.get(self.primary_metric, float("-inf"))
                 scored.append((val, i))
@@ -203,8 +209,14 @@ class EnsembleBuilder:
 
                 try:
                     result = walk_forward_validate(
-                        df, train_fn, predict_fn, eval_fn,
-                        target_col, train_size, test_size, embargo_size=embargo_size,
+                        df,
+                        train_fn,
+                        predict_fn,
+                        eval_fn,
+                        target_col,
+                        train_size,
+                        test_size,
+                        embargo_size=embargo_size,
                     )
                     val = result.mean_metrics.get(self.primary_metric, float("-inf"))
                     if val > best_new_score:
@@ -330,9 +342,7 @@ class EnsembleBuilder:
 
                 # Disagreement rate (sign disagreement for regression)
                 if len(aligned_p1) > 0:
-                    disagree = float(
-                        (np.sign(aligned_p1) != np.sign(aligned_p2)).mean()
-                    )
+                    disagree = float((np.sign(aligned_p1) != np.sign(aligned_p2)).mean())
                     disagreements.append(disagree)
 
         return DiversityMetrics(
@@ -390,25 +400,23 @@ class EnsembleBuilder:
             start_time = time.time()
             try:
                 if method == "weighted_average":
-                    train_fn, predict_fn = self.weighted_average(
-                        components, target_col=target_col
-                    )
+                    train_fn, predict_fn = self.weighted_average(components, target_col=target_col)
                 elif method == "greedy":
                     selected = self.greedy_forward_select(
-                        components, df, target_col, eval_fn,
-                        train_size=train_size, test_size=test_size,
+                        components,
+                        df,
+                        target_col,
+                        eval_fn,
+                        train_size=train_size,
+                        test_size=test_size,
                         embargo_size=embargo_size,
                     )
                     if not selected:
                         self.registry.fail_experiment(record.experiment_id, "No viable components")
                         continue
-                    train_fn, predict_fn = self.weighted_average(
-                        selected, target_col=target_col
-                    )
+                    train_fn, predict_fn = self.weighted_average(selected, target_col=target_col)
                 elif method == "stacking":
-                    train_fn, predict_fn = self.stacking(
-                        components, target_col=target_col
-                    )
+                    train_fn, predict_fn = self.stacking(components, target_col=target_col)
                 else:
                     self.registry.fail_experiment(record.experiment_id, f"Unknown method: {method}")
                     continue
@@ -416,7 +424,8 @@ class EnsembleBuilder:
                 # Optionally wrap with calibration
                 if calibration_method != CalibrationMethod.NONE:
                     wrapper = CalibratedModelWrapper(
-                        train_fn, predict_fn,
+                        train_fn,
+                        predict_fn,
                         method=calibration_method,
                         target_col=target_col,
                     )
@@ -430,8 +439,13 @@ class EnsembleBuilder:
                     tracker.__enter__()
 
                 validation_result = walk_forward_validate(
-                    df, train_fn, predict_fn, eval_fn,
-                    target_col, train_size, test_size,
+                    df,
+                    train_fn,
+                    predict_fn,
+                    eval_fn,
+                    target_col,
+                    train_size,
+                    test_size,
                     embargo_size=embargo_size,
                 )
 
@@ -466,7 +480,10 @@ class EnsembleBuilder:
 
                 logger.info(
                     "Ensemble [%s]: %s=%.4f (%.1fs)",
-                    method, self.primary_metric, score, elapsed,
+                    method,
+                    self.primary_metric,
+                    score,
+                    elapsed,
                 )
 
             except Exception as e:
