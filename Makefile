@@ -101,7 +101,7 @@ extract-all: extract-prices
 	-$(MAKE) extract-polymarket
 	@echo "✓ Extraction complete (prices required; other sources best-effort)"
 
-transform:
+transform: db-init
 	python -m pipeline.cli transform-curated
 
 snapshots:
