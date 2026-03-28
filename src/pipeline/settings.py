@@ -510,6 +510,18 @@ class HistoricalFixesSettings(BaseSettings):
     selection_weight_mode: str = "count"  # count | volume
 
 
+def _strip_nones(d: dict) -> dict:
+    """Recursively remove None values so env vars can take effect."""
+    cleaned = {}
+    for k, v in d.items():
+        if v is None:
+            continue
+        if isinstance(v, dict):
+            v = _strip_nones(v)
+        cleaned[k] = v
+    return cleaned
+
+
 class PipelineSettings(BaseSettings):
     """Main pipeline configuration."""
 
@@ -569,10 +581,15 @@ class PipelineSettings(BaseSettings):
 
     @classmethod
     def from_yaml(cls, path: Path) -> PipelineSettings:
-        """Load settings from YAML file."""
+        """Load settings from YAML file.
+
+        None values are stripped so that pydantic-settings can fill them
+        from environment variables (env vars have lower priority than
+        explicit init kwargs in pydantic-settings).
+        """
         with open(path) as f:
             config = yaml.safe_load(f)
-        return cls(**config)
+        return cls(**_strip_nones(config))
 
     def to_yaml(self, path: Path) -> None:
         """Save settings to YAML file."""
