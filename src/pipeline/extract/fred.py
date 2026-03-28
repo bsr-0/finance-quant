@@ -91,6 +91,7 @@ class FredExtractor:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         saved_files = []
+        failed = []
 
         for code in codes:
             logger.info(f"Extracting FRED series: {code}")
@@ -114,8 +115,12 @@ class FredExtractor:
             except Exception as e:
                 self._metrics.record_error(type(e).__name__)
                 logger.error(f"Failed to extract {code}: {e}")
-                raise
+                failed.append(code)
 
+        if failed:
+            logger.warning(
+                f"Failed to extract {len(failed)}/{len(codes)} series: {failed}"
+            )
         return saved_files
 
 

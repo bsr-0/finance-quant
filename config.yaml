@@ -42,7 +42,6 @@ fred:
     - M2SL             # M2 Money Stock
     # --- Commodities ---
     - DCOILWTICO       # Crude Oil Prices: WTI
-    - GOLDAMGBD228NLBM # Gold Fixing Price (London, USD)
     # --- Dollar index ---
     - DTWEXBGS         # Trade Weighted U.S. Dollar Index: Broad, Goods and Services
     # --- Financial conditions ---
