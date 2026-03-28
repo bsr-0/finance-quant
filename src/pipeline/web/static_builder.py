@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def _load_config() -> dict:
     config_path = Path("config.yaml")
     if config_path.exists():
-        return yaml.safe_load(config_path.read_text()).get("daily_predictions", {})
+        return (yaml.safe_load(config_path.read_text()) or {}).get("daily_predictions", {})
     return {}
 
 
