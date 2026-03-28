@@ -1648,9 +1648,7 @@ def daily_predictions(
 
 @app.command()
 def backfill_predictions(
-    start: str = typer.Option(
-        ..., "--start", "-s", help="Start date (YYYY-MM-DD)"
-    ),
+    start: str = typer.Option(..., "--start", "-s", help="Start date (YYYY-MM-DD)"),
     end: str | None = typer.Option(
         None, "--end", "-e", help="End date (YYYY-MM-DD). Default: today."
     ),
@@ -1752,7 +1750,9 @@ def backfill_predictions(
             from pipeline.strategy.signal_output import format_signals, write_signal_csv
 
             signals_df = format_signals(
-                scores=eligible, price_data=indicator_data, date=signal_date,
+                scores=eligible,
+                price_data=indicator_data,
+                date=signal_date,
             )
             if not signals_df.empty:
                 write_signal_csv(signals_df, signals_dir, signal_date)
@@ -1780,9 +1780,7 @@ def backfill_predictions(
     wins = stats["hit_target"]
     stopped = stats["stopped_out"]
     expired = stats["expired"]
-    console.print(
-        f"  Resolved: {resolved} ({wins} wins, {stopped} stopped, {expired} expired)"
-    )
+    console.print(f"  Resolved: {resolved} ({wins} wins, {stopped} stopped, {expired} expired)")
     console.print(f"  Active: {stats['active']}")
     console.print(f"  Win rate: {stats['win_rate']}%")
     console.print(f"  Avg P&L: {stats['avg_pnl_pct']}%")
