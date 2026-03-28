@@ -18,12 +18,32 @@ logger = logging.getLogger(__name__)
 
 # ETF tickers to track for fund flow signals (broad market + sector)
 DEFAULT_ETF_UNIVERSE = [
-    "SPY", "QQQ", "IWM", "VTI", "VOO",  # Broad market
-    "XLF", "XLK", "XLE", "XLV", "XLI",  # Sector
-    "XLU", "XLP", "XLY", "XLB", "XLRE", # Sector continued
-    "TLT", "IEF", "SHY", "LQD", "HYG",  # Fixed income
-    "GLD", "SLV", "USO",                  # Commodities
-    "EEM", "EFA", "VWO",                  # International
+    "SPY",
+    "QQQ",
+    "IWM",
+    "VTI",
+    "VOO",  # Broad market
+    "XLF",
+    "XLK",
+    "XLE",
+    "XLV",
+    "XLI",  # Sector
+    "XLU",
+    "XLP",
+    "XLY",
+    "XLB",
+    "XLRE",  # Sector continued
+    "TLT",
+    "IEF",
+    "SHY",
+    "LQD",
+    "HYG",  # Fixed income
+    "GLD",
+    "SLV",
+    "USO",  # Commodities
+    "EEM",
+    "EFA",
+    "VWO",  # International
 ]
 
 
@@ -42,9 +62,7 @@ class EtfFlowsExtractor:
                 "User-Agent": "Mozilla/5.0 (compatible; MarketDataWarehouse/1.0)",
             },
         )
-        self._circuit = get_circuit_breaker(
-            "etf_flows", failure_threshold=5, recovery_timeout=60.0
-        )
+        self._circuit = get_circuit_breaker("etf_flows", failure_threshold=5, recovery_timeout=60.0)
         self._metrics = PipelineMetrics("etf_flows_extractor")
 
     def __del__(self) -> None:
@@ -70,11 +88,13 @@ class EtfFlowsExtractor:
             summary = result[0].get("summaryDetail", {})
 
             total_assets = stats.get("totalAssets", {}).get("raw")
-            shares_out = stats.get("sharesOutstanding", {}).get("raw") or \
-                         price_data.get("sharesOutstanding", {}).get("raw")
+            shares_out = stats.get("sharesOutstanding", {}).get("raw") or price_data.get(
+                "sharesOutstanding", {}
+            ).get("raw")
             market_price = price_data.get("regularMarketPrice", {}).get("raw")
-            volume = summary.get("volume", {}).get("raw") or \
-                     price_data.get("regularMarketVolume", {}).get("raw")
+            volume = summary.get("volume", {}).get("raw") or price_data.get(
+                "regularMarketVolume", {}
+            ).get("raw")
 
             return {
                 "ticker": ticker,
@@ -136,5 +156,7 @@ def extract_etf_flows(
     """CLI-friendly wrapper."""
     extractor = EtfFlowsExtractor()
     return extractor.extract_to_raw(
-        output_dir=output_dir, tickers=tickers, run_id=run_id,
+        output_dir=output_dir,
+        tickers=tickers,
+        run_id=run_id,
     )

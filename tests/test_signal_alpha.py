@@ -16,6 +16,7 @@ from pipeline.eval.signal_alpha import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def dates():
     return pd.bdate_range("2020-01-01", periods=600)
@@ -29,15 +30,17 @@ def symbols():
 @pytest.fixture
 def random_signals(dates, symbols):
     rng = np.random.default_rng(42)
-    return pd.DataFrame(rng.standard_normal((len(dates), len(symbols))),
-                        index=dates, columns=symbols)
+    return pd.DataFrame(
+        rng.standard_normal((len(dates), len(symbols))), index=dates, columns=symbols
+    )
 
 
 @pytest.fixture
 def random_returns(dates, symbols):
     rng = np.random.default_rng(99)
-    return pd.DataFrame(rng.standard_normal((len(dates), len(symbols))) * 0.01,
-                        index=dates, columns=symbols)
+    return pd.DataFrame(
+        rng.standard_normal((len(dates), len(symbols))) * 0.01, index=dates, columns=symbols
+    )
 
 
 @pytest.fixture
@@ -55,6 +58,7 @@ def predictive_signals(dates, symbols):
 # ---------------------------------------------------------------------------
 # rank_ic tests
 # ---------------------------------------------------------------------------
+
 
 class TestRankIC:
     def test_perfect_signal(self):
@@ -94,12 +98,16 @@ class TestRankIC:
 # walk_forward_ic tests
 # ---------------------------------------------------------------------------
 
+
 class TestWalkForwardIC:
     def test_noise_fails_gate(self, random_signals, random_returns):
         result = walk_forward_ic(
-            random_signals, random_returns,
+            random_signals,
+            random_returns,
             signal_name="noise",
-            train_size=100, test_size=50, embargo_size=5,
+            train_size=100,
+            test_size=50,
+            embargo_size=5,
         )
         assert isinstance(result, SignalAlphaResult)
         assert result.n_folds >= 2
@@ -108,9 +116,12 @@ class TestWalkForwardIC:
     def test_predictive_signal_passes(self, predictive_signals):
         signals, returns = predictive_signals
         result = walk_forward_ic(
-            signals, returns,
+            signals,
+            returns,
             signal_name="predictive",
-            train_size=100, test_size=50, embargo_size=5,
+            train_size=100,
+            test_size=50,
+            embargo_size=5,
         )
         assert result.n_folds >= 2
         assert result.ic_mean > 0  # Positive IC expected
@@ -119,9 +130,11 @@ class TestWalkForwardIC:
 
     def test_result_fields(self, random_signals, random_returns):
         result = walk_forward_ic(
-            random_signals, random_returns,
+            random_signals,
+            random_returns,
             signal_name="test",
-            train_size=100, test_size=50,
+            train_size=100,
+            test_size=50,
         )
         assert result.signal_name == "test"
         assert np.isfinite(result.ic_mean)
@@ -134,14 +147,18 @@ class TestWalkForwardIC:
     def test_insufficient_data(self, symbols):
         dates = pd.bdate_range("2020-01-01", periods=50)
         rng = np.random.default_rng(42)
-        signals = pd.DataFrame(rng.standard_normal((50, len(symbols))),
-                               index=dates, columns=symbols)
-        returns = pd.DataFrame(rng.standard_normal((50, len(symbols))) * 0.01,
-                               index=dates, columns=symbols)
+        signals = pd.DataFrame(
+            rng.standard_normal((50, len(symbols))), index=dates, columns=symbols
+        )
+        returns = pd.DataFrame(
+            rng.standard_normal((50, len(symbols))) * 0.01, index=dates, columns=symbols
+        )
         result = walk_forward_ic(
-            signals, returns,
+            signals,
+            returns,
             signal_name="short",
-            train_size=252, test_size=63,
+            train_size=252,
+            test_size=63,
         )
         assert result.n_folds == 0
         assert not result.passed
@@ -150,6 +167,7 @@ class TestWalkForwardIC:
 # ---------------------------------------------------------------------------
 # Benjamini-Hochberg FDR tests
 # ---------------------------------------------------------------------------
+
 
 class TestBenjaminiHochberg:
     def test_all_significant(self):
@@ -188,12 +206,18 @@ class TestBenjaminiHochberg:
 # signal_fdr_screen tests
 # ---------------------------------------------------------------------------
 
+
 class TestSignalFDRScreen:
     def _make_result(self, name: str, p_value: float) -> SignalAlphaResult:
         return SignalAlphaResult(
-            signal_name=name, ic_mean=0.05, ic_std=0.02,
-            ic_t_stat=2.5, ic_p_value=p_value,
-            deflated_sharpe_prob=0.9, n_folds=5, passed=True,
+            signal_name=name,
+            ic_mean=0.05,
+            ic_std=0.02,
+            ic_t_stat=2.5,
+            ic_p_value=p_value,
+            deflated_sharpe_prob=0.9,
+            n_folds=5,
+            passed=True,
         )
 
     def test_screen_returns_pairs(self):
@@ -203,7 +227,7 @@ class TestSignalFDRScreen:
         ]
         screened = signal_fdr_screen(results, alpha=0.05)
         assert len(screened) == 2
-        assert screened[0][1] is True   # sig_a significant
+        assert screened[0][1] is True  # sig_a significant
         assert screened[1][1] is False  # sig_b not significant
 
     def test_nan_pvalue_treated_as_not_significant(self):

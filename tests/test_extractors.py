@@ -300,13 +300,19 @@ class TestSecFundamentalsExtractor:
                         "units": {
                             "USD": [
                                 {
-                                    "form": "8-K", "filed": "2024-01-01",
-                                    "end": "2023-12-31", "val": 100,
+                                    "form": "8-K",
+                                    "filed": "2024-01-01",
+                                    "end": "2023-12-31",
+                                    "val": 100,
                                 },
                                 {
-                                    "form": "10-Q", "filed": "2024-01-15",
-                                    "end": "2023-12-31", "val": 200,
-                                    "accn": "x", "fy": 2024, "fp": "Q1",
+                                    "form": "10-Q",
+                                    "filed": "2024-01-15",
+                                    "end": "2023-12-31",
+                                    "val": 200,
+                                    "accn": "x",
+                                    "fy": 2024,
+                                    "fp": "Q1",
                                 },
                             ]
                         },
@@ -316,7 +322,10 @@ class TestSecFundamentalsExtractor:
         }
 
         rows = SecFundamentalsExtractor._parse_facts(
-            facts_json, ticker="AAPL", cik=320193, metrics=["Revenues"],
+            facts_json,
+            ticker="AAPL",
+            cik=320193,
+            metrics=["Revenues"],
         )
         assert len(rows) == 1
         assert rows[0]["form_type"] == "10-Q"
@@ -363,7 +372,10 @@ class TestSecInsiderExtractor:
         """
 
         rows = SecInsiderExtractor._parse_form4_xml(
-            xml_text, ticker="AAPL", cik=320193, filing_date="2024-01-16",
+            xml_text,
+            ticker="AAPL",
+            cik=320193,
+            filing_date="2024-01-16",
         )
 
         assert len(rows) == 1
@@ -376,7 +388,10 @@ class TestSecInsiderExtractor:
         from pipeline.extract.sec_insider import SecInsiderExtractor
 
         rows = SecInsiderExtractor._parse_form4_xml(
-            "not xml", ticker="AAPL", cik=320193, filing_date="2024-01-16",
+            "not xml",
+            ticker="AAPL",
+            cik=320193,
+            filing_date="2024-01-16",
         )
         assert rows == []
 
@@ -409,8 +424,11 @@ class TestSec13FExtractor:
         """
 
         rows = Sec13FExtractor._parse_13f_xml(
-            xml_text, filer_cik=1234, filer_name="Test Fund",
-            report_date="2024-03-31", filing_date="2024-05-15",
+            xml_text,
+            filer_cik=1234,
+            filer_name="Test Fund",
+            report_date="2024-03-31",
+            filing_date="2024-05-15",
         )
 
         assert len(rows) == 1
@@ -428,8 +446,11 @@ class TestSec13FExtractor:
         """
 
         rows = Sec13FExtractor._parse_13f_xml(
-            xml_text, filer_cik=1234, filer_name="Test Fund",
-            report_date="2024-03-31", filing_date="2024-05-15",
+            xml_text,
+            filer_cik=1234,
+            filer_name="Test Fund",
+            report_date="2024-03-31",
+            filing_date="2024-05-15",
         )
         assert rows == []
 
@@ -623,16 +644,18 @@ class TestShortInterestDefensiveGuards:
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "quoteSummary": {
-                "result": [{
-                    "defaultKeyStatistics": {
-                        "sharesShort": {"raw": 1000000},
-                        "dateShortInterest": {"raw": "not-a-number"},
-                        "averageDailyVolume10Day": {"raw": 5000000},
-                        "floatShares": {"raw": 50000000},
-                        "shortRatio": {"raw": 2.5},
-                        "shortPercentOfFloat": {"raw": 0.02},
+                "result": [
+                    {
+                        "defaultKeyStatistics": {
+                            "sharesShort": {"raw": 1000000},
+                            "dateShortInterest": {"raw": "not-a-number"},
+                            "averageDailyVolume10Day": {"raw": 5000000},
+                            "floatShares": {"raw": 50000000},
+                            "shortRatio": {"raw": 2.5},
+                            "shortPercentOfFloat": {"raw": 0.02},
+                        }
                     }
-                }]
+                ]
             }
         }
         mock_response.raise_for_status = MagicMock()

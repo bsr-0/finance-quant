@@ -39,7 +39,7 @@ def regime_performance(returns: pd.Series, regimes: pd.Series) -> dict[str, dict
             out[name] = {"mean": float("nan"), "vol": float("nan"), "sharpe": float("nan")}
             continue
         mean = subset.mean() * 252
-        vol = subset.std() * (252 ** 0.5)
+        vol = subset.std() * (252**0.5)
         sharpe = mean / vol if vol != 0 else float("nan")
         out[name] = {"mean": float(mean), "vol": float(vol), "sharpe": float(sharpe)}
         if len(subset) >= 5:

@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 # Severity levels
 # ---------------------------------------------------------------------------
 
+
 class AlertSeverity(IntEnum):
     """Severity levels for notifications.
 
@@ -72,6 +73,7 @@ _SEVERITY_LABEL = {
 # ---------------------------------------------------------------------------
 # Channel configs (plain dataclasses — no pydantic dependency here)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SlackConfig:
@@ -103,6 +105,7 @@ class ConsoleConfig:
 # ---------------------------------------------------------------------------
 # Notifier
 # ---------------------------------------------------------------------------
+
 
 class Notifier:
     """Multi-channel notification dispatcher.
@@ -222,7 +225,9 @@ class Notifier:
             )
             if resp.status_code != 200:
                 logger.error(
-                    "Slack webhook returned %d: %s", resp.status_code, resp.text,
+                    "Slack webhook returned %d: %s",
+                    resp.status_code,
+                    resp.text,
                 )
         except Exception:
             logger.exception("Failed to send Slack notification")
@@ -242,9 +247,7 @@ class Notifier:
         label = _SEVERITY_LABEL[severity]
         ctx_text = ""
         if context:
-            ctx_text = "\n\nContext:\n" + "\n".join(
-                f"  {k}: {v}" for k, v in context.items()
-            )
+            ctx_text = "\n\nContext:\n" + "\n".join(f"  {k}: {v}" for k, v in context.items())
 
         msg = EmailMessage()
         msg["Subject"] = f"[{label}] {title}"
@@ -327,6 +330,7 @@ def notify(
 # Build from settings
 # ---------------------------------------------------------------------------
 
+
 def _build_notifier_from_settings() -> Notifier:
     """Construct a Notifier from PipelineSettings.
 
@@ -350,9 +354,7 @@ def _build_notifier_from_settings() -> Notifier:
         if slack_url:
             slack_cfg = SlackConfig(
                 webhook_url=slack_url,
-                min_severity=AlertSeverity[
-                    getattr(ns, "slack_min_severity", "WARNING").upper()
-                ],
+                min_severity=AlertSeverity[getattr(ns, "slack_min_severity", "WARNING").upper()],
             )
 
         # Email
@@ -369,16 +371,12 @@ def _build_notifier_from_settings() -> Notifier:
                 use_tls=getattr(ns, "smtp_use_tls", True),
                 from_addr=getattr(ns, "email_from", ""),
                 to_addrs=to_addrs,
-                min_severity=AlertSeverity[
-                    getattr(ns, "email_min_severity", "CRITICAL").upper()
-                ],
+                min_severity=AlertSeverity[getattr(ns, "email_min_severity", "CRITICAL").upper()],
             )
 
         # Console
         console_cfg = ConsoleConfig(
-            min_severity=AlertSeverity[
-                getattr(ns, "console_min_severity", "INFO").upper()
-            ],
+            min_severity=AlertSeverity[getattr(ns, "console_min_severity", "INFO").upper()],
         )
 
         return Notifier(

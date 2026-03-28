@@ -18,6 +18,7 @@ from pipeline.execution.realtime_feed import PriceQuote, RealtimePriceFeed
 # PriceQuote unit tests
 # ---------------------------------------------------------------------------
 
+
 class TestPriceQuote:
     def test_mid_with_bid_ask(self):
         q = PriceQuote(symbol="AAPL", price=150.0, bid=149.90, ask=150.10)
@@ -48,6 +49,7 @@ class TestPriceQuote:
 # ---------------------------------------------------------------------------
 # RealtimePriceFeed unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestRealtimePriceFeed:
     def _make_feed(self, **kwargs):
@@ -144,9 +146,7 @@ class TestRealtimePriceFeed:
 
         def writer():
             for i in range(100):
-                feed._update_price(
-                    PriceQuote(symbol="AAPL", price=150.0 + i * 0.01)
-                )
+                feed._update_price(PriceQuote(symbol="AAPL", price=150.0 + i * 0.01))
 
         def reader():
             for _ in range(100):
@@ -167,6 +167,7 @@ class TestRealtimePriceFeed:
 # ---------------------------------------------------------------------------
 # WebSocket message parsing
 # ---------------------------------------------------------------------------
+
 
 class TestWSMessageParsing:
     def _make_feed(self):
@@ -252,6 +253,7 @@ class TestWSMessageParsing:
 # Timestamp parsing
 # ---------------------------------------------------------------------------
 
+
 class TestTimestampParsing:
     def test_rfc3339_with_nanos(self):
         ts = RealtimePriceFeed._parse_alpaca_timestamp("2024-06-15T14:30:00.123456789Z")
@@ -276,6 +278,7 @@ class TestTimestampParsing:
 # PositionMonitor integration
 # ---------------------------------------------------------------------------
 
+
 class TestPositionMonitorRealtimeIntegration:
     """Test that PositionMonitor uses realtime prices when available."""
 
@@ -286,17 +289,25 @@ class TestPositionMonitorRealtimeIntegration:
         # Mock broker
         broker = MagicMock()
         broker.get_account_snapshot.return_value = AccountSnapshot(
-            equity=500.0, cash=300.0, buying_power=300.0,
-            positions_market_value=200.0, position_count=1,
+            equity=500.0,
+            cash=300.0,
+            buying_power=300.0,
+            positions_market_value=200.0,
+            position_count=1,
             is_margin_account=False,
         )
 
         from pipeline.execution.broker import Position
+
         broker.get_positions.return_value = [
             Position(
-                symbol="AAPL", qty=1.0, market_value=150.0,
-                avg_entry_price=145.0, current_price=150.0,
-                unrealised_pnl=5.0, side="long",
+                symbol="AAPL",
+                qty=1.0,
+                market_value=150.0,
+                avg_entry_price=145.0,
+                current_price=150.0,
+                unrealised_pnl=5.0,
+                side="long",
             )
         ]
 
@@ -304,13 +315,17 @@ class TestPositionMonitorRealtimeIntegration:
         rt_feed = MagicMock(spec=RealtimePriceFeed)
         rt_feed.is_running = True
         rt_feed.get_latest.return_value = PriceQuote(
-            symbol="AAPL", price=140.0, high=152.0,  # Below stop
+            symbol="AAPL",
+            price=140.0,
+            high=152.0,  # Below stop
         )
         rt_feed.is_stale.return_value = False
 
         guard_config = CapitalGuardConfig(max_capital=500.0)
         monitor = PositionMonitor(
-            broker=broker, guard_config=guard_config, realtime_feed=rt_feed,
+            broker=broker,
+            guard_config=guard_config,
+            realtime_feed=rt_feed,
         )
         monitor.initialize()
 
@@ -338,23 +353,31 @@ class TestPositionMonitorRealtimeIntegration:
 
         broker = MagicMock()
         broker.get_account_snapshot.return_value = AccountSnapshot(
-            equity=500.0, cash=300.0, buying_power=300.0,
-            positions_market_value=200.0, position_count=1,
+            equity=500.0,
+            cash=300.0,
+            buying_power=300.0,
+            positions_market_value=200.0,
+            position_count=1,
             is_margin_account=False,
         )
         # Broker price $147: above stop ($143), below profit target ($149)
         broker.get_positions.return_value = [
             Position(
-                symbol="AAPL", qty=1.0, market_value=147.0,
-                avg_entry_price=145.0, current_price=147.0,
-                unrealised_pnl=2.0, side="long",
+                symbol="AAPL",
+                qty=1.0,
+                market_value=147.0,
+                avg_entry_price=145.0,
+                current_price=147.0,
+                unrealised_pnl=2.0,
+                side="long",
             )
         ]
 
         rt_feed = MagicMock(spec=RealtimePriceFeed)
         rt_feed.is_running = True
         old_quote = PriceQuote(
-            symbol="AAPL", price=140.0,
+            symbol="AAPL",
+            price=140.0,
             timestamp=datetime.now(UTC) - timedelta(seconds=300),
         )
         rt_feed.get_latest.return_value = old_quote
@@ -362,7 +385,9 @@ class TestPositionMonitorRealtimeIntegration:
 
         guard_config = CapitalGuardConfig(max_capital=500.0)
         monitor = PositionMonitor(
-            broker=broker, guard_config=guard_config, realtime_feed=rt_feed,
+            broker=broker,
+            guard_config=guard_config,
+            realtime_feed=rt_feed,
         )
         monitor.initialize()
 
@@ -388,15 +413,22 @@ class TestPositionMonitorRealtimeIntegration:
 
         broker = MagicMock()
         broker.get_account_snapshot.return_value = AccountSnapshot(
-            equity=500.0, cash=300.0, buying_power=300.0,
-            positions_market_value=200.0, position_count=1,
+            equity=500.0,
+            cash=300.0,
+            buying_power=300.0,
+            positions_market_value=200.0,
+            position_count=1,
             is_margin_account=False,
         )
         broker.get_positions.return_value = [
             Position(
-                symbol="AAPL", qty=1.0, market_value=150.0,
-                avg_entry_price=145.0, current_price=150.0,
-                unrealised_pnl=5.0, side="long",
+                symbol="AAPL",
+                qty=1.0,
+                market_value=150.0,
+                avg_entry_price=145.0,
+                current_price=150.0,
+                unrealised_pnl=5.0,
+                side="long",
             )
         ]
 

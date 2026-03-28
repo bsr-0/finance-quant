@@ -27,16 +27,30 @@ from pipeline.extract.sec_fundamentals import (
 # Item 3: SEC Restatement Tracking
 # ---------------------------------------------------------------------------
 
+
 class TestAmendmentDetection:
     def test_original_filing_not_amendment(self):
         facts_json = {
-            "facts": {"us-gaap": {"Revenues": {
-                "label": "Revenues",
-                "units": {"USD": [
-                    {"form": "10-K", "filed": "2023-02-15", "end": "2022-12-31",
-                     "val": 100000, "accn": "0001-23-000001", "fy": 2022, "fp": "FY"},
-                ]},
-            }}},
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {
+                        "label": "Revenues",
+                        "units": {
+                            "USD": [
+                                {
+                                    "form": "10-K",
+                                    "filed": "2023-02-15",
+                                    "end": "2022-12-31",
+                                    "val": 100000,
+                                    "accn": "0001-23-000001",
+                                    "fy": 2022,
+                                    "fp": "FY",
+                                },
+                            ]
+                        },
+                    }
+                }
+            },
         }
         rows = SecFundamentalsExtractor._parse_facts(facts_json, "AAPL", 320193)
         assert len(rows) == 1
@@ -45,13 +59,26 @@ class TestAmendmentDetection:
 
     def test_amendment_detected(self):
         facts_json = {
-            "facts": {"us-gaap": {"Revenues": {
-                "label": "Revenues",
-                "units": {"USD": [
-                    {"form": "10-K/A", "filed": "2023-04-15", "end": "2022-12-31",
-                     "val": 110000, "accn": "0001-23-000002", "fy": 2022, "fp": "FY"},
-                ]},
-            }}},
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {
+                        "label": "Revenues",
+                        "units": {
+                            "USD": [
+                                {
+                                    "form": "10-K/A",
+                                    "filed": "2023-04-15",
+                                    "end": "2022-12-31",
+                                    "val": 110000,
+                                    "accn": "0001-23-000002",
+                                    "fy": 2022,
+                                    "fp": "FY",
+                                },
+                            ]
+                        },
+                    }
+                }
+            },
         }
         rows = SecFundamentalsExtractor._parse_facts(facts_json, "AAPL", 320193)
         assert len(rows) == 1
@@ -61,13 +88,26 @@ class TestAmendmentDetection:
 
     def test_10q_amendment(self):
         facts_json = {
-            "facts": {"us-gaap": {"NetIncomeLoss": {
-                "label": "Net Income",
-                "units": {"USD": [
-                    {"form": "10-Q/A", "filed": "2023-06-01", "end": "2023-03-31",
-                     "val": 50000, "accn": "0001-23-000003", "fy": 2023, "fp": "Q1"},
-                ]},
-            }}},
+            "facts": {
+                "us-gaap": {
+                    "NetIncomeLoss": {
+                        "label": "Net Income",
+                        "units": {
+                            "USD": [
+                                {
+                                    "form": "10-Q/A",
+                                    "filed": "2023-06-01",
+                                    "end": "2023-03-31",
+                                    "val": 50000,
+                                    "accn": "0001-23-000003",
+                                    "fy": 2023,
+                                    "fp": "Q1",
+                                },
+                            ]
+                        },
+                    }
+                }
+            },
         }
         rows = SecFundamentalsExtractor._parse_facts(facts_json, "AAPL", 320193)
         assert len(rows) == 1
@@ -78,15 +118,35 @@ class TestAmendmentDetection:
 class TestFilingSequence:
     def test_sequence_assigned(self):
         facts_json = {
-            "facts": {"us-gaap": {"Revenues": {
-                "label": "Revenues",
-                "units": {"USD": [
-                    {"form": "10-K", "filed": "2023-02-15", "end": "2022-12-31",
-                     "val": 100000, "accn": "0001-23-000001", "fy": 2022, "fp": "FY"},
-                    {"form": "10-K/A", "filed": "2023-04-15", "end": "2022-12-31",
-                     "val": 110000, "accn": "0001-23-000002", "fy": 2022, "fp": "FY"},
-                ]},
-            }}},
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {
+                        "label": "Revenues",
+                        "units": {
+                            "USD": [
+                                {
+                                    "form": "10-K",
+                                    "filed": "2023-02-15",
+                                    "end": "2022-12-31",
+                                    "val": 100000,
+                                    "accn": "0001-23-000001",
+                                    "fy": 2022,
+                                    "fp": "FY",
+                                },
+                                {
+                                    "form": "10-K/A",
+                                    "filed": "2023-04-15",
+                                    "end": "2022-12-31",
+                                    "val": 110000,
+                                    "accn": "0001-23-000002",
+                                    "fy": 2022,
+                                    "fp": "FY",
+                                },
+                            ]
+                        },
+                    }
+                }
+            },
         }
         rows = SecFundamentalsExtractor._parse_facts(facts_json, "AAPL", 320193)
         rows = SecFundamentalsExtractor._assign_filing_sequence(rows)
@@ -100,36 +160,57 @@ class TestFilingSequence:
 
 class TestPointInTime:
     def test_restated_value_not_visible_before_filing(self):
-        df = pd.DataFrame([
-            {"ticker": "AAPL", "metric_name": "Revenues",
-             "fiscal_period_end": date(2022, 12, 31),
-             "filing_date": date(2023, 2, 15), "metric_value": 100000},
-            {"ticker": "AAPL", "metric_name": "Revenues",
-             "fiscal_period_end": date(2022, 12, 31),
-             "filing_date": date(2023, 4, 15), "metric_value": 110000},
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "ticker": "AAPL",
+                    "metric_name": "Revenues",
+                    "fiscal_period_end": date(2022, 12, 31),
+                    "filing_date": date(2023, 2, 15),
+                    "metric_value": 100000,
+                },
+                {
+                    "ticker": "AAPL",
+                    "metric_name": "Revenues",
+                    "fiscal_period_end": date(2022, 12, 31),
+                    "filing_date": date(2023, 4, 15),
+                    "metric_value": 110000,
+                },
+            ]
+        )
         # Before restatement filed
         result = point_in_time_fundamentals(df, as_of=date(2023, 3, 1))
         assert len(result) == 1
         assert result.iloc[0]["metric_value"] == 100000
 
     def test_restated_value_visible_after_filing(self):
-        df = pd.DataFrame([
-            {"ticker": "AAPL", "metric_name": "Revenues",
-             "fiscal_period_end": date(2022, 12, 31),
-             "filing_date": date(2023, 2, 15), "metric_value": 100000},
-            {"ticker": "AAPL", "metric_name": "Revenues",
-             "fiscal_period_end": date(2022, 12, 31),
-             "filing_date": date(2023, 4, 15), "metric_value": 110000},
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "ticker": "AAPL",
+                    "metric_name": "Revenues",
+                    "fiscal_period_end": date(2022, 12, 31),
+                    "filing_date": date(2023, 2, 15),
+                    "metric_value": 100000,
+                },
+                {
+                    "ticker": "AAPL",
+                    "metric_name": "Revenues",
+                    "fiscal_period_end": date(2022, 12, 31),
+                    "filing_date": date(2023, 4, 15),
+                    "metric_value": 110000,
+                },
+            ]
+        )
         # After restatement filed
         result = point_in_time_fundamentals(df, as_of=date(2023, 5, 1))
         assert len(result) == 1
         assert result.iloc[0]["metric_value"] == 110000
 
     def test_empty_dataframe(self):
-        df = pd.DataFrame(columns=["ticker", "metric_name", "fiscal_period_end",
-                                    "filing_date", "metric_value"])
+        df = pd.DataFrame(
+            columns=["ticker", "metric_name", "fiscal_period_end", "filing_date", "metric_value"]
+        )
         result = point_in_time_fundamentals(df, as_of=date(2023, 1, 1))
         assert result.empty
 
@@ -137,6 +218,7 @@ class TestPointInTime:
 # ---------------------------------------------------------------------------
 # Item 4: Historical ADV Integration
 # ---------------------------------------------------------------------------
+
 
 class TestComputeHistoricalADV:
     def test_rolling_mean(self):
@@ -210,6 +292,7 @@ class TestStaticADVWarning:
 # Item 5: Feedback Impact Model
 # ---------------------------------------------------------------------------
 
+
 class TestFeedbackImpactModel:
     def test_greater_than_simple_model(self):
         """Feedback model cost >= simple model cost for same trade."""
@@ -230,7 +313,8 @@ class TestFeedbackImpactModel:
         simple_cost = simple.estimate(trade)
         feedback_cost = feedback.estimate(trade)
         assert feedback_cost.market_impact == pytest.approx(
-            simple_cost.market_impact, rel=1e-10,
+            simple_cost.market_impact,
+            rel=1e-10,
         )
 
     def test_cost_scales_superlinearly(self):

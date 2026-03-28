@@ -23,6 +23,7 @@ from pipeline.execution.capital_guard import AccountSnapshot
 # Helpers: mock Alpaca SDK objects
 # ---------------------------------------------------------------------------
 
+
 def _mock_alpaca_account(
     equity="500.00",
     cash="300.00",
@@ -85,22 +86,30 @@ def _mock_alpaca_position(
 # Tests
 # ---------------------------------------------------------------------------
 
+
 class TestAlpacaBrokerInit:
-    @patch.dict("os.environ", {
-        "ALPACA_API_KEY": "test-key",
-        "ALPACA_SECRET_KEY": "test-secret",
-        "ALPACA_BASE_URL": "https://paper-api.alpaca.markets",
-    })
+    @patch.dict(
+        "os.environ",
+        {
+            "ALPACA_API_KEY": "test-key",
+            "ALPACA_SECRET_KEY": "test-secret",
+            "ALPACA_BASE_URL": "https://paper-api.alpaca.markets",
+        },
+    )
     @patch("pipeline.execution.alpaca_broker.TradingClient", create=True)
     def test_from_env_paper_mode(self, mock_client_cls):
         """from_env() with paper URL creates a paper broker."""
         # Patch the import inside alpaca_broker
-        with patch.dict("sys.modules", {
-            "alpaca": MagicMock(),
-            "alpaca.trading": MagicMock(),
-            "alpaca.trading.client": MagicMock(TradingClient=mock_client_cls),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "alpaca": MagicMock(),
+                "alpaca.trading": MagicMock(),
+                "alpaca.trading.client": MagicMock(TradingClient=mock_client_cls),
+            },
+        ):
             from pipeline.execution.alpaca_broker import AlpacaBroker
+
             broker = AlpacaBroker(
                 api_key="test-key",
                 secret_key="test-secret",
@@ -113,10 +122,12 @@ class TestAlpacaBrokerInit:
         with patch.dict("os.environ", {}, clear=True):
             # Remove any existing env vars
             import os
+
             os.environ.pop("ALPACA_API_KEY", None)
             os.environ.pop("ALPACA_SECRET_KEY", None)
 
             from pipeline.execution.alpaca_broker import AlpacaBroker
+
             with pytest.raises(BrokerError, match="ALPACA_API_KEY"):
                 AlpacaBroker.from_env()
 
@@ -128,8 +139,11 @@ class TestAlpacaBrokerAccountSnapshot:
 
         mock_client = MagicMock()
         mock_client.get_account.return_value = _mock_alpaca_account(
-            equity="500.00", cash="300.00", buying_power="300.00",
-            long_market_value="200.00", short_market_value="0.00",
+            equity="500.00",
+            cash="300.00",
+            buying_power="300.00",
+            long_market_value="200.00",
+            short_market_value="0.00",
             multiplier="1",
         )
         mock_client.get_all_positions.return_value = [
@@ -187,6 +201,7 @@ class TestAlpacaBrokerAccountSnapshot:
 class TestAlpacaBrokerOrderSubmission:
     def _make_broker(self):
         from pipeline.execution.alpaca_broker import AlpacaBroker
+
         mock_client = MagicMock()
         with patch("pipeline.execution.alpaca_broker.AlpacaBroker.__init__", return_value=None):
             broker = AlpacaBroker.__new__(AlpacaBroker)
@@ -197,12 +212,16 @@ class TestAlpacaBrokerOrderSubmission:
     def test_submit_market_order(self):
         broker, mock_client = self._make_broker()
         mock_client.submit_order.return_value = _mock_alpaca_order(
-            status="filled", filled_qty="2.0", filled_avg_price="150.50",
+            status="filled",
+            filled_qty="2.0",
+            filled_avg_price="150.50",
         )
 
         order = Order(
-            symbol="AAPL", side=OrderSide.BUY,
-            order_type=OrderType.MARKET, qty=2.0,
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            qty=2.0,
         )
         result = broker.submit_order(order)
 
@@ -215,12 +234,17 @@ class TestAlpacaBrokerOrderSubmission:
     def test_submit_limit_order(self):
         broker, mock_client = self._make_broker()
         mock_client.submit_order.return_value = _mock_alpaca_order(
-            status="new", filled_qty=None, filled_avg_price=None,
+            status="new",
+            filled_qty=None,
+            filled_avg_price=None,
         )
 
         order = Order(
-            symbol="AAPL", side=OrderSide.BUY,
-            order_type=OrderType.LIMIT, qty=2.0, limit_price=150.0,
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=2.0,
+            limit_price=150.0,
         )
         result = broker.submit_order(order)
 
@@ -231,8 +255,11 @@ class TestAlpacaBrokerOrderSubmission:
         broker, _ = self._make_broker()
 
         order = Order(
-            symbol="AAPL", side=OrderSide.BUY,
-            order_type=OrderType.LIMIT, qty=2.0, limit_price=None,
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=2.0,
+            limit_price=None,
         )
         with pytest.raises(BrokerError, match="Limit price required"):
             broker.submit_order(order)
@@ -242,8 +269,10 @@ class TestAlpacaBrokerOrderSubmission:
         mock_client.submit_order.side_effect = Exception("Insufficient funds")
 
         order = Order(
-            symbol="AAPL", side=OrderSide.BUY,
-            order_type=OrderType.MARKET, qty=2.0,
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            qty=2.0,
         )
         with pytest.raises(BrokerError, match="Order submission failed"):
             broker.submit_order(order)
@@ -253,6 +282,7 @@ class TestAlpacaBrokerOrderSubmission:
 class TestAlpacaBrokerPositions:
     def _make_broker(self):
         from pipeline.execution.alpaca_broker import AlpacaBroker
+
         mock_client = MagicMock()
         with patch("pipeline.execution.alpaca_broker.AlpacaBroker.__init__", return_value=None):
             broker = AlpacaBroker.__new__(AlpacaBroker)
@@ -278,7 +308,10 @@ class TestAlpacaBrokerPositions:
     def test_close_position(self):
         broker, mock_client = self._make_broker()
         mock_client.close_position.return_value = _mock_alpaca_order(
-            order_id="close-1", status="new", symbol="AAPL", qty="2.0",
+            order_id="close-1",
+            status="new",
+            symbol="AAPL",
+            qty="2.0",
         )
 
         order = broker.close_position("AAPL")
@@ -322,6 +355,7 @@ class TestAlpacaBrokerOrderStatusMapping:
 
     def test_get_order_status(self):
         from pipeline.execution.alpaca_broker import AlpacaBroker
+
         mock_client = MagicMock()
         with patch("pipeline.execution.alpaca_broker.AlpacaBroker.__init__", return_value=None):
             broker = AlpacaBroker.__new__(AlpacaBroker)
@@ -329,8 +363,10 @@ class TestAlpacaBrokerOrderStatusMapping:
             broker._is_paper = True
 
         mock_client.get_order_by_id.return_value = _mock_alpaca_order(
-            order_id="abc-123", status="filled",
-            filled_qty="2.0", filled_avg_price="150.50",
+            order_id="abc-123",
+            status="filled",
+            filled_qty="2.0",
+            filled_avg_price="150.50",
         )
 
         order = broker.get_order_status("abc-123")
@@ -339,6 +375,7 @@ class TestAlpacaBrokerOrderStatusMapping:
 
     def test_cancel_order(self):
         from pipeline.execution.alpaca_broker import AlpacaBroker
+
         mock_client = MagicMock()
         with patch("pipeline.execution.alpaca_broker.AlpacaBroker.__init__", return_value=None):
             broker = AlpacaBroker.__new__(AlpacaBroker)
@@ -350,6 +387,7 @@ class TestAlpacaBrokerOrderStatusMapping:
 
     def test_cancel_order_failure(self):
         from pipeline.execution.alpaca_broker import AlpacaBroker
+
         mock_client = MagicMock()
         mock_client.cancel_order_by_id.side_effect = Exception("Not found")
         with patch("pipeline.execution.alpaca_broker.AlpacaBroker.__init__", return_value=None):
@@ -415,9 +453,7 @@ class TestSanitizeError:
         from pipeline.execution.alpaca_broker import AlpacaBroker
 
         mock_client = MagicMock()
-        mock_client.get_account.side_effect = Exception(
-            "HTTP 401 api_key=AKXYZ12345 unauthorized"
-        )
+        mock_client.get_account.side_effect = Exception("HTTP 401 api_key=AKXYZ12345 unauthorized")
         with patch("pipeline.execution.alpaca_broker.AlpacaBroker.__init__", return_value=None):
             broker = AlpacaBroker.__new__(AlpacaBroker)
             broker._client = mock_client

@@ -189,9 +189,9 @@ class TestSnapshotCorrectness:
                 {"contract_id": contract_id, "asof_ts": asof_ts},
             )
 
-            assert lookahead[0]["cnt"] == 0, (
-                f"Look-ahead detected in snapshot {contract_id} at {asof_ts}"
-            )
+            assert (
+                lookahead[0]["cnt"] == 0
+            ), f"Look-ahead detected in snapshot {contract_id} at {asof_ts}"
 
 
 class TestDataQualitySuite:

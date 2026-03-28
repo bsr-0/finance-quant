@@ -16,6 +16,7 @@ from pipeline.strategy.sizing import PositionSizer
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _make_price_df(
     n: int = 200,
     start_price: float = 100.0,
@@ -69,14 +70,25 @@ def _make_pullback_df(n: int = 200, seed: int = 42) -> pd.DataFrame:
 # Signal Engine Tests
 # ---------------------------------------------------------------------------
 
+
 class TestSignalEngine:
     def test_compute_indicators_adds_columns(self):
         df = _make_price_df(100)
         result = compute_indicators(df)
         expected_cols = [
-            "sma_20", "sma_50", "sma_200", "rsi_14", "bb_upper", "bb_lower",
-            "stoch_k", "atr_14", "atr_pct", "volume_sma_20", "obv",
-            "macd_hist", "williams_r",
+            "sma_20",
+            "sma_50",
+            "sma_200",
+            "rsi_14",
+            "bb_upper",
+            "bb_lower",
+            "stoch_k",
+            "atr_14",
+            "atr_pct",
+            "volume_sma_20",
+            "obv",
+            "macd_hist",
+            "williams_r",
         ]
         for col in expected_cols:
             assert col in result.columns, f"Missing indicator column: {col}"
@@ -137,6 +149,7 @@ class TestSignalEngine:
 # Position Sizing Tests
 # ---------------------------------------------------------------------------
 
+
 class TestPositionSizer:
     def test_basic_sizing(self):
         sizer = PositionSizer()
@@ -154,8 +167,11 @@ class TestPositionSizer:
     def test_bear_regime_rejected(self):
         sizer = PositionSizer()
         result = sizer.compute(
-            equity=500, entry_price=50, atr=2.0,
-            signal_score=75, regime="BEAR",
+            equity=500,
+            entry_price=50,
+            atr=2.0,
+            signal_score=75,
+            regime="BEAR",
         )
         assert result.rejected
         assert "BEAR" in result.reject_reason
@@ -163,8 +179,11 @@ class TestPositionSizer:
     def test_low_price_rejected(self):
         sizer = PositionSizer()
         result = sizer.compute(
-            equity=500, entry_price=3.0, atr=0.5,
-            signal_score=75, regime="BULL",
+            equity=500,
+            entry_price=3.0,
+            atr=0.5,
+            signal_score=75,
+            regime="BULL",
         )
         assert result.rejected
         assert "minimum" in result.reject_reason.lower()
@@ -172,8 +191,11 @@ class TestPositionSizer:
     def test_max_positions_enforced(self):
         sizer = PositionSizer()
         result = sizer.compute(
-            equity=500, entry_price=50, atr=2.0,
-            signal_score=75, regime="BULL",
+            equity=500,
+            entry_price=50,
+            atr=2.0,
+            signal_score=75,
+            regime="BULL",
             current_positions=3,  # $500-$1000 bracket: max 3
         )
         assert result.rejected
@@ -188,8 +210,11 @@ class TestPositionSizer:
     def test_risk_budget_respects_portfolio_cap(self):
         sizer = PositionSizer()
         result = sizer.compute(
-            equity=500, entry_price=50, atr=2.0,
-            signal_score=75, regime="BULL",
+            equity=500,
+            entry_price=50,
+            atr=2.0,
+            signal_score=75,
+            regime="BULL",
             current_portfolio_risk_pct=0.03,  # Already at cap
         )
         assert result.rejected
@@ -207,6 +232,7 @@ class TestPositionSizer:
 # Exit Engine Tests
 # ---------------------------------------------------------------------------
 
+
 class TestExitEngine:
     def _make_position(self, entry_price: float = 100.0) -> PositionState:
         return PositionState(
@@ -222,9 +248,14 @@ class TestExitEngine:
         engine = ExitEngine()
         pos = self._make_position(100.0)
         sig = engine.check_exit(
-            pos, pd.Timestamp("2023-06-05"),
-            current_close=96.0, current_high=97.0, current_atr=2.0,
-            current_rsi=40, current_sma_50=99.0, regime="BULL",
+            pos,
+            pd.Timestamp("2023-06-05"),
+            current_close=96.0,
+            current_high=97.0,
+            current_atr=2.0,
+            current_rsi=40,
+            current_sma_50=99.0,
+            regime="BULL",
         )
         assert sig.should_exit
         assert sig.reason == ExitReason.STOP_LOSS
@@ -233,9 +264,14 @@ class TestExitEngine:
         engine = ExitEngine()
         pos = self._make_position(100.0)
         sig = engine.check_exit(
-            pos, pd.Timestamp("2023-06-05"),
-            current_close=101.0, current_high=101.5, current_atr=2.0,
-            current_rsi=55, current_sma_50=99.0, regime="BULL",
+            pos,
+            pd.Timestamp("2023-06-05"),
+            current_close=101.0,
+            current_high=101.5,
+            current_atr=2.0,
+            current_rsi=55,
+            current_sma_50=99.0,
+            regime="BULL",
         )
         assert not sig.should_exit
         assert sig.reason == ExitReason.NONE
@@ -245,9 +281,14 @@ class TestExitEngine:
         pos = self._make_position(100.0)
         # target_1 = 100 + 2*2.0 = 104
         sig = engine.check_exit(
-            pos, pd.Timestamp("2023-06-10"),
-            current_close=105.0, current_high=105.5, current_atr=2.0,
-            current_rsi=60, current_sma_50=101.0, regime="BULL",
+            pos,
+            pd.Timestamp("2023-06-10"),
+            current_close=105.0,
+            current_high=105.5,
+            current_atr=2.0,
+            current_rsi=60,
+            current_sma_50=101.0,
+            regime="BULL",
         )
         assert sig.should_exit
         assert sig.reason == ExitReason.PROFIT_TARGET
@@ -256,9 +297,14 @@ class TestExitEngine:
         engine = ExitEngine(max_holding_days=15)
         pos = self._make_position(100.0)
         sig = engine.check_exit(
-            pos, pd.Timestamp("2023-06-20"),
-            current_close=101.0, current_high=101.5, current_atr=2.0,
-            current_rsi=55, current_sma_50=101.0, regime="BULL",
+            pos,
+            pd.Timestamp("2023-06-20"),
+            current_close=101.0,
+            current_high=101.5,
+            current_atr=2.0,
+            current_rsi=55,
+            current_sma_50=101.0,
+            regime="BULL",
         )
         assert sig.should_exit
         assert sig.reason == ExitReason.TIME_EXIT
@@ -267,9 +313,14 @@ class TestExitEngine:
         engine = ExitEngine()
         pos = self._make_position(100.0)
         sig = engine.check_exit(
-            pos, pd.Timestamp("2023-06-05"),
-            current_close=101.0, current_high=101.5, current_atr=2.0,
-            current_rsi=55, current_sma_50=102.0, regime="BEAR",
+            pos,
+            pd.Timestamp("2023-06-05"),
+            current_close=101.0,
+            current_high=101.5,
+            current_atr=2.0,
+            current_rsi=55,
+            current_sma_50=102.0,
+            regime="BEAR",
         )
         assert sig.should_exit
         assert sig.reason == ExitReason.REGIME_BEAR
@@ -278,9 +329,14 @@ class TestExitEngine:
         engine = ExitEngine()
         pos = self._make_position(100.0)
         sig = engine.check_exit(
-            pos, pd.Timestamp("2023-06-05"),
-            current_close=103.0, current_high=103.5, current_atr=2.0,
-            current_rsi=75, current_sma_50=101.0, regime="BULL",
+            pos,
+            pd.Timestamp("2023-06-05"),
+            current_close=103.0,
+            current_high=103.5,
+            current_atr=2.0,
+            current_rsi=75,
+            current_sma_50=101.0,
+            regime="BULL",
         )
         assert sig.should_exit
         assert sig.reason == ExitReason.RSI_OVERBOUGHT
@@ -290,9 +346,14 @@ class TestExitEngine:
         pos = self._make_position(100.0)
         # Move price up enough to activate trailing (1 ATR = $2 profit)
         engine.check_exit(
-            pos, pd.Timestamp("2023-06-03"),
-            current_close=102.5, current_high=103.0, current_atr=2.0,
-            current_rsi=55, current_sma_50=101.0, regime="BULL",
+            pos,
+            pd.Timestamp("2023-06-03"),
+            current_close=102.5,
+            current_high=103.0,
+            current_atr=2.0,
+            current_rsi=55,
+            current_sma_50=101.0,
+            regime="BULL",
         )
         assert pos.trailing_activated
         assert pos.trailing_stop > pos.stop_price
@@ -301,6 +362,7 @@ class TestExitEngine:
 # ---------------------------------------------------------------------------
 # Risk Manager Tests
 # ---------------------------------------------------------------------------
+
 
 class TestSwingRiskManager:
     def test_green_drawdown(self):
@@ -364,6 +426,7 @@ class TestSwingRiskManager:
 # Edge Decay Monitor Tests
 # ---------------------------------------------------------------------------
 
+
 class TestEdgeDecayMonitor:
     def test_not_enough_trades_returns_green(self):
         mon = EdgeDecayMonitor(min_trades=10)
@@ -406,6 +469,7 @@ class TestEdgeDecayMonitor:
 # Strategy Engine Integration Tests
 # ---------------------------------------------------------------------------
 
+
 class TestSwingStrategyEngine:
     def test_engine_runs_without_error(self):
         config = StrategyConfig(initial_capital=1000)
@@ -422,8 +486,14 @@ class TestSwingStrategyEngine:
         result = engine.run({"TEST": df}, spy_prices=df["close"])
         summary = result.summary()
         expected_keys = [
-            "initial_capital", "final_equity", "total_return", "cagr",
-            "sharpe_ratio", "max_drawdown", "total_trades", "win_rate",
+            "initial_capital",
+            "final_equity",
+            "total_return",
+            "cagr",
+            "sharpe_ratio",
+            "max_drawdown",
+            "total_trades",
+            "win_rate",
         ]
         for key in expected_keys:
             assert key in summary, f"Missing summary key: {key}"

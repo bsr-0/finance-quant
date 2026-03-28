@@ -101,8 +101,7 @@ class FailureModeChecker:
             check_name="monitoring_active",
             passed=monitoring_active,
             reason=(
-                "" if monitoring_active
-                else "Production system lacks active monitoring dashboard"
+                "" if monitoring_active else "Production system lacks active monitoring dashboard"
             ),
         )
 
@@ -190,9 +189,7 @@ class FailureModeChecker:
     ) -> FailureModeReport:
         """Run all 8 extended failure mode checks."""
         checks = [
-            self.check_shadow_bypass(
-                deployment_history or [], human_approved_bypass
-            ),
+            self.check_shadow_bypass(deployment_history or [], human_approved_bypass),
             self.check_monitoring_active(monitoring_active),
             self.check_pipeline_idempotency(pipeline_idempotent),
             self.check_budget_overrun(budget_exceeded, overrun_approved),

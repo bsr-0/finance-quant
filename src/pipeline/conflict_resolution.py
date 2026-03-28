@@ -60,9 +60,7 @@ class EvidenceSubmission:
     evidence: dict[str, Any] = field(default_factory=dict)
     experiment_ids: list[str] = field(default_factory=list)
     code_references: list[str] = field(default_factory=list)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -77,9 +75,7 @@ class Dissent:
     agent: str = ""
     reasoning: str = ""
     insufficiently_weighted_evidence: str = ""
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     reviewed: bool = False
     review_notes: str = ""
 
@@ -105,9 +101,7 @@ class ConflictRecord:
     resolution: str = ""
     resolved_by: str = ""
     dissents: list[dict[str, Any]] = field(default_factory=list)
-    created_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     resolved_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -248,9 +242,7 @@ class ConflictResolver:
         conflict.evidence_submissions.append(submission.to_dict())
         conflict.status = ConflictStatus.EVIDENCE_DUEL
         self._save()
-        logger.info(
-            "Evidence submitted for conflict %s by %s", conflict_id, agent
-        )
+        logger.info("Evidence submitted for conflict %s by %s", conflict_id, agent)
         return submission
 
     def audit_arbitrate(
@@ -315,9 +307,7 @@ class ConflictResolver:
         conflict.status = ConflictStatus.ESCALATED_TO_HUMAN
         conflict.resolution = f"Escalated to human: {reason}"
         self._save()
-        logger.warning(
-            "Conflict %s escalated to human: %s", conflict_id, reason
-        )
+        logger.warning("Conflict %s escalated to human: %s", conflict_id, reason)
         return conflict
 
     def resolve_human_escalation(
@@ -393,9 +383,7 @@ class ConflictResolver:
         conflict = self._conflicts[conflict_id]
         conflict.dissents.append(dissent.to_dict())
         self._save()
-        logger.info(
-            "Dissent filed by %s on conflict %s", agent, conflict_id
-        )
+        logger.info("Dissent filed by %s on conflict %s", agent, conflict_id)
         return dissent
 
     def review_dissent(

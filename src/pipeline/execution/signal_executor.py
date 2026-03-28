@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 # Signal row (parsed from CSV)
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class ParsedSignal:
     """A signal parsed from the CSV output."""
@@ -67,6 +68,7 @@ class ParsedSignal:
 # ---------------------------------------------------------------------------
 # Execution result
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ExecutionResult:
@@ -93,6 +95,7 @@ class ExecutionResult:
 # ---------------------------------------------------------------------------
 # Signal executor
 # ---------------------------------------------------------------------------
+
 
 class SignalExecutor:
     """Execute trading signals through the broker with full QAQC.
@@ -182,7 +185,8 @@ class SignalExecutor:
         self._initialized = True
         logger.info(
             "Executor initialized: equity=$%.2f, %d existing positions",
-            account.equity, len(self._system_positions),
+            account.equity,
+            len(self._system_positions),
         )
 
     def execute_signals(self, csv_path: str | Path) -> ExecutionResult:
@@ -266,10 +270,12 @@ class SignalExecutor:
                     "cooldown_days": risk_state.cooldown_remaining_days,
                 },
             )
-            result.details.append({
-                "action": "BLOCKED_BY_RISK",
-                "drawdown_level": dd_name,
-            })
+            result.details.append(
+                {
+                    "action": "BLOCKED_BY_RISK",
+                    "drawdown_level": dd_name,
+                }
+            )
             return result
 
         # Track pending limit orders for fill polling
@@ -279,16 +285,22 @@ class SignalExecutor:
         for signal in signals:
             if signal.ticker in held_symbols:
                 logger.info("Skipping %s: already held", signal.ticker)
-                result.details.append({
-                    "ticker": signal.ticker, "action": "SKIP_ALREADY_HELD",
-                })
+                result.details.append(
+                    {
+                        "ticker": signal.ticker,
+                        "action": "SKIP_ALREADY_HELD",
+                    }
+                )
                 continue
 
             if signal.regime == "BEAR":
                 logger.info("Skipping %s: BEAR regime", signal.ticker)
-                result.details.append({
-                    "ticker": signal.ticker, "action": "SKIP_BEAR_REGIME",
-                })
+                result.details.append(
+                    {
+                        "ticker": signal.ticker,
+                        "action": "SKIP_BEAR_REGIME",
+                    }
+                )
                 continue
 
             result.signals_eligible += 1
@@ -299,12 +311,19 @@ class SignalExecutor:
             if signal.score < min_score:
                 logger.info(
                     "Skipping %s: score %d < threshold %d (drawdown=%s)",
-                    signal.ticker, signal.score, min_score, dd_level.name,
+                    signal.ticker,
+                    signal.score,
+                    min_score,
+                    dd_level.name,
                 )
-                result.details.append({
-                    "ticker": signal.ticker, "action": "SKIP_SCORE_TOO_LOW",
-                    "score": signal.score, "threshold": min_score,
-                })
+                result.details.append(
+                    {
+                        "ticker": signal.ticker,
+                        "action": "SKIP_SCORE_TOO_LOW",
+                        "score": signal.score,
+                        "threshold": min_score,
+                    }
+                )
                 continue
 
             # Refresh account for accurate sizing
@@ -323,12 +342,17 @@ class SignalExecutor:
 
             if size_result.rejected:
                 logger.info(
-                    "Sizer rejected %s: %s", signal.ticker, size_result.reject_reason,
+                    "Sizer rejected %s: %s",
+                    signal.ticker,
+                    size_result.reject_reason,
                 )
-                result.details.append({
-                    "ticker": signal.ticker, "action": "SIZER_REJECTED",
-                    "reason": size_result.reject_reason,
-                })
+                result.details.append(
+                    {
+                        "ticker": signal.ticker,
+                        "action": "SIZER_REJECTED",
+                        "reason": size_result.reject_reason,
+                    }
+                )
                 continue
 
             shares: int | float = size_result.shares
@@ -348,28 +372,40 @@ class SignalExecutor:
 
             if not guard_result.approved:
                 logger.warning(
-                    "Guard REJECTED %s: %s", signal.ticker, guard_result.summary(),
+                    "Guard REJECTED %s: %s",
+                    signal.ticker,
+                    guard_result.summary(),
                 )
                 result.guard_rejections += 1
-                result.details.append({
-                    "ticker": signal.ticker, "action": "GUARD_REJECTED",
-                    "summary": guard_result.summary(),
-                    "failed_checks": guard_result.checks_failed,
-                })
+                result.details.append(
+                    {
+                        "ticker": signal.ticker,
+                        "action": "GUARD_REJECTED",
+                        "summary": guard_result.summary(),
+                        "failed_checks": guard_result.checks_failed,
+                    }
+                )
                 continue
 
             # Submit order
             if self.dry_run:
                 logger.info(
                     "DRY RUN: would buy %s %.4f shares @ ~$%.2f",
-                    signal.ticker, shares, signal.entry_price,
+                    signal.ticker,
+                    shares,
+                    signal.entry_price,
                 )
                 result.orders_submitted += 1
-                result.details.append({
-                    "ticker": signal.ticker, "action": "DRY_RUN_APPROVED",
-                    "shares": shares, "price": signal.entry_price,
-                    "stop": signal.stop_price, "target": signal.target_1,
-                })
+                result.details.append(
+                    {
+                        "ticker": signal.ticker,
+                        "action": "DRY_RUN_APPROVED",
+                        "shares": shares,
+                        "price": signal.entry_price,
+                        "stop": signal.stop_price,
+                        "target": signal.target_1,
+                    }
+                )
                 continue
 
             try:
@@ -393,26 +429,33 @@ class SignalExecutor:
                         side="long",
                     )
                 elif submitted.status in (
-                    OrderStatus.SUBMITTED, OrderStatus.PENDING, OrderStatus.PARTIAL,
+                    OrderStatus.SUBMITTED,
+                    OrderStatus.PENDING,
+                    OrderStatus.PARTIAL,
                 ):
                     pending_order_ids.append(submitted.order_id)
 
-                result.details.append({
-                    "ticker": signal.ticker,
-                    "action": "ORDER_SUBMITTED",
-                    "order_id": submitted.order_id,
-                    "status": submitted.status.value,
-                    "shares": shares,
-                    "limit_price": signal.entry_price,
-                    "stop_price": signal.stop_price,
-                    "target_1": signal.target_1,
-                })
+                result.details.append(
+                    {
+                        "ticker": signal.ticker,
+                        "action": "ORDER_SUBMITTED",
+                        "order_id": submitted.order_id,
+                        "status": submitted.status.value,
+                        "shares": shares,
+                        "limit_price": signal.entry_price,
+                        "stop_price": signal.stop_price,
+                        "target_1": signal.target_1,
+                    }
+                )
 
                 logger.info(
-                    "ORDER %s: %s %.4f shares @ $%.2f limit, "
-                    "stop=$%.2f, target=$%.2f → %s",
-                    submitted.order_id, signal.ticker, shares,
-                    signal.entry_price, signal.stop_price, signal.target_1,
+                    "ORDER %s: %s %.4f shares @ $%.2f limit, " "stop=$%.2f, target=$%.2f → %s",
+                    submitted.order_id,
+                    signal.ticker,
+                    shares,
+                    signal.entry_price,
+                    signal.stop_price,
+                    signal.target_1,
                     submitted.status.value,
                 )
                 notify(
@@ -433,17 +476,21 @@ class SignalExecutor:
 
             except BrokerError as e:
                 result.orders_rejected += 1
-                result.details.append({
-                    "ticker": signal.ticker, "action": "BROKER_REJECTED",
-                    "error": str(e),
-                })
+                result.details.append(
+                    {
+                        "ticker": signal.ticker,
+                        "action": "BROKER_REJECTED",
+                        "error": str(e),
+                    }
+                )
                 logger.error("Broker rejected %s: %s", signal.ticker, e)
 
         # Poll for fills on submitted limit orders
         if not self.dry_run and pending_order_ids:
             logger.info(
                 "Polling %d pending order(s) for fills (timeout=%ds)...",
-                len(pending_order_ids), self.fill_poll_timeout,
+                len(pending_order_ids),
+                self.fill_poll_timeout,
             )
             fill_results = self.poll_pending_orders(pending_order_ids)
             for oid, order in fill_results.items():
@@ -463,7 +510,8 @@ class SignalExecutor:
                         {"order_id": oid, "symbol": order.symbol},
                     )
                 elif order.status in (
-                    OrderStatus.CANCELLED, OrderStatus.EXPIRED,
+                    OrderStatus.CANCELLED,
+                    OrderStatus.EXPIRED,
                 ):
                     logger.info("Order %s (%s) → %s", oid, order.symbol, order.status.value)
 
@@ -472,10 +520,12 @@ class SignalExecutor:
             recon = self.reconciler.reconcile(self._system_positions)
             if not recon.is_clean:
                 logger.warning("Post-execution reconciliation: %s", recon.summary())
-                result.details.append({
-                    "action": "RECONCILIATION_DIRTY",
-                    "summary": recon.summary(),
-                })
+                result.details.append(
+                    {
+                        "action": "RECONCILIATION_DIRTY",
+                        "summary": recon.summary(),
+                    }
+                )
             else:
                 logger.info("Post-execution reconciliation: CLEAN")
 
@@ -501,8 +551,10 @@ class SignalExecutor:
         pending = set(order_ids)
         results: dict[str, Order] = {}
         terminal = {
-            OrderStatus.FILLED, OrderStatus.CANCELLED,
-            OrderStatus.REJECTED, OrderStatus.EXPIRED,
+            OrderStatus.FILLED,
+            OrderStatus.CANCELLED,
+            OrderStatus.REJECTED,
+            OrderStatus.EXPIRED,
         }
         deadline = time.monotonic() + self.fill_poll_timeout
 
@@ -516,8 +568,10 @@ class SignalExecutor:
                         pending.discard(oid)
                         logger.info(
                             "Order %s → %s (filled=%.4f @ $%.2f)",
-                            oid, order.status.value,
-                            order.filled_qty, order.filled_avg_price,
+                            oid,
+                            order.status.value,
+                            order.filled_qty,
+                            order.filled_avg_price,
                         )
                 except (BrokerError, NotImplementedError) as e:
                     logger.warning("Failed to poll order %s: %s", oid, e)
@@ -527,7 +581,8 @@ class SignalExecutor:
         for oid in pending:
             logger.warning(
                 "Order %s still open after %ds — cancelling",
-                oid, self.fill_poll_timeout,
+                oid,
+                self.fill_poll_timeout,
             )
             try:
                 self.broker.cancel_order(oid)
@@ -546,19 +601,21 @@ class SignalExecutor:
         signals = []
         for _, row in df.iterrows():
             try:
-                signals.append(ParsedSignal(
-                    date=pd.Timestamp(row["date"]),
-                    ticker=str(row["ticker"]).upper(),
-                    direction=str(row.get("direction", "LONG")),
-                    score=int(row["score"]),
-                    entry_price=float(row["entry_price"]),
-                    stop_price=float(row["stop_price"]),
-                    target_1=float(row["target_1"]),
-                    target_2=float(row["target_2"]),
-                    atr=float(row["atr"]),
-                    regime=str(row.get("regime", "BULL")),
-                    confidence=str(row.get("confidence", "LOW")),
-                ))
+                signals.append(
+                    ParsedSignal(
+                        date=pd.Timestamp(row["date"]),
+                        ticker=str(row["ticker"]).upper(),
+                        direction=str(row.get("direction", "LONG")),
+                        score=int(row["score"]),
+                        entry_price=float(row["entry_price"]),
+                        stop_price=float(row["stop_price"]),
+                        target_1=float(row["target_1"]),
+                        target_2=float(row["target_2"]),
+                        atr=float(row["atr"]),
+                        regime=str(row.get("regime", "BULL")),
+                        confidence=str(row.get("confidence", "LOW")),
+                    )
+                )
             except (KeyError, ValueError) as e:
                 logger.warning("Failed to parse signal row: %s", e)
                 continue

@@ -70,8 +70,13 @@ class TestEnsembleBuilder:
         from pipeline.backtesting.walk_forward import walk_forward_validate
 
         result = walk_forward_validate(
-            df, train_fn, predict_fn, _simple_eval_fn,
-            target_col="target", train_size=252, test_size=63,
+            df,
+            train_fn,
+            predict_fn,
+            _simple_eval_fn,
+            target_col="target",
+            train_size=252,
+            test_size=63,
         )
         assert len(result.folds) > 0
         assert "rmse" in result.mean_metrics
@@ -108,8 +113,13 @@ class TestEnsembleBuilder:
         from pipeline.backtesting.walk_forward import walk_forward_validate
 
         result = walk_forward_validate(
-            df, train_fn, predict_fn, _simple_eval_fn,
-            target_col="target", train_size=252, test_size=63,
+            df,
+            train_fn,
+            predict_fn,
+            _simple_eval_fn,
+            target_col="target",
+            train_size=252,
+            test_size=63,
         )
         assert len(result.folds) > 0
         for fold in result.folds:
@@ -142,8 +152,13 @@ class TestEnsembleBuilder:
         builder = EnsembleBuilder(registry=registry, primary_metric="rmse")
 
         selected = builder.greedy_forward_select(
-            components, df, "target", _simple_eval_fn,
-            max_components=2, train_size=252, test_size=63,
+            components,
+            df,
+            "target",
+            _simple_eval_fn,
+            max_components=2,
+            train_size=252,
+            test_size=63,
         )
 
         assert len(selected) >= 1
@@ -154,14 +169,16 @@ class TestEnsembleBuilder:
         components = _make_components(tmp_path, df)
 
         registry = ExperimentRegistry(storage_path=f"{tmp_path}/registry.json")
-        builder = EnsembleBuilder(
-            registry=registry, primary_metric="rmse", problem_id="ens_test"
-        )
+        builder = EnsembleBuilder(registry=registry, primary_metric="rmse", problem_id="ens_test")
 
         result = builder.run_ensemble_search(
-            df, "target", components, _simple_eval_fn,
+            df,
+            "target",
+            components,
+            _simple_eval_fn,
             methods=["weighted_average", "stacking"],
-            train_size=252, test_size=63,
+            train_size=252,
+            test_size=63,
         )
 
         assert result.method in ("weighted_average", "stacking")
@@ -182,9 +199,7 @@ class TestEnsembleBuilder:
         registry = ExperimentRegistry(storage_path=f"{tmp_path}/registry.json")
         builder = EnsembleBuilder(registry=registry)
 
-        comparison = builder.compare_raw_vs_calibrated(
-            y_true, raw_pred, calibrated_pred=cal_pred
-        )
+        comparison = builder.compare_raw_vs_calibrated(y_true, raw_pred, calibrated_pred=cal_pred)
 
         assert comparison["report_type"] == "evaluation_matrix"
         assert comparison["total_candidates"] == 2
@@ -201,10 +216,12 @@ class TestDiversityMetrics:
         registry = ExperimentRegistry(storage_path=f"{tmp_path}/registry.json")
         builder = EnsembleBuilder(registry=registry)
 
-        diversity = builder.measure_diversity({
-            "model_a": preds,
-            "model_b": preds.copy(),
-        })
+        diversity = builder.measure_diversity(
+            {
+                "model_a": preds,
+                "model_b": preds.copy(),
+            }
+        )
 
         assert diversity.mean_pairwise_correlation == pytest.approx(1.0, abs=0.01)
         assert diversity.mean_disagreement_rate == pytest.approx(0.0, abs=0.01)

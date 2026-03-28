@@ -29,9 +29,11 @@ logger = logging.getLogger(__name__)
 # Types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class FoldResult:
     """Result of a single train/test fold."""
+
     fold_index: int
     train_start: Any
     train_end: Any
@@ -46,6 +48,7 @@ class FoldResult:
 @dataclass
 class ValidationResult:
     """Aggregate result across all folds."""
+
     folds: list[FoldResult]
     strategy_name: str = ""
 
@@ -56,8 +59,7 @@ class ValidationResult:
             return {}
         keys = self.folds[0].metrics.keys()
         return {
-            k: float(np.mean([f.metrics[k] for f in self.folds if k in f.metrics]))
-            for k in keys
+            k: float(np.mean([f.metrics[k] for f in self.folds if k in f.metrics])) for k in keys
         }
 
     @property
@@ -67,8 +69,7 @@ class ValidationResult:
             return {}
         keys = self.folds[0].metrics.keys()
         return {
-            k: float(np.std([f.metrics[k] for f in self.folds if k in f.metrics]))
-            for k in keys
+            k: float(np.std([f.metrics[k] for f in self.folds if k in f.metrics])) for k in keys
         }
 
     def summary(self) -> pd.DataFrame:
@@ -91,6 +92,7 @@ class ValidationResult:
 # ---------------------------------------------------------------------------
 # Walk-Forward Validation
 # ---------------------------------------------------------------------------
+
 
 def walk_forward_splits(
     index: pd.DatetimeIndex,
@@ -175,17 +177,19 @@ def walk_forward_validate(
         y_true = test_df[target_col]
         metrics = eval_fn(y_true, preds)
 
-        folds.append(FoldResult(
-            fold_index=fold_i,
-            train_start=df.index[train_idx[0]],
-            train_end=df.index[train_idx[-1]],
-            test_start=df.index[test_idx[0]],
-            test_end=df.index[test_idx[-1]],
-            train_size=len(train_idx),
-            test_size=len(test_idx),
-            metrics=metrics,
-            predictions=preds,
-        ))
+        folds.append(
+            FoldResult(
+                fold_index=fold_i,
+                train_start=df.index[train_idx[0]],
+                train_end=df.index[train_idx[-1]],
+                test_start=df.index[test_idx[0]],
+                test_end=df.index[test_idx[-1]],
+                train_size=len(train_idx),
+                test_size=len(test_idx),
+                metrics=metrics,
+                predictions=preds,
+            )
+        )
 
         logger.info(
             f"Fold {fold_i}: train {df.index[train_idx[0]].date()} → "
@@ -201,6 +205,7 @@ def walk_forward_validate(
 # ---------------------------------------------------------------------------
 # Purged k-Fold Cross-Validation
 # ---------------------------------------------------------------------------
+
 
 def purged_kfold_splits(
     index: pd.DatetimeIndex,
@@ -262,16 +267,18 @@ def purged_kfold_validate(
         y_true = test_df[target_col]
         metrics = eval_fn(y_true, preds)
 
-        folds.append(FoldResult(
-            fold_index=fold_i,
-            train_start=df.index[train_idx[0]],
-            train_end=df.index[train_idx[-1]],
-            test_start=df.index[test_idx[0]],
-            test_end=df.index[test_idx[-1]],
-            train_size=len(train_idx),
-            test_size=len(test_idx),
-            metrics=metrics,
-            predictions=preds,
-        ))
+        folds.append(
+            FoldResult(
+                fold_index=fold_i,
+                train_start=df.index[train_idx[0]],
+                train_end=df.index[train_idx[-1]],
+                test_start=df.index[test_idx[0]],
+                test_end=df.index[test_idx[-1]],
+                train_size=len(train_idx),
+                test_size=len(test_idx),
+                metrics=metrics,
+                predictions=preds,
+            )
+        )
 
     return ValidationResult(folds=folds)

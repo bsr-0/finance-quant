@@ -22,17 +22,21 @@ from pipeline.backtesting.walk_forward import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def sample_df():
     """Feature DataFrame with a target column."""
     np.random.seed(42)
     n = 500
     idx = pd.bdate_range("2022-01-01", periods=n)
-    return pd.DataFrame({
-        "feature_a": np.random.randn(n),
-        "feature_b": np.random.randn(n),
-        "target": np.random.randn(n) * 0.01,
-    }, index=idx)
+    return pd.DataFrame(
+        {
+            "feature_a": np.random.randn(n),
+            "feature_b": np.random.randn(n),
+            "target": np.random.randn(n) * 0.01,
+        },
+        index=idx,
+    )
 
 
 def _dummy_train(train_df):
@@ -48,12 +52,13 @@ def _dummy_predict(model, test_df):
 def _dummy_eval(y_true, y_pred):
     """Compute MAE and MSE."""
     err = y_true - y_pred
-    return {"mae": float(err.abs().mean()), "mse": float((err ** 2).mean())}
+    return {"mae": float(err.abs().mean()), "mse": float((err**2).mean())}
 
 
 # ---------------------------------------------------------------------------
 # Walk-Forward Tests
 # ---------------------------------------------------------------------------
+
 
 class TestWalkForwardSplits:
     def test_basic_splits(self, sample_df):
@@ -89,16 +94,26 @@ class TestWalkForwardSplits:
 class TestWalkForwardValidate:
     def test_returns_result(self, sample_df):
         result = walk_forward_validate(
-            sample_df, _dummy_train, _dummy_predict, _dummy_eval,
-            target_col="target", train_size=100, test_size=50,
+            sample_df,
+            _dummy_train,
+            _dummy_predict,
+            _dummy_eval,
+            target_col="target",
+            train_size=100,
+            test_size=50,
         )
         assert isinstance(result, ValidationResult)
         assert len(result.folds) >= 2
 
     def test_metrics_computed(self, sample_df):
         result = walk_forward_validate(
-            sample_df, _dummy_train, _dummy_predict, _dummy_eval,
-            target_col="target", train_size=100, test_size=50,
+            sample_df,
+            _dummy_train,
+            _dummy_predict,
+            _dummy_eval,
+            target_col="target",
+            train_size=100,
+            test_size=50,
         )
         for fold in result.folds:
             assert "mae" in fold.metrics
@@ -107,8 +122,13 @@ class TestWalkForwardValidate:
 
     def test_mean_metrics(self, sample_df):
         result = walk_forward_validate(
-            sample_df, _dummy_train, _dummy_predict, _dummy_eval,
-            target_col="target", train_size=100, test_size=50,
+            sample_df,
+            _dummy_train,
+            _dummy_predict,
+            _dummy_eval,
+            target_col="target",
+            train_size=100,
+            test_size=50,
         )
         means = result.mean_metrics
         assert "mae" in means
@@ -116,8 +136,13 @@ class TestWalkForwardValidate:
 
     def test_summary_dataframe(self, sample_df):
         result = walk_forward_validate(
-            sample_df, _dummy_train, _dummy_predict, _dummy_eval,
-            target_col="target", train_size=100, test_size=50,
+            sample_df,
+            _dummy_train,
+            _dummy_predict,
+            _dummy_eval,
+            target_col="target",
+            train_size=100,
+            test_size=50,
         )
         summary = result.summary()
         assert isinstance(summary, pd.DataFrame)
@@ -160,8 +185,14 @@ class TestWalkForwardEmbargo:
     def test_validate_passes_embargo(self, sample_df):
         """walk_forward_validate accepts embargo_size parameter."""
         result = walk_forward_validate(
-            sample_df, _dummy_train, _dummy_predict, _dummy_eval,
-            target_col="target", train_size=100, test_size=50, embargo_size=10,
+            sample_df,
+            _dummy_train,
+            _dummy_predict,
+            _dummy_eval,
+            target_col="target",
+            train_size=100,
+            test_size=50,
+            embargo_size=10,
         )
         assert isinstance(result, ValidationResult)
         assert len(result.folds) >= 1
@@ -170,6 +201,7 @@ class TestWalkForwardEmbargo:
 # ---------------------------------------------------------------------------
 # Purged k-Fold Tests
 # ---------------------------------------------------------------------------
+
 
 class TestPurgedKFoldSplits:
     def test_basic_splits(self, sample_df):
@@ -184,9 +216,7 @@ class TestPurgedKFoldSplits:
 
     def test_embargo_gap(self, sample_df):
         embargo_pct = 0.05
-        splits = list(purged_kfold_splits(
-            sample_df.index, n_folds=5, embargo_pct=embargo_pct
-        ))
+        splits = list(purged_kfold_splits(sample_df.index, n_folds=5, embargo_pct=embargo_pct))
         n = len(sample_df)
         embargo_size = int(n * embargo_pct)
 
@@ -200,8 +230,12 @@ class TestPurgedKFoldSplits:
 class TestPurgedKFoldValidate:
     def test_returns_result(self, sample_df):
         result = purged_kfold_validate(
-            sample_df, _dummy_train, _dummy_predict, _dummy_eval,
-            target_col="target", n_folds=5,
+            sample_df,
+            _dummy_train,
+            _dummy_predict,
+            _dummy_eval,
+            target_col="target",
+            n_folds=5,
         )
         assert isinstance(result, ValidationResult)
         assert len(result.folds) == 5
@@ -210,6 +244,7 @@ class TestPurgedKFoldValidate:
 # ---------------------------------------------------------------------------
 # Transaction Cost Tests
 # ---------------------------------------------------------------------------
+
 
 class TestFixedPlusSpreadModel:
     def test_basic_cost(self):
@@ -259,8 +294,7 @@ class TestApplyTransactionCosts:
     def test_net_return_less_than_gross(self):
         dates = pd.bdate_range("2024-01-01", periods=10)
         prices = pd.DataFrame({"SPY": np.linspace(450, 460, 10)}, index=dates)
-        positions = pd.DataFrame({"SPY": [0, 100, 100, 100, 100, 200, 200, 200, 0, 0]},
-                                 index=dates)
+        positions = pd.DataFrame({"SPY": [0, 100, 100, 100, 100, 200, 200, 200, 0, 0]}, index=dates)
 
         result = apply_transaction_costs(positions, prices)
 

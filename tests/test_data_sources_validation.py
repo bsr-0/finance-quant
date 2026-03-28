@@ -14,6 +14,7 @@ import pytest
 # Corporate actions adjustment tests
 # ---------------------------------------------------------------------------
 
+
 class TestCorporateActionsAdjustment:
     """Tests for adjust_for_corporate_actions and _parse_split_ratio."""
 
@@ -47,16 +48,18 @@ class TestCorporateActionsAdjustment:
     def test_adjust_no_actions(self):
         from pipeline.extract.prices_daily import adjust_for_corporate_actions
 
-        df = pd.DataFrame({
-            "date": pd.date_range("2024-01-01", periods=5).date,
-            "open": [100.0, 101.0, 102.0, 103.0, 104.0],
-            "high": [105.0, 106.0, 107.0, 108.0, 109.0],
-            "low": [95.0, 96.0, 97.0, 98.0, 99.0],
-            "close": [100.0, 101.0, 102.0, 103.0, 104.0],
-            "volume": [1000, 1000, 1000, 1000, 1000],
-            "split_ratio": [None, None, None, None, None],
-            "dividend": [0.0, 0.0, 0.0, 0.0, 0.0],
-        })
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=5).date,
+                "open": [100.0, 101.0, 102.0, 103.0, 104.0],
+                "high": [105.0, 106.0, 107.0, 108.0, 109.0],
+                "low": [95.0, 96.0, 97.0, 98.0, 99.0],
+                "close": [100.0, 101.0, 102.0, 103.0, 104.0],
+                "volume": [1000, 1000, 1000, 1000, 1000],
+                "split_ratio": [None, None, None, None, None],
+                "dividend": [0.0, 0.0, 0.0, 0.0, 0.0],
+            }
+        )
         result = adjust_for_corporate_actions(df)
         # No adjustments needed — prices should remain the same
         np.testing.assert_array_almost_equal(result["close"].values, df["close"].values)
@@ -65,16 +68,18 @@ class TestCorporateActionsAdjustment:
         from pipeline.extract.prices_daily import adjust_for_corporate_actions
 
         # 2:1 split on day 3 — pre-split prices should be halved
-        df = pd.DataFrame({
-            "date": pd.date_range("2024-01-01", periods=5).date,
-            "open": [100.0, 100.0, 100.0, 50.0, 50.0],
-            "high": [110.0, 110.0, 110.0, 55.0, 55.0],
-            "low": [90.0, 90.0, 90.0, 45.0, 45.0],
-            "close": [100.0, 100.0, 100.0, 50.0, 50.0],
-            "volume": [1000, 1000, 1000, 2000, 2000],
-            "split_ratio": [None, None, None, "2:1", None],
-            "dividend": [0.0, 0.0, 0.0, 0.0, 0.0],
-        })
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=5).date,
+                "open": [100.0, 100.0, 100.0, 50.0, 50.0],
+                "high": [110.0, 110.0, 110.0, 55.0, 55.0],
+                "low": [90.0, 90.0, 90.0, 45.0, 45.0],
+                "close": [100.0, 100.0, 100.0, 50.0, 50.0],
+                "volume": [1000, 1000, 1000, 2000, 2000],
+                "split_ratio": [None, None, None, "2:1", None],
+                "dividend": [0.0, 0.0, 0.0, 0.0, 0.0],
+            }
+        )
         result = adjust_for_corporate_actions(df)
 
         # Pre-split closes (days 0-2) should be adjusted to ~50
@@ -88,16 +93,18 @@ class TestCorporateActionsAdjustment:
     def test_adjust_preserves_unadjusted_close(self):
         from pipeline.extract.prices_daily import adjust_for_corporate_actions
 
-        df = pd.DataFrame({
-            "date": pd.date_range("2024-01-01", periods=3).date,
-            "open": [100.0, 100.0, 50.0],
-            "high": [110.0, 110.0, 55.0],
-            "low": [90.0, 90.0, 45.0],
-            "close": [100.0, 100.0, 50.0],
-            "volume": [1000, 1000, 2000],
-            "split_ratio": [None, None, "2:1"],
-            "dividend": [0.0, 0.0, 0.0],
-        })
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=3).date,
+                "open": [100.0, 100.0, 50.0],
+                "high": [110.0, 110.0, 55.0],
+                "low": [90.0, 90.0, 45.0],
+                "close": [100.0, 100.0, 50.0],
+                "volume": [1000, 1000, 2000],
+                "split_ratio": [None, None, "2:1"],
+                "dividend": [0.0, 0.0, 0.0],
+            }
+        )
         result = adjust_for_corporate_actions(df)
         assert "unadjusted_close" in result.columns
         np.testing.assert_array_almost_equal(
@@ -108,16 +115,18 @@ class TestCorporateActionsAdjustment:
         from pipeline.extract.prices_daily import adjust_for_corporate_actions
 
         # $2 dividend on day 2 (ex-date), close was $100 before
-        df = pd.DataFrame({
-            "date": pd.date_range("2024-01-01", periods=3).date,
-            "open": [100.0, 100.0, 98.0],
-            "high": [105.0, 105.0, 103.0],
-            "low": [95.0, 95.0, 93.0],
-            "close": [100.0, 100.0, 98.0],
-            "volume": [1000, 1000, 1000],
-            "split_ratio": [None, None, None],
-            "dividend": [0.0, 0.0, 2.0],
-        })
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=3).date,
+                "open": [100.0, 100.0, 98.0],
+                "high": [105.0, 105.0, 103.0],
+                "low": [95.0, 95.0, 93.0],
+                "close": [100.0, 100.0, 98.0],
+                "volume": [1000, 1000, 1000],
+                "split_ratio": [None, None, None],
+                "dividend": [0.0, 0.0, 2.0],
+            }
+        )
         result = adjust_for_corporate_actions(df)
         # Day 0 close should be adjusted down by the dividend factor
         expected_factor = (100.0 - 2.0) / 100.0  # 0.98
@@ -127,6 +136,7 @@ class TestCorporateActionsAdjustment:
 # ---------------------------------------------------------------------------
 # Multi-source extractor tests
 # ---------------------------------------------------------------------------
+
 
 class TestPriceExtractorFallback:
     """Tests for PriceExtractor with fallback logic."""
@@ -178,6 +188,7 @@ class TestPriceExtractorFallback:
         mock_settings.return_value = mock_cfg
 
         import os
+
         # Clear env vars to ensure ValueError
         with patch.dict(os.environ, {}, clear=True):
             extractor = PriceExtractor()
@@ -188,6 +199,7 @@ class TestPriceExtractorFallback:
 # ---------------------------------------------------------------------------
 # Alpaca extractor tests
 # ---------------------------------------------------------------------------
+
 
 class TestAlpacaPriceExtractor:
     """Tests for AlpacaPriceExtractor."""
@@ -227,6 +239,7 @@ class TestAlpacaPriceExtractor:
 # Polygon extractor tests
 # ---------------------------------------------------------------------------
 
+
 class TestPolygonPriceExtractor:
     """Tests for PolygonPriceExtractor."""
 
@@ -262,6 +275,7 @@ class TestPolygonPriceExtractor:
 # Walk-forward validation tests
 # ---------------------------------------------------------------------------
 
+
 class TestWalkForwardRunner:
     """Tests for walk-forward strategy validation."""
 
@@ -275,13 +289,16 @@ class TestWalkForwardRunner:
             ticker = f"TICK{i}"
             returns = rng.normal(0.0005, 0.02, n_days)
             close = 100.0 * np.exp(np.cumsum(returns))
-            data[ticker] = pd.DataFrame({
-                "open": close * (1 + rng.normal(0, 0.005, n_days)),
-                "high": close * (1 + abs(rng.normal(0, 0.01, n_days))),
-                "low": close * (1 - abs(rng.normal(0, 0.01, n_days))),
-                "close": close,
-                "volume": rng.randint(100_000, 1_000_000, n_days),
-            }, index=dates)
+            data[ticker] = pd.DataFrame(
+                {
+                    "open": close * (1 + rng.normal(0, 0.005, n_days)),
+                    "high": close * (1 + abs(rng.normal(0, 0.01, n_days))),
+                    "low": close * (1 - abs(rng.normal(0, 0.01, n_days))),
+                    "close": close,
+                    "volume": rng.randint(100_000, 1_000_000, n_days),
+                },
+                index=dates,
+            )
 
         return data
 
@@ -371,6 +388,7 @@ class TestWalkForwardRunner:
 # ---------------------------------------------------------------------------
 # Settings tests for new fields
 # ---------------------------------------------------------------------------
+
 
 class TestPriceSettingsNewFields:
     """Tests for new PriceSettings fields."""

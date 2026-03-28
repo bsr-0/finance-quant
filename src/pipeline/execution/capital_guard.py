@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # Account data protocol (broker-agnostic)
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class AccountSnapshot:
     """Immutable snapshot of broker account state.
@@ -76,6 +77,7 @@ class AccountProvider(Protocol):
 # ---------------------------------------------------------------------------
 # Guard configuration
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CapitalGuardConfig:
@@ -128,6 +130,7 @@ class CapitalGuardConfig:
 # Check result
 # ---------------------------------------------------------------------------
 
+
 class GuardVerdict(Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
@@ -159,6 +162,7 @@ class GuardCheckResult:
 # ---------------------------------------------------------------------------
 # Capital guard
 # ---------------------------------------------------------------------------
+
 
 class CapitalGuard:
     """Pre-order capital guard with hard investment limits.
@@ -257,14 +261,19 @@ class CapitalGuard:
             logger.info(
                 "Capital guard: APPROVED buy %s %.4f shares @ $%.2f ($%.2f notional). "
                 "Account equity=$%.2f, deployed=$%.2f, remaining=$%.2f",
-                symbol, shares, limit_price, order_notional,
-                account.equity, account.positions_market_value,
+                symbol,
+                shares,
+                limit_price,
+                order_notional,
+                account.equity,
+                account.positions_market_value,
                 account.buying_power,
             )
         else:
             logger.warning(
                 "Capital guard: REJECTED buy %s — %s",
-                symbol, result.summary(),
+                symbol,
+                result.summary(),
             )
 
         return result
@@ -272,7 +281,9 @@ class CapitalGuard:
     # --- Individual checks ---
 
     def _check_margin_account(
-        self, account: AccountSnapshot, order_notional: float,
+        self,
+        account: AccountSnapshot,
+        order_notional: float,
     ) -> tuple[bool, str]:
         """QAQC-1: Reject if margin account and require_cash_account is set."""
         if self.config.require_cash_account and account.is_margin_account:
@@ -283,7 +294,9 @@ class CapitalGuard:
         return True, ""
 
     def _check_max_capital(
-        self, account: AccountSnapshot, order_notional: float,
+        self,
+        account: AccountSnapshot,
+        order_notional: float,
     ) -> tuple[bool, str]:
         """QAQC-2: Total deployed + this order must not exceed max_capital."""
         total_after = account.positions_market_value + order_notional
@@ -297,7 +310,9 @@ class CapitalGuard:
         return True, ""
 
     def _check_buying_power(
-        self, account: AccountSnapshot, order_notional: float,
+        self,
+        account: AccountSnapshot,
+        order_notional: float,
     ) -> tuple[bool, str]:
         """QAQC-3: Order must not exceed broker-reported buying power."""
         if order_notional > account.buying_power:
@@ -308,7 +323,9 @@ class CapitalGuard:
         return True, ""
 
     def _check_single_order_size(
-        self, account: AccountSnapshot, order_notional: float,
+        self,
+        account: AccountSnapshot,
+        order_notional: float,
     ) -> tuple[bool, str]:
         """QAQC-4: Single order must not exceed per-order dollar limit."""
         if order_notional > self.config.max_single_order_dollars:
@@ -319,7 +336,9 @@ class CapitalGuard:
         return True, ""
 
     def _check_position_count(
-        self, account: AccountSnapshot, order_notional: float,
+        self,
+        account: AccountSnapshot,
+        order_notional: float,
     ) -> tuple[bool, str]:
         """QAQC-5: Must not exceed max simultaneous positions."""
         if account.position_count >= self.config.max_positions:
@@ -330,7 +349,9 @@ class CapitalGuard:
         return True, ""
 
     def _check_cash_buffer(
-        self, account: AccountSnapshot, order_notional: float,
+        self,
+        account: AccountSnapshot,
+        order_notional: float,
     ) -> tuple[bool, str]:
         """QAQC-6: Must keep a minimum cash buffer after the order."""
         min_buffer = self.config.max_capital * self.config.min_cash_buffer_pct
@@ -344,7 +365,9 @@ class CapitalGuard:
         return True, ""
 
     def _check_utilization(
-        self, account: AccountSnapshot, order_notional: float,
+        self,
+        account: AccountSnapshot,
+        order_notional: float,
     ) -> tuple[bool, str]:
         """QAQC-7: Portfolio utilization must stay below max."""
         if account.equity <= 0:
@@ -359,7 +382,9 @@ class CapitalGuard:
         return True, ""
 
     def _check_daily_order_count(
-        self, account: AccountSnapshot, order_notional: float,
+        self,
+        account: AccountSnapshot,
+        order_notional: float,
     ) -> tuple[bool, str]:
         """QAQC-8: Must not exceed daily order count limit."""
         today = datetime.now(UTC).strftime("%Y-%m-%d")

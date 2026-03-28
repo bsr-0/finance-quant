@@ -118,14 +118,16 @@ class SymbolUniverse:
                 if "delisting_date" in row and pd.notna(row.get("delisting_date"))
                 else None
             )
-            self.add_symbol(SymbolInfo(
-                ticker=str(row["ticker"]),
-                name=str(row.get("name", "")),
-                listing_date=listing,
-                delisting_date=delisting,
-                delisting_reason=str(row.get("delisting_reason", "")),
-                sector=str(row.get("sector", "")),
-            ))
+            self.add_symbol(
+                SymbolInfo(
+                    ticker=str(row["ticker"]),
+                    name=str(row.get("name", "")),
+                    listing_date=listing,
+                    delisting_date=delisting,
+                    delisting_reason=str(row.get("delisting_reason", "")),
+                    sector=str(row.get("sector", "")),
+                )
+            )
 
     def get_active_symbols(self, date: pd.Timestamp) -> list[str]:
         """Return symbols that were active (listed and not yet delisted) on *date*."""
@@ -141,7 +143,8 @@ class SymbolUniverse:
     def get_delisted_before(self, date: pd.Timestamp) -> list[str]:
         """Return symbols that were delisted before *date*."""
         return [
-            t for t, info in self._symbols.items()
+            t
+            for t, info in self._symbols.items()
             if info.delisting_date and info.delisting_date < date
         ]
 
@@ -151,17 +154,11 @@ class SymbolUniverse:
 
     @property
     def active_count(self) -> int:
-        return sum(
-            1 for info in self._symbols.values()
-            if info.delisting_date is None
-        )
+        return sum(1 for info in self._symbols.values() if info.delisting_date is None)
 
     @property
     def delisted_count(self) -> int:
-        return sum(
-            1 for info in self._symbols.values()
-            if info.delisting_date is not None
-        )
+        return sum(1 for info in self._symbols.values() if info.delisting_date is not None)
 
     def summary(self) -> dict[str, int]:
         return {
@@ -180,7 +177,7 @@ class CorporateActionMapper:
 
     def __init__(self) -> None:
         self._actions: list[CorporateAction] = []
-        self._forward_map: dict[str, str] = {}   # old → newest
+        self._forward_map: dict[str, str] = {}  # old → newest
         self._reverse_map: dict[str, list[str]] = {}  # new → [old1, old2]
         self._adjustment_factors: dict[str, float] = {}
 
@@ -203,13 +200,15 @@ class CorporateActionMapper:
         action_type (opt), adjustment_factor (opt).
         """
         for _, row in df.iterrows():
-            self.add_action(CorporateAction(
-                date=pd.Timestamp(row["date"]),
-                old_ticker=str(row["old_ticker"]),
-                new_ticker=str(row["new_ticker"]) if pd.notna(row.get("new_ticker")) else None,
-                action_type=str(row.get("action_type", "rename")),
-                adjustment_factor=float(row.get("adjustment_factor", 1.0)),
-            ))
+            self.add_action(
+                CorporateAction(
+                    date=pd.Timestamp(row["date"]),
+                    old_ticker=str(row["old_ticker"]),
+                    new_ticker=str(row["new_ticker"]) if pd.notna(row.get("new_ticker")) else None,
+                    action_type=str(row.get("action_type", "rename")),
+                    adjustment_factor=float(row.get("adjustment_factor", 1.0)),
+                )
+            )
 
     def resolve_current(self, old_ticker: str) -> str:
         """Follow the chain of renames to find the current ticker."""

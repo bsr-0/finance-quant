@@ -27,6 +27,7 @@ from pipeline.strategy.risk import SwingRiskManager
 # Mock broker
 # ---------------------------------------------------------------------------
 
+
 class MockBroker(BaseBroker):
     """Broker mock that tracks submitted orders."""
 
@@ -105,6 +106,7 @@ class MockBroker(BaseBroker):
 # Signal DataFrame helper
 # ---------------------------------------------------------------------------
 
+
 def make_signal_df(
     tickers: list[str] | None = None,
     scores: list[int] | None = None,
@@ -118,31 +120,34 @@ def make_signal_df(
     rows = []
     for ticker, score, price in zip(tickers, scores, prices, strict=False):
         atr = price * 0.02  # 2% ATR
-        rows.append({
-            "date": "2025-03-06",
-            "ticker": ticker,
-            "direction": "LONG",
-            "score": score,
-            "trend_pts": 30,
-            "pullback_pts": 20,
-            "volume_pts": 10,
-            "volatility_pts": 10,
-            "entry_price": price,
-            "stop_price": price - atr * 1.5,
-            "target_1": price + atr * 2.0,
-            "target_2": price + atr * 3.0,
-            "atr": atr,
-            "atr_pct": 2.0,
-            "regime": "BULL",
-            "confidence": "HIGH" if score >= 80 else "MEDIUM",
-            "strategy_id": "QSG-MICRO-SWING-001",
-        })
+        rows.append(
+            {
+                "date": "2025-03-06",
+                "ticker": ticker,
+                "direction": "LONG",
+                "score": score,
+                "trend_pts": 30,
+                "pullback_pts": 20,
+                "volume_pts": 10,
+                "volatility_pts": 10,
+                "entry_price": price,
+                "stop_price": price - atr * 1.5,
+                "target_1": price + atr * 2.0,
+                "target_2": price + atr * 3.0,
+                "atr": atr,
+                "atr_pct": 2.0,
+                "regime": "BULL",
+                "confidence": "HIGH" if score >= 80 else "MEDIUM",
+                "strategy_id": "QSG-MICRO-SWING-001",
+            }
+        )
     return pd.DataFrame(rows)
 
 
 # ---------------------------------------------------------------------------
 # Tests: Signal Executor
 # ---------------------------------------------------------------------------
+
 
 class TestSignalExecutorBasic:
     def test_execute_single_signal(self):
@@ -184,7 +189,8 @@ class TestSignalExecutorBasic:
 
     def test_already_held_skipped(self):
         broker = MockBroker(
-            equity=500, cash=300,
+            equity=500,
+            cash=300,
             positions=[Position("AAPL", 2, 300, 150, 155, 10, "long")],
         )
         config = CapitalGuardConfig(max_capital=400)
@@ -200,7 +206,8 @@ class TestSignalExecutorBasic:
 class TestSignalExecutorGuard:
     def test_guard_rejects_exceeding_max_capital(self):
         broker = MockBroker(
-            equity=500, cash=100,
+            equity=500,
+            cash=100,
             positions=[Position("SPY", 5, 400, 80, 82, 10, "long")],
         )
         config = CapitalGuardConfig(max_capital=300)
@@ -229,7 +236,9 @@ class TestSignalExecutorDryRun:
         broker = MockBroker(equity=500, cash=500)
         config = CapitalGuardConfig(max_capital=400)
         executor = SignalExecutor(
-            broker=broker, guard_config=config, dry_run=True,
+            broker=broker,
+            guard_config=config,
+            dry_run=True,
         )
 
         df = make_signal_df(["AAPL"], [80], [150.0])
@@ -277,24 +286,28 @@ class TestSignalExecutorMultiple:
 # Tests: Position Monitor
 # ---------------------------------------------------------------------------
 
+
 class TestPositionMonitor:
     def test_no_exits_when_price_above_stop(self):
         broker = MockBroker(
-            equity=500, cash=300,
+            equity=500,
+            cash=300,
             positions=[Position("AAPL", 2, 310, 150, 155, 10, "long")],
         )
         config = CapitalGuardConfig(max_capital=400)
         monitor = PositionMonitor(broker=broker, guard_config=config)
         # Use a recent entry date to avoid time-exit (max 15 days)
         recent_entry = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-        monitor.register_position(TrackedPosition(
-            symbol="AAPL",
-            entry_date=recent_entry,
-            entry_price=150.0,
-            shares=2,
-            stop_price=145.5,
-            atr_at_entry=3.0,
-        ))
+        monitor.register_position(
+            TrackedPosition(
+                symbol="AAPL",
+                entry_date=recent_entry,
+                entry_price=150.0,
+                shares=2,
+                stop_price=145.5,
+                atr_at_entry=3.0,
+            )
+        )
 
         result = monitor.check_and_exit()
         assert result.exits_triggered == 0
@@ -303,19 +316,22 @@ class TestPositionMonitor:
     def test_stop_loss_triggers_exit(self):
         # Current price ($140) below stop ($145.5)
         broker = MockBroker(
-            equity=500, cash=220,
+            equity=500,
+            cash=220,
             positions=[Position("AAPL", 2, 280, 150, 140, -20, "long")],
         )
         config = CapitalGuardConfig(max_capital=400)
         monitor = PositionMonitor(broker=broker, guard_config=config)
-        monitor.register_position(TrackedPosition(
-            symbol="AAPL",
-            entry_date=datetime(2025, 3, 1, tzinfo=UTC),
-            entry_price=150.0,
-            shares=2,
-            stop_price=145.5,
-            atr_at_entry=3.0,
-        ))
+        monitor.register_position(
+            TrackedPosition(
+                symbol="AAPL",
+                entry_date=datetime(2025, 3, 1, tzinfo=UTC),
+                entry_price=150.0,
+                shares=2,
+                stop_price=145.5,
+                atr_at_entry=3.0,
+            )
+        )
 
         result = monitor.check_and_exit()
         assert result.exits_triggered == 1
@@ -325,7 +341,8 @@ class TestPositionMonitor:
     def test_red_circuit_breaker_closes_all(self):
         # Equity $400 with peak $500 = 20% drawdown > 15% RED threshold
         broker = MockBroker(
-            equity=400, cash=100,
+            equity=400,
+            cash=100,
             positions=[
                 Position("AAPL", 2, 150, 150, 75, -150, "long"),
                 Position("MSFT", 1, 150, 150, 75, -75, "long"),
@@ -336,16 +353,30 @@ class TestPositionMonitor:
         risk_mgr.initialize(500)  # Peak = $500
 
         monitor = PositionMonitor(
-            broker=broker, guard_config=config, risk_manager=risk_mgr,
+            broker=broker,
+            guard_config=config,
+            risk_manager=risk_mgr,
         )
-        monitor.register_position(TrackedPosition(
-            symbol="AAPL", entry_date=datetime(2025, 3, 1, tzinfo=UTC),
-            entry_price=150, shares=2, stop_price=140, atr_at_entry=3,
-        ))
-        monitor.register_position(TrackedPosition(
-            symbol="MSFT", entry_date=datetime(2025, 3, 1, tzinfo=UTC),
-            entry_price=150, shares=1, stop_price=140, atr_at_entry=3,
-        ))
+        monitor.register_position(
+            TrackedPosition(
+                symbol="AAPL",
+                entry_date=datetime(2025, 3, 1, tzinfo=UTC),
+                entry_price=150,
+                shares=2,
+                stop_price=140,
+                atr_at_entry=3,
+            )
+        )
+        monitor.register_position(
+            TrackedPosition(
+                symbol="MSFT",
+                entry_date=datetime(2025, 3, 1, tzinfo=UTC),
+                entry_price=150,
+                shares=1,
+                stop_price=140,
+                atr_at_entry=3,
+            )
+        )
 
         result = monitor.check_and_exit()
         assert result.circuit_breaker_level == "RED"
@@ -353,21 +384,26 @@ class TestPositionMonitor:
 
     def test_regime_change_triggers_exit(self):
         broker = MockBroker(
-            equity=500, cash=300,
+            equity=500,
+            cash=300,
             positions=[Position("AAPL", 2, 310, 150, 155, 10, "long")],
         )
         config = CapitalGuardConfig(max_capital=400)
         monitor = PositionMonitor(
-            broker=broker, guard_config=config, regime="BEAR",
+            broker=broker,
+            guard_config=config,
+            regime="BEAR",
         )
-        monitor.register_position(TrackedPosition(
-            symbol="AAPL",
-            entry_date=datetime(2025, 3, 1, tzinfo=UTC),
-            entry_price=150.0,
-            shares=2,
-            stop_price=145.5,
-            atr_at_entry=3.0,
-        ))
+        monitor.register_position(
+            TrackedPosition(
+                symbol="AAPL",
+                entry_date=datetime(2025, 3, 1, tzinfo=UTC),
+                entry_price=150.0,
+                shares=2,
+                stop_price=145.5,
+                atr_at_entry=3.0,
+            )
+        )
 
         result = monitor.check_and_exit()
         assert result.exits_triggered == 1
@@ -375,7 +411,8 @@ class TestPositionMonitor:
     def test_untracked_position_removed(self):
         """Positions in broker but not tracked are ignored (not closed)."""
         broker = MockBroker(
-            equity=500, cash=300,
+            equity=500,
+            cash=300,
             positions=[Position("AAPL", 2, 310, 150, 155, 10, "long")],
         )
         config = CapitalGuardConfig(max_capital=400)
@@ -385,7 +422,6 @@ class TestPositionMonitor:
         result = monitor.check_and_exit()
         assert result.exits_triggered == 0
         assert result.positions_checked == 1
-
 
 
 # RED circuit breaker tests below use SwingRiskManager imported at top of file

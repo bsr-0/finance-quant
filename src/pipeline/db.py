@@ -111,9 +111,7 @@ class DatabaseManager:
                 stmt = "\n".join(current).strip()
                 # Strip leading comment-only and blank lines to find actual SQL
                 sql_lines = [
-                    ln
-                    for ln in stmt.split("\n")
-                    if ln.strip() and not ln.strip().startswith("--")
+                    ln for ln in stmt.split("\n") if ln.strip() and not ln.strip().startswith("--")
                 ]
                 if sql_lines:
                     statements.append(stmt)
@@ -123,9 +121,7 @@ class DatabaseManager:
         if current:
             stmt = "\n".join(current).strip()
             sql_lines = [
-                ln
-                for ln in stmt.split("\n")
-                if ln.strip() and not ln.strip().startswith("--")
+                ln for ln in stmt.split("\n") if ln.strip() and not ln.strip().startswith("--")
             ]
             if sql_lines:
                 statements.append(stmt)

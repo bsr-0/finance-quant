@@ -70,9 +70,7 @@ class ContractSnapshotBuilder:
         price_data = self._get_latest_price(contract_id, asof_ts)
         if price_data:
             snapshot["implied_p_yes"] = price_data.get("price_normalized")
-            snapshot["price_staleness_hours"] = self._staleness_hours(
-                asof_ts, price_data.get("ts")
-            )
+            snapshot["price_staleness_hours"] = self._staleness_hours(asof_ts, price_data.get("ts"))
         else:
             snapshot["implied_p_yes"] = None
             snapshot["price_staleness_hours"] = None
@@ -126,8 +124,10 @@ class ContractSnapshotBuilder:
         snapshot["price_staleness_hours"] = staleness["price_staleness_hours"]
         snapshot["macro_staleness_days"] = staleness["macro_staleness_days"]
         snapshot["last_price_ts"] = staleness["last_price_ts"]
-        if (staleness["price_staleness_hours"] is not None
-                and staleness["price_staleness_hours"] > 24):
+        if (
+            staleness["price_staleness_hours"] is not None
+            and staleness["price_staleness_hours"] > 24
+        ):
             logger.warning(
                 f"Price data for {contract_id} is "
                 f"{staleness['price_staleness_hours']:.1f} hours stale"
@@ -346,13 +346,9 @@ class ContractSnapshotBuilder:
             last_price_ts = price_result[0]["ts"]
             if isinstance(last_price_ts, str):
                 last_price_ts = datetime.fromisoformat(last_price_ts.replace("Z", "+00:00"))
-            asof_aware = (
-                asof_ts.replace(tzinfo=UTC) if asof_ts.tzinfo is None else asof_ts
-            )
+            asof_aware = asof_ts.replace(tzinfo=UTC) if asof_ts.tzinfo is None else asof_ts
             lp_aware = (
-                last_price_ts.replace(tzinfo=UTC)
-                if last_price_ts.tzinfo is None
-                else last_price_ts
+                last_price_ts.replace(tzinfo=UTC) if last_price_ts.tzinfo is None else last_price_ts
             )
             price_staleness_hours = (asof_aware - lp_aware).total_seconds() / 3600
 

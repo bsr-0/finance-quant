@@ -34,14 +34,15 @@ class ConstraintType(Enum):
 
 
 class ConstraintSeverity(Enum):
-    HARD = "hard"      # Must never be violated
-    SOFT = "soft"      # Warning, but allowed temporarily
+    HARD = "hard"  # Must never be violated
+    SOFT = "soft"  # Warning, but allowed temporarily
     ADVISORY = "advisory"  # Information only
 
 
 # ---------------------------------------------------------------------------
 # Individual constraints
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class RiskConstraint:
@@ -88,6 +89,7 @@ class ConstraintCheckResult:
 # Risk constraint set
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RiskConstraintSet:
     """Complete set of risk constraints for a strategy."""
@@ -130,9 +132,16 @@ class RiskConstraintSet:
 
         for constraint in self.constraints:
             actual = self._compute_actual(
-                constraint, weights, sector_map, country_map,
-                volatilities, adv, prices, shares,
-                current_drawdown, daily_turnover,
+                constraint,
+                weights,
+                sector_map,
+                country_map,
+                volatilities,
+                adv,
+                prices,
+                shares,
+                current_drawdown,
+                daily_turnover,
             )
             results.append(constraint.check(actual))
 
@@ -166,20 +175,18 @@ class RiskConstraintSet:
             if sector_map is None:
                 return 0.0
             target_sector = constraint.applies_to
-            sector_weights = pd.Series({
-                t: w for t, w in weights.items()
-                if sector_map.get(t, "") == target_sector
-            })
+            sector_weights = pd.Series(
+                {t: w for t, w in weights.items() if sector_map.get(t, "") == target_sector}
+            )
             return float(sector_weights.abs().sum())
 
         if ct == ConstraintType.COUNTRY_EXPOSURE:
             if country_map is None:
                 return 0.0
             target_country = constraint.applies_to
-            country_weights = pd.Series({
-                t: w for t, w in weights.items()
-                if country_map.get(t, "") == target_country
-            })
+            country_weights = pd.Series(
+                {t: w for t, w in weights.items() if country_map.get(t, "") == target_country}
+            )
             return float(country_weights.abs().sum())
 
         if ct == ConstraintType.MAX_DRAWDOWN:
@@ -225,9 +232,7 @@ class RiskConstraintSet:
 
         return 0.0
 
-    def get_violations(
-        self, results: list[ConstraintCheckResult]
-    ) -> list[ConstraintCheckResult]:
+    def get_violations(self, results: list[ConstraintCheckResult]) -> list[ConstraintCheckResult]:
         """Return only violated constraints."""
         return [r for r in results if r.violated]
 
@@ -241,14 +246,16 @@ class RiskConstraintSet:
         """Render constraints as a table suitable for memo inclusion."""
         records = []
         for c in self.constraints:
-            records.append({
-                "Constraint": c.name,
-                "Type": c.constraint_type.value,
-                "Limit": f"{c.limit_value:.2%}" if c.unit == "%" else f"{c.limit_value}",
-                "Severity": c.severity.value,
-                "Applies To": c.applies_to or "Portfolio",
-                "Description": c.description,
-            })
+            records.append(
+                {
+                    "Constraint": c.name,
+                    "Type": c.constraint_type.value,
+                    "Limit": f"{c.limit_value:.2%}" if c.unit == "%" else f"{c.limit_value}",
+                    "Severity": c.severity.value,
+                    "Applies To": c.applies_to or "Portfolio",
+                    "Description": c.description,
+                }
+            )
         return pd.DataFrame(records)
 
     def to_markdown_table(self) -> str:
@@ -265,6 +272,7 @@ class RiskConstraintSet:
 # Pre-built constraint sets
 # ---------------------------------------------------------------------------
 
+
 def institutional_constraints(
     max_position_weight: float = 0.05,
     max_sector_exposure: float = 0.30,
@@ -280,75 +288,91 @@ def institutional_constraints(
     """Standard institutional risk constraint set."""
     cs = RiskConstraintSet()
 
-    cs.add(RiskConstraint(
-        name="Max Single Position Weight",
-        constraint_type=ConstraintType.POSITION_WEIGHT,
-        limit_value=max_position_weight,
-        severity=ConstraintSeverity.HARD,
-        description=f"No single position may exceed {max_position_weight:.0%} of capital",
-        unit="%",
-    ))
-    cs.add(RiskConstraint(
-        name="Max Gross Exposure",
-        constraint_type=ConstraintType.GROSS_EXPOSURE,
-        limit_value=max_gross_exposure,
-        severity=ConstraintSeverity.HARD,
-        description=f"Total gross exposure capped at {max_gross_exposure:.0%}",
-        unit="%",
-    ))
-    cs.add(RiskConstraint(
-        name="Max Net Exposure",
-        constraint_type=ConstraintType.NET_EXPOSURE,
-        limit_value=max_net_exposure,
-        severity=ConstraintSeverity.HARD,
-        description=f"Net exposure capped at {max_net_exposure:.0%}",
-        unit="%",
-    ))
-    cs.add(RiskConstraint(
-        name="Max Portfolio Drawdown",
-        constraint_type=ConstraintType.MAX_DRAWDOWN,
-        limit_value=max_drawdown,
-        severity=ConstraintSeverity.HARD,
-        description=f"Strategy halts at {max_drawdown:.0%} drawdown from peak",
-        unit="%",
-    ))
-    cs.add(RiskConstraint(
-        name="Max ADV Participation",
-        constraint_type=ConstraintType.ADV_PARTICIPATION,
-        limit_value=max_adv_participation,
-        severity=ConstraintSeverity.HARD,
-        description=f"Max {max_adv_participation:.0%} of average daily volume per trade",
-        unit="%",
-    ))
-    cs.add(RiskConstraint(
-        name="Max Daily Turnover",
-        constraint_type=ConstraintType.TURNOVER,
-        limit_value=max_turnover,
-        severity=ConstraintSeverity.SOFT,
-        description=f"Daily turnover target below {max_turnover:.0%}",
-        unit="%",
-    ))
-
-    for sector in (sectors or []):
-        cs.add(RiskConstraint(
-            name=f"Sector Cap: {sector}",
-            constraint_type=ConstraintType.SECTOR_EXPOSURE,
-            limit_value=max_sector_exposure,
+    cs.add(
+        RiskConstraint(
+            name="Max Single Position Weight",
+            constraint_type=ConstraintType.POSITION_WEIGHT,
+            limit_value=max_position_weight,
             severity=ConstraintSeverity.HARD,
-            description=f"{sector} sector capped at {max_sector_exposure:.0%}",
+            description=f"No single position may exceed {max_position_weight:.0%} of capital",
             unit="%",
-            applies_to=sector,
-        ))
-
-    for country in (countries or []):
-        cs.add(RiskConstraint(
-            name=f"Country Cap: {country}",
-            constraint_type=ConstraintType.COUNTRY_EXPOSURE,
-            limit_value=max_country_exposure,
+        )
+    )
+    cs.add(
+        RiskConstraint(
+            name="Max Gross Exposure",
+            constraint_type=ConstraintType.GROSS_EXPOSURE,
+            limit_value=max_gross_exposure,
             severity=ConstraintSeverity.HARD,
-            description=f"{country} capped at {max_country_exposure:.0%}",
+            description=f"Total gross exposure capped at {max_gross_exposure:.0%}",
             unit="%",
-            applies_to=country,
-        ))
+        )
+    )
+    cs.add(
+        RiskConstraint(
+            name="Max Net Exposure",
+            constraint_type=ConstraintType.NET_EXPOSURE,
+            limit_value=max_net_exposure,
+            severity=ConstraintSeverity.HARD,
+            description=f"Net exposure capped at {max_net_exposure:.0%}",
+            unit="%",
+        )
+    )
+    cs.add(
+        RiskConstraint(
+            name="Max Portfolio Drawdown",
+            constraint_type=ConstraintType.MAX_DRAWDOWN,
+            limit_value=max_drawdown,
+            severity=ConstraintSeverity.HARD,
+            description=f"Strategy halts at {max_drawdown:.0%} drawdown from peak",
+            unit="%",
+        )
+    )
+    cs.add(
+        RiskConstraint(
+            name="Max ADV Participation",
+            constraint_type=ConstraintType.ADV_PARTICIPATION,
+            limit_value=max_adv_participation,
+            severity=ConstraintSeverity.HARD,
+            description=f"Max {max_adv_participation:.0%} of average daily volume per trade",
+            unit="%",
+        )
+    )
+    cs.add(
+        RiskConstraint(
+            name="Max Daily Turnover",
+            constraint_type=ConstraintType.TURNOVER,
+            limit_value=max_turnover,
+            severity=ConstraintSeverity.SOFT,
+            description=f"Daily turnover target below {max_turnover:.0%}",
+            unit="%",
+        )
+    )
+
+    for sector in sectors or []:
+        cs.add(
+            RiskConstraint(
+                name=f"Sector Cap: {sector}",
+                constraint_type=ConstraintType.SECTOR_EXPOSURE,
+                limit_value=max_sector_exposure,
+                severity=ConstraintSeverity.HARD,
+                description=f"{sector} sector capped at {max_sector_exposure:.0%}",
+                unit="%",
+                applies_to=sector,
+            )
+        )
+
+    for country in countries or []:
+        cs.add(
+            RiskConstraint(
+                name=f"Country Cap: {country}",
+                constraint_type=ConstraintType.COUNTRY_EXPOSURE,
+                limit_value=max_country_exposure,
+                severity=ConstraintSeverity.HARD,
+                description=f"{country} capped at {max_country_exposure:.0%}",
+                unit="%",
+                applies_to=country,
+            )
+        )
 
     return cs

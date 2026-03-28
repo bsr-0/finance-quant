@@ -35,7 +35,7 @@ def deflated_sharpe_ratio(
     if kurtosis is not None and excess_kurtosis == 0.0:
         excess_kurtosis = kurtosis - 3.0
     raw_kurtosis = excess_kurtosis + 3.0
-    denom = np.sqrt(1 - skew * sharpe + ((raw_kurtosis - 1) / 4) * sharpe ** 2)
+    denom = np.sqrt(1 - skew * sharpe + ((raw_kurtosis - 1) / 4) * sharpe**2)
     if denom == 0:
         return np.nan
     z = (sharpe - benchmark_sr) * np.sqrt(n_obs - 1) / denom
@@ -106,7 +106,7 @@ def block_bootstrap_ci(
         blocks = []
         for _ in range(n_blocks):
             start = rng.integers(0, n - block_size + 1)
-            blocks.append(values[start: start + block_size])
+            blocks.append(values[start : start + block_size])
         sample = np.concatenate(blocks)[:n]
         stats.append(metric_fn(pd.Series(sample)))
     lo = np.percentile(stats, alpha * 100)

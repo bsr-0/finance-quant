@@ -22,10 +22,12 @@ import pytest
 # Experiment Registry (Section 3)
 # ---------------------------------------------------------------------------
 
+
 class TestExperimentRegistry:
 
     def _make_registry(self, tmp_path: Path):
         from pipeline.experiment_registry import ExperimentRegistry
+
         return ExperimentRegistry(storage_path=tmp_path / "registry.json")
 
     def test_create_experiment(self, tmp_path):
@@ -88,6 +90,7 @@ class TestExperimentRegistry:
     def test_persistence(self, tmp_path):
         path = tmp_path / "registry.json"
         from pipeline.experiment_registry import ExperimentRegistry
+
         reg1 = ExperimentRegistry(storage_path=path)
         rec = reg1.create_experiment(problem_id="persist", model_family="lr")
         reg1.complete_experiment(rec.experiment_id, primary_metric_value=1.0)
@@ -124,6 +127,7 @@ class TestExperimentRegistry:
 # Drift Detection (Section 18.3)
 # ---------------------------------------------------------------------------
 
+
 class TestDriftDetection:
 
     def _make_data(self, n=200, seed=42):
@@ -132,13 +136,12 @@ class TestDriftDetection:
             {"f1": rng.normal(0, 1, n), "f2": rng.normal(0, 1, n)},
             index=pd.bdate_range("2023-01-01", periods=n),
         )
-        target = pd.Series(
-            rng.normal(0, 1, n), index=features.index, name="target"
-        )
+        target = pd.Series(rng.normal(0, 1, n), index=features.index, name="target")
         return features, target
 
     def test_no_drift_detected(self):
         from pipeline.drift_detection import DriftDetector
+
         ref_feat, ref_target = self._make_data(200, seed=42)
         cur_feat, cur_target = self._make_data(200, seed=43)
 
@@ -149,6 +152,7 @@ class TestDriftDetection:
 
     def test_data_drift_detected(self):
         from pipeline.drift_detection import DriftDetector
+
         ref_feat, ref_target = self._make_data(200, seed=42)
         # Shifted distribution
         rng = np.random.default_rng(99)
@@ -156,9 +160,7 @@ class TestDriftDetection:
             {"f1": rng.normal(5, 1, 200), "f2": rng.normal(5, 1, 200)},
             index=pd.bdate_range("2024-01-01", periods=200),
         )
-        cur_target = pd.Series(
-            rng.normal(0, 1, 200), index=cur_feat.index
-        )
+        cur_target = pd.Series(rng.normal(0, 1, 200), index=cur_feat.index)
 
         detector = DriftDetector(ref_feat, ref_target)
         report = detector.run_all_checks(cur_feat, cur_target)
@@ -167,12 +169,11 @@ class TestDriftDetection:
 
     def test_label_drift_detected(self):
         from pipeline.drift_detection import DriftDetector
+
         ref_feat, ref_target = self._make_data(200, seed=42)
         cur_feat, _ = self._make_data(200, seed=43)
         # Massively shifted target
-        cur_target = pd.Series(
-            np.ones(200) * 10, index=cur_feat.index
-        )
+        cur_target = pd.Series(np.ones(200) * 10, index=cur_feat.index)
 
         detector = DriftDetector(ref_feat, ref_target)
         results = detector.check_label_drift(cur_target)
@@ -180,6 +181,7 @@ class TestDriftDetection:
 
     def test_psi_computation(self):
         from pipeline.drift_detection import population_stability_index
+
         rng = np.random.default_rng(42)
         ref = rng.normal(0, 1, 1000)
         same = rng.normal(0, 1, 1000)
@@ -192,6 +194,7 @@ class TestDriftDetection:
 
     def test_requires_retraining_two_axes(self):
         from pipeline.drift_detection import DriftDetector
+
         ref_feat, ref_target = self._make_data(200, seed=42)
         rng = np.random.default_rng(99)
         # Both features and target shifted
@@ -199,9 +202,7 @@ class TestDriftDetection:
             {"f1": rng.normal(5, 1, 200), "f2": rng.normal(5, 1, 200)},
             index=pd.bdate_range("2024-01-01", periods=200),
         )
-        cur_target = pd.Series(
-            np.ones(200) * 10, index=cur_feat.index
-        )
+        cur_target = pd.Series(np.ones(200) * 10, index=cur_feat.index)
 
         detector = DriftDetector(ref_feat, ref_target)
         report = detector.run_all_checks(cur_feat, cur_target)
@@ -212,10 +213,12 @@ class TestDriftDetection:
 # Deployment Pipeline (Section 18.1)
 # ---------------------------------------------------------------------------
 
+
 class TestDeploymentPipeline:
 
     def test_stage_progression(self, tmp_path):
         from pipeline.deployment_pipeline import DeploymentPipeline, DeploymentStage
+
         dp = DeploymentPipeline(storage_path=tmp_path / "deploy.json")
 
         dp.start_shadow("exp_1")
@@ -229,6 +232,7 @@ class TestDeploymentPipeline:
 
     def test_rollback(self, tmp_path):
         from pipeline.deployment_pipeline import DeploymentPipeline, DeploymentStage
+
         dp = DeploymentPipeline(storage_path=tmp_path / "deploy.json")
 
         dp.start_shadow("exp_1")
@@ -238,6 +242,7 @@ class TestDeploymentPipeline:
 
     def test_cannot_advance_past_production(self, tmp_path):
         from pipeline.deployment_pipeline import DeploymentPipeline
+
         dp = DeploymentPipeline(storage_path=tmp_path / "deploy.json")
 
         dp.start_shadow("exp_1")
@@ -251,18 +256,18 @@ class TestDeploymentPipeline:
 
     def test_rollback_trigger_check(self, tmp_path):
         from pipeline.deployment_pipeline import DeploymentPipeline
+
         dp = DeploymentPipeline(storage_path=tmp_path / "deploy.json")
         dp.start_shadow("exp_1")
         dp.advance("exp_1")  # canary
 
         # Check rollback triggers with bad metrics
-        fired = dp.check_rollback_triggers(
-            "exp_1", {"max_drawdown": -0.20}
-        )
+        fired = dp.check_rollback_triggers("exp_1", {"max_drawdown": -0.20})
         assert len(fired) > 0
 
     def test_persistence(self, tmp_path):
         from pipeline.deployment_pipeline import DeploymentPipeline, DeploymentStage
+
         path = tmp_path / "deploy.json"
         dp1 = DeploymentPipeline(storage_path=path)
         dp1.start_shadow("exp_1")
@@ -273,6 +278,7 @@ class TestDeploymentPipeline:
 
     def test_export_config(self, tmp_path):
         from pipeline.deployment_pipeline import DeploymentPipeline
+
         dp = DeploymentPipeline(storage_path=tmp_path / "deploy.json")
         config = dp.export_config()
         assert "stage_configs" in config
@@ -284,10 +290,12 @@ class TestDeploymentPipeline:
 # Compute Budget (Section 20)
 # ---------------------------------------------------------------------------
 
+
 class TestComputeBudget:
 
     def test_budget_tracking(self, tmp_path):
         from pipeline.compute_budget import ComputeBudget
+
         budget = ComputeBudget(
             total_budget_hours=1.0,
             storage_path=tmp_path / "budget.json",
@@ -301,6 +309,7 @@ class TestComputeBudget:
 
     def test_phase_allocation(self, tmp_path):
         from pipeline.compute_budget import ComputeBudget
+
         budget = ComputeBudget(
             total_budget_hours=10.0,
             storage_path=tmp_path / "budget.json",
@@ -311,6 +320,7 @@ class TestComputeBudget:
 
     def test_budget_available_check(self, tmp_path):
         from pipeline.compute_budget import ComputeBudget
+
         budget = ComputeBudget(
             total_budget_hours=0.001,  # tiny budget
             storage_path=tmp_path / "budget.json",
@@ -319,6 +329,7 @@ class TestComputeBudget:
 
     def test_report_generation(self, tmp_path):
         from pipeline.compute_budget import ComputeBudget
+
         budget = ComputeBudget(
             total_budget_hours=1.0,
             storage_path=tmp_path / "budget.json",
@@ -332,10 +343,12 @@ class TestComputeBudget:
 # Governance Framework (Section 21)
 # ---------------------------------------------------------------------------
 
+
 class TestGovernanceFramework:
 
     def test_authority_levels(self, tmp_path):
         from pipeline.governance import AuthorityLevel, GovernanceFramework
+
         gov = GovernanceFramework(storage_path=tmp_path / "gov.json")
 
         assert gov.get_authority_level("run_experiment") == AuthorityLevel.AUTONOMOUS
@@ -346,6 +359,7 @@ class TestGovernanceFramework:
 
     def test_autonomous_action_allowed(self, tmp_path):
         from pipeline.governance import GovernanceFramework
+
         gov = GovernanceFramework(storage_path=tmp_path / "gov.json")
         allowed, reason = gov.check_action_allowed("run_experiment")
         assert allowed
@@ -353,6 +367,7 @@ class TestGovernanceFramework:
 
     def test_approve_action_blocked_without_request(self, tmp_path):
         from pipeline.governance import GovernanceFramework
+
         gov = GovernanceFramework(storage_path=tmp_path / "gov.json")
         allowed, reason = gov.check_action_allowed("production_deploy")
         assert not allowed
@@ -360,6 +375,7 @@ class TestGovernanceFramework:
 
     def test_approval_workflow(self, tmp_path):
         from pipeline.governance import GovernanceFramework
+
         gov = GovernanceFramework(storage_path=tmp_path / "gov.json")
 
         request = gov.submit_approval_request(
@@ -375,6 +391,7 @@ class TestGovernanceFramework:
 
     def test_deny_request(self, tmp_path):
         from pipeline.governance import GovernanceFramework
+
         gov = GovernanceFramework(storage_path=tmp_path / "gov.json")
 
         request = gov.submit_approval_request(
@@ -387,6 +404,7 @@ class TestGovernanceFramework:
 
     def test_audit_trail(self, tmp_path):
         from pipeline.governance import GovernanceFramework
+
         gov = GovernanceFramework(storage_path=tmp_path / "gov.json")
         gov.check_action_allowed("run_experiment", actor="model_agent")
         trail = gov.get_audit_trail()
@@ -395,6 +413,7 @@ class TestGovernanceFramework:
 
     def test_compliance_checkpoints(self, tmp_path):
         from pipeline.governance import GovernanceDomain, GovernanceFramework
+
         gov = GovernanceFramework(
             domain=GovernanceDomain.FINANCE,
             storage_path=tmp_path / "gov.json",
@@ -405,6 +424,7 @@ class TestGovernanceFramework:
 
     def test_persistence(self, tmp_path):
         from pipeline.governance import GovernanceFramework
+
         path = tmp_path / "gov.json"
         gov1 = GovernanceFramework(storage_path=path)
         gov1.check_action_allowed("run_experiment")
@@ -419,14 +439,17 @@ class TestGovernanceFramework:
 # Agent Coordinator (Section 2)
 # ---------------------------------------------------------------------------
 
+
 class TestAgentCoordinator:
 
     def _make_coordinator(self, tmp_path: Path):
         from pipeline.agent_coordinator import AgentCoordinator
+
         return AgentCoordinator(storage_path=tmp_path / "coordinator.json")
 
     def test_default_agents(self, tmp_path):
         from pipeline.agent_coordinator import AgentRole
+
         coord = self._make_coordinator(tmp_path)
         agents = coord.list_agents()
         assert len(agents) == 7
@@ -436,6 +459,7 @@ class TestAgentCoordinator:
 
     def test_audit_agent_has_veto(self, tmp_path):
         from pipeline.agent_coordinator import AgentRole
+
         coord = self._make_coordinator(tmp_path)
         audit = coord.get_agent(AgentRole.AUDIT_AGENT)
         assert audit.can_veto is True
@@ -476,6 +500,7 @@ class TestAgentCoordinator:
 
     def test_assign_and_complete_task(self, tmp_path):
         from pipeline.agent_coordinator import AgentRole, TaskStatus
+
         coord = self._make_coordinator(tmp_path)
         task = coord.assign_task(
             role=AgentRole.DATA_AGENT,
@@ -492,6 +517,7 @@ class TestAgentCoordinator:
 
     def test_task_dependency_enforcement(self, tmp_path):
         from pipeline.agent_coordinator import AgentRole
+
         coord = self._make_coordinator(tmp_path)
         t1 = coord.assign_task(
             role=AgentRole.DATA_AGENT,
@@ -513,6 +539,7 @@ class TestAgentCoordinator:
 
     def test_get_ready_tasks(self, tmp_path):
         from pipeline.agent_coordinator import AgentRole
+
         coord = self._make_coordinator(tmp_path)
         t1 = coord.assign_task(role=AgentRole.DATA_AGENT, description="t1")
         coord.assign_task(
@@ -527,6 +554,7 @@ class TestAgentCoordinator:
 
     def test_list_tasks_by_role(self, tmp_path):
         from pipeline.agent_coordinator import AgentRole
+
         coord = self._make_coordinator(tmp_path)
         coord.assign_task(role=AgentRole.DATA_AGENT, description="d1")
         coord.assign_task(role=AgentRole.DATA_AGENT, description="d2")
@@ -543,6 +571,7 @@ class TestAgentCoordinator:
 
     def test_persistence(self, tmp_path):
         from pipeline.agent_coordinator import AgentCoordinator, AgentRole
+
         path = tmp_path / "coord.json"
         c1 = AgentCoordinator(storage_path=path)
         c1.set_roadmap(problem_id="persist", objective="test")
@@ -556,6 +585,7 @@ class TestAgentCoordinator:
 
     def test_export_state(self, tmp_path):
         from pipeline.agent_coordinator import AgentRole
+
         coord = self._make_coordinator(tmp_path)
         coord.set_roadmap(problem_id="test", objective="test")
         coord.assign_task(role=AgentRole.DATA_AGENT, description="t1")
@@ -569,14 +599,17 @@ class TestAgentCoordinator:
 # Conflict Resolution (Section 22)
 # ---------------------------------------------------------------------------
 
+
 class TestConflictResolution:
 
     def _make_resolver(self, tmp_path: Path):
         from pipeline.conflict_resolution import ConflictResolver
+
         return ConflictResolver(storage_path=tmp_path / "conflicts.json")
 
     def test_raise_conflict(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+
         resolver = self._make_resolver(tmp_path)
         conflict = resolver.raise_conflict(
             category=ConflictCategory.FACTUAL,
@@ -588,6 +621,7 @@ class TestConflictResolution:
 
     def test_evidence_duel(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+
         resolver = self._make_resolver(tmp_path)
         conflict = resolver.raise_conflict(
             category=ConflictCategory.FACTUAL,
@@ -612,6 +646,7 @@ class TestConflictResolution:
 
     def test_audit_arbitration_resolves_factual(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+
         resolver = self._make_resolver(tmp_path)
         conflict = resolver.raise_conflict(
             category=ConflictCategory.FACTUAL,
@@ -628,6 +663,7 @@ class TestConflictResolution:
 
     def test_audit_arbitration_resolves_safety(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+
         resolver = self._make_resolver(tmp_path)
         conflict = resolver.raise_conflict(
             category=ConflictCategory.SAFETY,
@@ -643,6 +679,7 @@ class TestConflictResolution:
 
     def test_orchestrator_decides_priority(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+
         resolver = self._make_resolver(tmp_path)
         conflict = resolver.raise_conflict(
             category=ConflictCategory.PRIORITY,
@@ -660,6 +697,7 @@ class TestConflictResolution:
 
     def test_orchestrator_cannot_override_safety(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory
+
         resolver = self._make_resolver(tmp_path)
         conflict = resolver.raise_conflict(
             category=ConflictCategory.SAFETY,
@@ -675,6 +713,7 @@ class TestConflictResolution:
 
     def test_audit_veto(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+
         resolver = self._make_resolver(tmp_path)
         conflict = resolver.raise_conflict(
             category=ConflictCategory.SAFETY,
@@ -691,6 +730,7 @@ class TestConflictResolution:
 
     def test_audit_veto_only_for_safety(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory
+
         resolver = self._make_resolver(tmp_path)
         conflict = resolver.raise_conflict(
             category=ConflictCategory.RESOURCE,
@@ -702,6 +742,7 @@ class TestConflictResolution:
 
     def test_human_escalation(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
+
         resolver = self._make_resolver(tmp_path)
         conflict = resolver.raise_conflict(
             category=ConflictCategory.SAFETY,
@@ -722,6 +763,7 @@ class TestConflictResolution:
 
     def test_file_and_review_dissent(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory
+
         resolver = self._make_resolver(tmp_path)
         conflict = resolver.raise_conflict(
             category=ConflictCategory.FACTUAL,
@@ -743,6 +785,7 @@ class TestConflictResolution:
 
     def test_list_conflicts_by_category(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory
+
         resolver = self._make_resolver(tmp_path)
         resolver.raise_conflict(
             category=ConflictCategory.FACTUAL,
@@ -759,6 +802,7 @@ class TestConflictResolution:
 
     def test_persistence(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory, ConflictResolver
+
         path = tmp_path / "conflicts.json"
         r1 = ConflictResolver(storage_path=path)
         c = r1.raise_conflict(
@@ -774,6 +818,7 @@ class TestConflictResolution:
 
     def test_export_summary(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory
+
         resolver = self._make_resolver(tmp_path)
         resolver.raise_conflict(
             category=ConflictCategory.FACTUAL,
@@ -789,27 +834,34 @@ class TestConflictResolution:
 # Report Generators (Sections 4-12)
 # ---------------------------------------------------------------------------
 
+
 class TestReportGenerators:
 
     def test_problem_summary(self):
         from pipeline.report_generators import generate_problem_summary
+
         report = generate_problem_summary(
-            problem_id="sp500", objective="Predict direction",
-            prediction_target="next_day_return", horizon="1d",
+            problem_id="sp500",
+            objective="Predict direction",
+            prediction_target="next_day_return",
+            horizon="1d",
         )
         assert report["report_type"] == "problem_summary"
         assert report["problem_id"] == "sp500"
 
     def test_objective_verification(self):
         from pipeline.report_generators import generate_objective_verification
+
         report = generate_objective_verification(
-            problem_id="sp500", decision_metric="sharpe",
+            problem_id="sp500",
+            decision_metric="sharpe",
             decision_metric_value=1.5,
         )
         assert report["verified"] is True
 
     def test_constraints_register(self):
         from pipeline.report_generators import generate_constraints_register
+
         report = generate_constraints_register(
             problem_id="sp500",
             constraints=[
@@ -820,6 +872,7 @@ class TestReportGenerators:
 
     def test_availability_matrix(self):
         from pipeline.report_generators import generate_availability_matrix
+
         report = generate_availability_matrix(
             sources=[{"name": "FRED", "fields": ["GDP", "CPI"], "start_date": "2000-01-01"}],
         )
@@ -827,6 +880,7 @@ class TestReportGenerators:
 
     def test_feature_catalog(self):
         from pipeline.report_generators import generate_feature_catalog
+
         report = generate_feature_catalog(
             features=[
                 {"name": "rsi_14", "family": "momentum"},
@@ -838,6 +892,7 @@ class TestReportGenerators:
 
     def test_feature_importance_report(self):
         from pipeline.report_generators import generate_feature_importance_report
+
         report = generate_feature_importance_report(
             importances={"rsi_14": 0.3, "sma_20": 0.2, "volume": 0.5},
         )
@@ -845,6 +900,7 @@ class TestReportGenerators:
 
     def test_feature_stability_report(self):
         from pipeline.report_generators import generate_feature_stability_report
+
         report = generate_feature_stability_report(
             stability_scores={"rsi_14": 0.8, "bad_feature": 0.2},
         )
@@ -853,6 +909,7 @@ class TestReportGenerators:
 
     def test_feature_retirement_log(self, tmp_path):
         from pipeline.report_generators import FeatureRetirementLog
+
         log = FeatureRetirementLog(storage_path=tmp_path / "retirement.json")
         log.retire("old_feature", reason="Unstable importance")
         export = log.export()
@@ -860,6 +917,7 @@ class TestReportGenerators:
 
     def test_meta_learning_report(self):
         from pipeline.report_generators import generate_meta_learning_report
+
         experiments = [
             {"model_family": "lgbm", "problem_id": "p1", "primary_metric_value": 1.5},
             {"model_family": "lr", "problem_id": "p1", "primary_metric_value": 0.8},
@@ -870,6 +928,7 @@ class TestReportGenerators:
 
     def test_probability_diagnostics(self):
         from pipeline.report_generators import generate_probability_diagnostics
+
         rng = np.random.default_rng(42)
         y_true = pd.Series(rng.integers(0, 2, 200).astype(float))
         y_prob = pd.Series(rng.uniform(0, 1, 200))
@@ -880,6 +939,7 @@ class TestReportGenerators:
 
     def test_threshold_sweep(self):
         from pipeline.report_generators import generate_threshold_sweep
+
         rng = np.random.default_rng(42)
         y_true = pd.Series(rng.integers(0, 2, 100).astype(float))
         y_score = pd.Series(rng.uniform(0, 1, 100))
@@ -889,6 +949,7 @@ class TestReportGenerators:
 
     def test_abstention_report(self):
         from pipeline.report_generators import generate_abstention_report
+
         rng = np.random.default_rng(42)
         y_true = pd.Series(rng.integers(0, 2, 100).astype(float))
         y_score = pd.Series(rng.uniform(0, 1, 100))
@@ -897,11 +958,13 @@ class TestReportGenerators:
 
     def test_simulation_assumptions(self):
         from pipeline.report_generators import generate_simulation_assumptions
+
         report = generate_simulation_assumptions(spread_bps=15.0)
         assert report["spread_bps"] == 15.0
 
     def test_risk_path_report(self):
         from pipeline.report_generators import generate_risk_path_report
+
         rng = np.random.default_rng(42)
         returns = pd.Series(rng.normal(0.001, 0.02, 252))
         report = generate_risk_path_report(returns)
@@ -910,15 +973,19 @@ class TestReportGenerators:
 
     def test_robustness_report(self):
         from pipeline.report_generators import generate_robustness_report
+
         rng = np.random.default_rng(42)
         returns = pd.Series(rng.normal(0.001, 0.02, 252))
         report = generate_robustness_report(
-            returns=returns, sharpe=1.5, n_obs=252,
+            returns=returns,
+            sharpe=1.5,
+            n_obs=252,
         )
         assert "deflated_sharpe_probability" in report
 
     def test_reproducibility_report(self):
         from pipeline.report_generators import generate_reproducibility_report
+
         experiments = [
             {
                 "reproducibility_hash": "abc123",
@@ -937,6 +1004,7 @@ class TestReportGenerators:
 
     def test_architecture_review(self):
         from pipeline.report_generators import generate_architecture_review
+
         report = generate_architecture_review(
             modules=[{"name": "pipeline.extract", "type": "package"}],
             issues=[{"location": "db.py", "severity": "low", "description": "Unused import"}],
@@ -949,10 +1017,12 @@ class TestReportGenerators:
 # Evaluation Matrix (Section 13)
 # ---------------------------------------------------------------------------
 
+
 class TestEvaluationMatrix:
 
     def test_evaluate_with_returns(self):
         from pipeline.evaluation_matrix import EvaluationMatrix
+
         rng = np.random.default_rng(42)
         returns = pd.Series(rng.normal(0.001, 0.02, 252))
         matrix = EvaluationMatrix()
@@ -962,19 +1032,24 @@ class TestEvaluationMatrix:
 
     def test_evaluate_with_predictions(self):
         from pipeline.evaluation_matrix import EvaluationMatrix
+
         rng = np.random.default_rng(42)
         y_true = pd.Series(rng.integers(0, 2, 200).astype(float))
         y_prob = pd.Series(rng.uniform(0, 1, 200))
         y_pred = (y_prob > 0.5).astype(float)
         matrix = EvaluationMatrix()
         entry = matrix.evaluate(
-            candidate_id="model_a", y_true=y_true, y_pred=y_pred, y_prob=y_prob,
+            candidate_id="model_a",
+            y_true=y_true,
+            y_pred=y_pred,
+            y_prob=y_prob,
         )
         assert "brier" in entry.predictive_accuracy
         assert "ece" in entry.calibration
 
     def test_compare_multiple(self):
         from pipeline.evaluation_matrix import EvaluationMatrix
+
         rng = np.random.default_rng(42)
         matrix = EvaluationMatrix()
         for i in range(3):
@@ -985,6 +1060,7 @@ class TestEvaluationMatrix:
 
     def test_get_best(self):
         from pipeline.evaluation_matrix import EvaluationMatrix
+
         rng = np.random.default_rng(42)
         matrix = EvaluationMatrix()
         matrix.evaluate(
@@ -1003,21 +1079,25 @@ class TestEvaluationMatrix:
 # A/B Testing (Section 18.5)
 # ---------------------------------------------------------------------------
 
+
 class TestABTesting:
 
     def test_power_analysis(self):
         from pipeline.ab_testing import PowerAnalysis
+
         n = PowerAnalysis.compute_sample_size(effect_size=0.5, power=0.80)
         assert n > 0
         assert n < 200  # ~63 for d=0.5
 
     def test_power_computation(self):
         from pipeline.ab_testing import PowerAnalysis
+
         power = PowerAnalysis.compute_power(n=100, effect_size=0.5)
         assert power > 0.8
 
     def test_sequential_boundaries(self):
         from pipeline.ab_testing import SequentialTestBoundary
+
         boundary = SequentialTestBoundary(n_looks=4, alpha=0.05)
         bounds = boundary.get_boundaries()
         assert len(bounds) == 4
@@ -1026,6 +1106,7 @@ class TestABTesting:
 
     def test_sequential_should_stop(self):
         from pipeline.ab_testing import SequentialTestBoundary
+
         boundary = SequentialTestBoundary(n_looks=4, alpha=0.05)
         # Very large z should trigger stop
         assert boundary.should_stop(look=4, z_statistic=5.0)
@@ -1034,30 +1115,40 @@ class TestABTesting:
 
     def test_design_test(self, tmp_path):
         from pipeline.ab_testing import ABTestManager
+
         manager = ABTestManager(storage_path=tmp_path / "ab.json")
         config = manager.design_test(
-            candidate_id="v3", incumbent_id="v2", effect_size=0.3,
+            candidate_id="v3",
+            incumbent_id="v2",
+            effect_size=0.3,
         )
         assert config.minimum_sample_size > 0
         assert config.candidate_id == "v3"
 
     def test_test_lifecycle(self, tmp_path):
         from pipeline.ab_testing import ABTestManager
+
         manager = ABTestManager(storage_path=tmp_path / "ab.json")
         config = manager.design_test(
-            candidate_id="v3", incumbent_id="v2", effect_size=0.5,
+            candidate_id="v3",
+            incumbent_id="v2",
+            effect_size=0.5,
         )
         manager.start_test(config.test_id)
 
         rng = np.random.default_rng(42)
         for i in range(50):
             manager.record_observation(
-                config.test_id, group="candidate",
-                primary_value=rng.normal(0.05, 0.1), cycle=i,
+                config.test_id,
+                group="candidate",
+                primary_value=rng.normal(0.05, 0.1),
+                cycle=i,
             )
             manager.record_observation(
-                config.test_id, group="incumbent",
-                primary_value=rng.normal(0.0, 0.1), cycle=i,
+                config.test_id,
+                group="incumbent",
+                primary_value=rng.normal(0.0, 0.1),
+                cycle=i,
             )
 
         result = manager.complete_test(config.test_id)
@@ -1066,9 +1157,12 @@ class TestABTesting:
 
     def test_export_protocol(self, tmp_path):
         from pipeline.ab_testing import ABTestManager
+
         manager = ABTestManager(storage_path=tmp_path / "ab.json")
         config = manager.design_test(
-            candidate_id="v3", incumbent_id="v2", effect_size=0.3,
+            candidate_id="v3",
+            incumbent_id="v2",
+            effect_size=0.3,
         )
         protocol = manager.export_protocol(config.test_id)
         assert protocol["report_type"] == "ab_test_protocol"
@@ -1076,6 +1170,7 @@ class TestABTesting:
 
     def test_persistence(self, tmp_path):
         from pipeline.ab_testing import ABTestManager
+
         path = tmp_path / "ab.json"
         m1 = ABTestManager(storage_path=path)
         config = m1.design_test(candidate_id="v3", incumbent_id="v2")
@@ -1088,21 +1183,27 @@ class TestABTesting:
 # Knowledge Store (Section 14)
 # ---------------------------------------------------------------------------
 
+
 class TestKnowledgeStore:
 
     def _make_store(self, tmp_path):
         from pipeline.experiment_registry import KnowledgeStore
+
         return KnowledgeStore(storage_path=tmp_path / "knowledge.json")
 
     def test_store_and_query(self, tmp_path):
         store = self._make_store(tmp_path)
         store.store_finding(
-            domain="finance", horizon="daily", model_family="lgbm",
+            domain="finance",
+            horizon="daily",
+            model_family="lgbm",
             finding="LightGBM outperforms linear models on daily data",
             works=True,
         )
         store.store_finding(
-            domain="finance", horizon="daily", model_family="lstm",
+            domain="finance",
+            horizon="daily",
+            model_family="lstm",
             finding="LSTM overfits on small datasets",
             works=False,
         )
@@ -1113,6 +1214,7 @@ class TestKnowledgeStore:
 
     def test_persistence(self, tmp_path):
         from pipeline.experiment_registry import KnowledgeStore
+
         path = tmp_path / "knowledge.json"
         s1 = KnowledgeStore(storage_path=path)
         s1.store_finding(domain="test", finding="Something works")
@@ -1133,10 +1235,12 @@ class TestKnowledgeStore:
 # Failure Mode Checks (Section 25.1)
 # ---------------------------------------------------------------------------
 
+
 class TestFailureModeChecks:
 
     def test_all_pass(self):
         from pipeline.failure_mode_checks import FailureModeChecker
+
         checker = FailureModeChecker()
         report = checker.run_all_checks(
             deployment_history=["shadow", "canary", "graduated_25", "production"],
@@ -1146,6 +1250,7 @@ class TestFailureModeChecks:
 
     def test_shadow_bypass_fails(self):
         from pipeline.failure_mode_checks import FailureModeChecker
+
         checker = FailureModeChecker()
         report = checker.run_all_checks(
             deployment_history=["production"],  # skipped shadow/canary
@@ -1155,6 +1260,7 @@ class TestFailureModeChecks:
 
     def test_shadow_bypass_with_approval(self):
         from pipeline.failure_mode_checks import FailureModeChecker
+
         checker = FailureModeChecker()
         report = checker.run_all_checks(
             deployment_history=["production"],
@@ -1166,22 +1272,27 @@ class TestFailureModeChecks:
 
     def test_monitoring_failure(self):
         from pipeline.failure_mode_checks import FailureModeChecker
+
         check = FailureModeChecker.check_monitoring_active(False)
         assert not check.passed
 
     def test_budget_overrun(self):
         from pipeline.failure_mode_checks import FailureModeChecker
+
         check = FailureModeChecker.check_budget_overrun(
-            budget_exceeded=True, overrun_approved=False,
+            budget_exceeded=True,
+            overrun_approved=False,
         )
         assert not check.passed
         check2 = FailureModeChecker.check_budget_overrun(
-            budget_exceeded=True, overrun_approved=True,
+            budget_exceeded=True,
+            overrun_approved=True,
         )
         assert check2.passed
 
     def test_multiple_failures(self):
         from pipeline.failure_mode_checks import FailureModeChecker
+
         checker = FailureModeChecker()
         report = checker.run_all_checks(
             deployment_history=[],
@@ -1196,27 +1307,32 @@ class TestFailureModeChecks:
 # Domain Checklists (Section 24.5)
 # ---------------------------------------------------------------------------
 
+
 class TestDomainChecklists:
 
     def test_risk_register(self):
         from pipeline.domain_checklist import generate_domain_risk_register
+
         report = generate_domain_risk_register("finance")
         assert report["total_risks"] > 0
         assert report["high_severity"] > 0
 
     def test_data_quirks(self):
         from pipeline.domain_checklist import generate_domain_data_quirks
+
         report = generate_domain_data_quirks("finance")
         assert report["total_quirks"] > 0
 
     def test_regulatory_checklist(self):
         from pipeline.domain_checklist import generate_regulatory_checklist
+
         report = generate_regulatory_checklist("finance")
         assert report["total_requirements"] > 0
         assert report["compliant"] > 0
 
     def test_unknown_domain(self):
         from pipeline.domain_checklist import generate_domain_risk_register
+
         report = generate_domain_risk_register("unknown")
         assert report["total_risks"] == 0
 
@@ -1225,10 +1341,12 @@ class TestDomainChecklists:
 # Deployment Pipeline exports (Section 18.6)
 # ---------------------------------------------------------------------------
 
+
 class TestDeploymentPipelineExports:
 
     def test_drift_report(self, tmp_path):
         from pipeline.deployment_pipeline import DeploymentPipeline
+
         dp = DeploymentPipeline(storage_path=tmp_path / "deploy.json")
         dp.start_shadow("exp_1")
         report = dp.export_drift_report("exp_1", drift_results={"concept": False})
@@ -1236,6 +1354,7 @@ class TestDeploymentPipelineExports:
 
     def test_retraining_log(self, tmp_path):
         from pipeline.deployment_pipeline import DeploymentPipeline
+
         dp = DeploymentPipeline(storage_path=tmp_path / "deploy.json")
         dp.start_shadow("exp_1")
         report = dp.export_retraining_log()
@@ -1247,10 +1366,12 @@ class TestDeploymentPipelineExports:
 # Governance exports (Section 21.5)
 # ---------------------------------------------------------------------------
 
+
 class TestGovernanceExports:
 
     def test_approval_request_log(self, tmp_path):
         from pipeline.governance import GovernanceFramework
+
         gov = GovernanceFramework(storage_path=tmp_path / "gov.json")
         gov.submit_approval_request(action_summary="Deploy model v3")
         log = gov.export_approval_request_log()
@@ -1259,6 +1380,7 @@ class TestGovernanceExports:
 
     def test_escalation_protocol(self, tmp_path):
         from pipeline.governance import GovernanceFramework
+
         gov = GovernanceFramework(storage_path=tmp_path / "gov.json")
         protocol = gov.export_escalation_protocol()
         assert protocol["report_type"] == "escalation_protocol"
@@ -1270,10 +1392,12 @@ class TestGovernanceExports:
 # Compute Budget exports (Section 20.4)
 # ---------------------------------------------------------------------------
 
+
 class TestComputeBudgetExports:
 
     def test_pareto_frontier(self, tmp_path):
         from pipeline.compute_budget import ComputeBudget
+
         budget = ComputeBudget(total_budget_hours=1.0, storage_path=tmp_path / "budget.json")
         for i in range(5):
             with budget.track_experiment(f"exp_{i}", phase="model_search") as t:
@@ -1284,6 +1408,7 @@ class TestComputeBudgetExports:
 
     def test_search_termination_justification(self, tmp_path):
         from pipeline.compute_budget import ComputeBudget
+
         budget = ComputeBudget(total_budget_hours=1.0, storage_path=tmp_path / "budget.json")
         justification = budget.export_search_termination_justification()
         assert justification["report_type"] == "search_termination_justification"

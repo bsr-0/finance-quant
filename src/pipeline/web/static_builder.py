@@ -396,9 +396,16 @@ def build_static_site(
     # Load prediction history
     history_data: dict = {"predictions": [], "last_updated": ""}
     stats: dict = {
-        "total": 0, "active": 0, "resolved": 0, "hit_target": 0,
-        "stopped_out": 0, "expired": 0, "win_rate": 0.0,
-        "avg_pnl_pct": 0.0, "avg_win_pct": 0.0, "avg_loss_pct": 0.0,
+        "total": 0,
+        "active": 0,
+        "resolved": 0,
+        "hit_target": 0,
+        "stopped_out": 0,
+        "expired": 0,
+        "win_rate": 0.0,
+        "avg_pnl_pct": 0.0,
+        "avg_win_pct": 0.0,
+        "avg_loss_pct": 0.0,
     }
     if history_path.exists():
         try:
@@ -471,13 +478,15 @@ def build_static_site(
     monthly_stats = []
     for month in sorted(monthly.keys(), reverse=True):
         m = monthly[month]
-        monthly_stats.append({
-            "month": month,
-            "total": m["total"],
-            "wins": m["wins"],
-            "win_rate": round(m["wins"] / m["total"] * 100, 1) if m["total"] else 0,
-            "total_pnl": round(m["pnl_sum"], 2),
-        })
+        monthly_stats.append(
+            {
+                "month": month,
+                "total": m["total"],
+                "wins": m["wins"],
+                "win_rate": round(m["wins"] / m["total"] * 100, 1) if m["total"] else 0,
+                "total_pnl": round(m["pnl_sum"], 2),
+            }
+        )
 
     perf_html = perf_tmpl.render(monthly_stats=monthly_stats, **base_ctx)
     (output_dir / "performance.html").write_text(perf_html)
@@ -527,7 +536,5 @@ def _compute_ticker_stats(predictions: list[dict]) -> dict:
         "hit_target": hit,
         "win_rate": round(hit / resolved * 100, 1) if resolved else 0.0,
         "avg_pnl": round(sum(pnls) / len(pnls), 2) if pnls else 0.0,
-        "avg_score": round(
-            sum(p["score"] for p in predictions) / total, 1
-        ),
+        "avg_score": round(sum(p["score"] for p in predictions) / total, 1),
     }

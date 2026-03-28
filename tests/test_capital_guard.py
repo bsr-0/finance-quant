@@ -18,6 +18,7 @@ from pipeline.execution.capital_guard import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 class MockAccountProvider:
     """Provides a configurable account snapshot for testing."""
 
@@ -62,6 +63,7 @@ def make_guard(
 # Tests: basic approval
 # ---------------------------------------------------------------------------
 
+
 class TestBasicApproval:
     def test_small_order_approved(self):
         guard = make_guard(max_capital=300, equity=500, cash=500, buying_power=500)
@@ -84,11 +86,16 @@ class TestBasicApproval:
 # Tests: QAQC-1 margin check
 # ---------------------------------------------------------------------------
 
+
 class TestMarginCheck:
     def test_margin_account_rejected(self):
         guard = make_guard(
-            max_capital=300, equity=500, cash=500, buying_power=500,
-            is_margin_account=True, require_cash_account=True,
+            max_capital=300,
+            equity=500,
+            cash=500,
+            buying_power=500,
+            is_margin_account=True,
+            require_cash_account=True,
         )
         result = guard.check_order("AAPL", "buy", shares=1, limit_price=100.0)
         assert not result.approved
@@ -96,15 +103,22 @@ class TestMarginCheck:
 
     def test_margin_allowed_when_not_required(self):
         guard = make_guard(
-            max_capital=300, equity=500, cash=500, buying_power=500,
-            is_margin_account=True, require_cash_account=False,
+            max_capital=300,
+            equity=500,
+            cash=500,
+            buying_power=500,
+            is_margin_account=True,
+            require_cash_account=False,
         )
         result = guard.check_order("AAPL", "buy", shares=1, limit_price=100.0)
         assert result.approved
 
     def test_cash_account_passes(self):
         guard = make_guard(
-            max_capital=300, equity=500, cash=500, buying_power=500,
+            max_capital=300,
+            equity=500,
+            cash=500,
+            buying_power=500,
             is_margin_account=False,
         )
         result = guard.check_order("AAPL", "buy", shares=1, limit_price=100.0)
@@ -115,10 +129,14 @@ class TestMarginCheck:
 # Tests: QAQC-2 max capital
 # ---------------------------------------------------------------------------
 
+
 class TestMaxCapital:
     def test_order_exceeding_max_capital_rejected(self):
         guard = make_guard(
-            max_capital=200, equity=500, cash=500, buying_power=500,
+            max_capital=200,
+            equity=500,
+            cash=500,
+            buying_power=500,
             positions_market_value=100,  # already $100 deployed
         )
         # This $150 order would bring total to $250 > $200 max
@@ -128,7 +146,10 @@ class TestMaxCapital:
 
     def test_order_within_max_capital_approved(self):
         guard = make_guard(
-            max_capital=300, equity=500, cash=500, buying_power=500,
+            max_capital=300,
+            equity=500,
+            cash=500,
+            buying_power=500,
             positions_market_value=100,
         )
         # $100 deployed + $150 order = $250 < $300 max
@@ -137,7 +158,10 @@ class TestMaxCapital:
 
     def test_max_capital_exactly_at_limit(self):
         guard = make_guard(
-            max_capital=200, equity=500, cash=500, buying_power=500,
+            max_capital=200,
+            equity=500,
+            cash=500,
+            buying_power=500,
             positions_market_value=100,
         )
         # $100 + $100 = $200 exactly at limit
@@ -149,10 +173,14 @@ class TestMaxCapital:
 # Tests: QAQC-3 buying power
 # ---------------------------------------------------------------------------
 
+
 class TestBuyingPower:
     def test_exceeds_buying_power_rejected(self):
         guard = make_guard(
-            max_capital=500, equity=500, cash=100, buying_power=100,
+            max_capital=500,
+            equity=500,
+            cash=100,
+            buying_power=100,
         )
         result = guard.check_order("AAPL", "buy", shares=1, limit_price=200.0)
         assert not result.approved
@@ -160,7 +188,10 @@ class TestBuyingPower:
 
     def test_within_buying_power_approved(self):
         guard = make_guard(
-            max_capital=500, equity=500, cash=500, buying_power=500,
+            max_capital=500,
+            equity=500,
+            cash=500,
+            buying_power=500,
         )
         result = guard.check_order("AAPL", "buy", shares=1, limit_price=100.0)
         assert "buying_power_check" in result.checks_passed
@@ -169,6 +200,7 @@ class TestBuyingPower:
 # ---------------------------------------------------------------------------
 # Tests: QAQC-4 single order size
 # ---------------------------------------------------------------------------
+
 
 class TestSingleOrderLimit:
     def test_huge_single_order_rejected(self):
@@ -185,11 +217,15 @@ class TestSingleOrderLimit:
 # Tests: QAQC-5 position count
 # ---------------------------------------------------------------------------
 
+
 class TestPositionCount:
     def test_at_max_positions_rejected(self):
         guard = make_guard(
-            max_capital=500, max_positions=2,
-            equity=500, cash=300, buying_power=300,
+            max_capital=500,
+            max_positions=2,
+            equity=500,
+            cash=300,
+            buying_power=300,
             position_count=2,
         )
         result = guard.check_order("MSFT", "buy", shares=1, limit_price=100.0)
@@ -198,8 +234,11 @@ class TestPositionCount:
 
     def test_below_max_positions_approved(self):
         guard = make_guard(
-            max_capital=500, max_positions=2,
-            equity=500, cash=300, buying_power=300,
+            max_capital=500,
+            max_positions=2,
+            equity=500,
+            cash=300,
+            buying_power=300,
             position_count=1,
         )
         result = guard.check_order("MSFT", "buy", shares=1, limit_price=100.0)
@@ -210,11 +249,13 @@ class TestPositionCount:
 # Tests: QAQC-6 cash buffer
 # ---------------------------------------------------------------------------
 
+
 class TestCashBuffer:
     def test_insufficient_cash_buffer_rejected(self):
         """Order that would leave less than 5% buffer in cash."""
         config = CapitalGuardConfig(
-            max_capital=500, min_cash_buffer_pct=0.05,
+            max_capital=500,
+            min_cash_buffer_pct=0.05,
         )
         # Cash = $110, order = $100, leaves $10 < $25 (5% of $500)
         provider = MockAccountProvider(equity=500, cash=110, buying_power=110)
@@ -229,12 +270,15 @@ class TestCashBuffer:
 # Tests: QAQC-7 utilization
 # ---------------------------------------------------------------------------
 
+
 class TestUtilization:
     def test_over_utilization_rejected(self):
         """Order that would put >95% of equity in positions."""
         guard = make_guard(
             max_capital=1000,
-            equity=500, cash=100, buying_power=100,
+            equity=500,
+            cash=100,
+            buying_power=100,
             positions_market_value=400,  # 80% utilised
         )
         # Adding $90 = 490/500 = 98% > 95%
@@ -246,6 +290,7 @@ class TestUtilization:
 # ---------------------------------------------------------------------------
 # Tests: QAQC-8 daily order limit
 # ---------------------------------------------------------------------------
+
 
 class TestDailyOrderLimit:
     def test_exceeds_daily_limit(self):
@@ -268,16 +313,19 @@ class TestDailyOrderLimit:
 # Tests: multiple failures
 # ---------------------------------------------------------------------------
 
+
 class TestMultipleFailures:
     def test_all_failures_reported(self):
         """When multiple checks fail, all should be listed."""
         guard = make_guard(
-            max_capital=100,          # max $100
-            max_positions=1,          # max 1 position
-            equity=500, cash=50, buying_power=50,
+            max_capital=100,  # max $100
+            max_positions=1,  # max 1 position
+            equity=500,
+            cash=50,
+            buying_power=50,
             positions_market_value=80,  # already $80 deployed
-            position_count=1,         # already 1 position
-            is_margin_account=True,   # margin enabled
+            position_count=1,  # already 1 position
+            is_margin_account=True,  # margin enabled
             require_cash_account=True,
         )
         # $200 order on a margin account at max positions with $80 deployed
@@ -290,6 +338,7 @@ class TestMultipleFailures:
 # ---------------------------------------------------------------------------
 # Tests: account fetch failure
 # ---------------------------------------------------------------------------
+
 
 class TestAccountFetchFailure:
     def test_account_error_rejects_order(self):
@@ -307,6 +356,7 @@ class TestAccountFetchFailure:
 # ---------------------------------------------------------------------------
 # Tests: edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeCases:
     def test_fractional_shares(self):

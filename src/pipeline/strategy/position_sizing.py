@@ -33,6 +33,7 @@ class SizingMethod(Enum):
 # Configuration
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class InstitutionalSizingConfig:
     """Configuration for institutional position sizing."""
@@ -66,6 +67,7 @@ class InstitutionalSizingConfig:
 # ---------------------------------------------------------------------------
 # Position sizing result
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class PositionTarget:
@@ -107,24 +109,19 @@ class PortfolioTargets:
         return len(self.positions)
 
     def weight_series(self) -> pd.Series:
-        return pd.Series(
-            {p.ticker: p.target_weight for p in self.positions}
-        )
+        return pd.Series({p.ticker: p.target_weight for p in self.positions})
 
     def notional_series(self) -> pd.Series:
-        return pd.Series(
-            {p.ticker: p.target_notional for p in self.positions}
-        )
+        return pd.Series({p.ticker: p.target_notional for p in self.positions})
 
     def shares_series(self) -> pd.Series:
-        return pd.Series(
-            {p.ticker: p.target_shares for p in self.positions}
-        )
+        return pd.Series({p.ticker: p.target_shares for p in self.positions})
 
 
 # ---------------------------------------------------------------------------
 # Sizing models
 # ---------------------------------------------------------------------------
+
 
 class PositionSizingModel(ABC):
     """Base class for position sizing models."""
@@ -215,17 +212,19 @@ class FixedFractionSizer(PositionSizingModel):
 
             adv_part = abs(shares) / adv.get(ticker, 1e12) if adv is not None else 0.0
 
-            positions.append(PositionTarget(
-                ticker=ticker,
-                target_weight=raw_weight,
-                target_notional=notional,
-                target_shares=shares,
-                signal_value=float(sig),
-                volatility=volatilities.get(ticker, 0.0),
-                adv_participation=adv_part,
-                constrained=constrained,
-                constraint_reason=reason,
-            ))
+            positions.append(
+                PositionTarget(
+                    ticker=ticker,
+                    target_weight=raw_weight,
+                    target_notional=notional,
+                    target_shares=shares,
+                    signal_value=float(sig),
+                    volatility=volatilities.get(ticker, 0.0),
+                    adv_participation=adv_part,
+                    constrained=constrained,
+                    constraint_reason=reason,
+                )
+            )
 
         gross = sum(abs(p.target_notional) for p in positions)
         net = sum(p.target_notional for p in positions)
@@ -289,8 +288,7 @@ class VolatilityScaledSizer(PositionSizingModel):
             sig_abs = abs(sig)
             sig_max = float(active.abs().max()) if active.abs().max() > 0 else 1.0
             conviction = cfg.conviction_scale_min + (
-                (cfg.conviction_scale_max - cfg.conviction_scale_min)
-                * (sig_abs / sig_max)
+                (cfg.conviction_scale_max - cfg.conviction_scale_min) * (sig_abs / sig_max)
             )
 
             # Base weight: target vol / (individual vol * sqrt(N))
@@ -330,18 +328,20 @@ class VolatilityScaledSizer(PositionSizingModel):
 
             risk_contribution = abs(raw_weight) * vol
 
-            positions.append(PositionTarget(
-                ticker=ticker,
-                target_weight=raw_weight,
-                target_notional=notional,
-                target_shares=shares,
-                signal_value=sig,
-                volatility=vol,
-                risk_contribution=risk_contribution,
-                adv_participation=adv_part,
-                constrained=constrained,
-                constraint_reason=reason,
-            ))
+            positions.append(
+                PositionTarget(
+                    ticker=ticker,
+                    target_weight=raw_weight,
+                    target_notional=notional,
+                    target_shares=shares,
+                    signal_value=sig,
+                    volatility=vol,
+                    risk_contribution=risk_contribution,
+                    adv_participation=adv_part,
+                    constrained=constrained,
+                    constraint_reason=reason,
+                )
+            )
 
         # Gross/net exposure check
         gross = sum(abs(p.target_weight) for p in positions)
@@ -383,9 +383,7 @@ class SignalWeightedSizer(PositionSizingModel):
 
     @property
     def formula(self) -> str:
-        return (
-            r"w_i = \frac{s_i / \sigma_i}{\sum_j |s_j / \sigma_j|} \cdot L"
-        )
+        return r"w_i = \frac{s_i / \sigma_i}{\sum_j |s_j / \sigma_j|} \cdot L"
 
     def compute_targets(
         self,
@@ -438,18 +436,20 @@ class SignalWeightedSizer(PositionSizingModel):
             vol = volatilities.get(ticker, cfg.vol_floor)
             adv_part = abs(shares) / adv.get(ticker, 1e12) if adv is not None else 0.0
 
-            positions.append(PositionTarget(
-                ticker=ticker,
-                target_weight=raw_weight,
-                target_notional=notional,
-                target_shares=shares,
-                signal_value=float(active[ticker]),
-                volatility=vol,
-                risk_contribution=abs(raw_weight) * vol,
-                adv_participation=adv_part,
-                constrained=constrained,
-                constraint_reason=reason,
-            ))
+            positions.append(
+                PositionTarget(
+                    ticker=ticker,
+                    target_weight=raw_weight,
+                    target_notional=notional,
+                    target_shares=shares,
+                    signal_value=float(active[ticker]),
+                    volatility=vol,
+                    risk_contribution=abs(raw_weight) * vol,
+                    adv_participation=adv_part,
+                    constrained=constrained,
+                    constraint_reason=reason,
+                )
+            )
 
         gross = sum(abs(p.target_weight) for p in positions)
         net = sum(p.target_weight for p in positions)

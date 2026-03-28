@@ -169,8 +169,11 @@ def monte_carlo_simulation(
 
     # Generate simulated return paths via block bootstrap
     sim_returns = block_bootstrap(
-        returns_arr, config.n_simulations, path_length,
-        config.block_size, rng,
+        returns_arr,
+        config.n_simulations,
+        path_length,
+        config.block_size,
+        rng,
     )
 
     # Compute equity curves
@@ -216,9 +219,7 @@ def monte_carlo_simulation(
 
     # Percentiles
     pcts = [1, 5, 10, 25, 50, 75, 90, 95, 99]
-    percentiles = {
-        f"p{p}": float(np.percentile(final_values, p)) for p in pcts
-    }
+    percentiles = {f"p{p}": float(np.percentile(final_values, p)) for p in pcts}
 
     # Probability of loss
     prob_loss = float(np.mean(final_values < initial_capital))
@@ -282,18 +283,18 @@ def execution_stress_test(
         dd = (equity - peak) / safe_peak
         max_dd = np.nanmin(dd) if not np.all(np.isnan(dd)) else 0.0
         sharpe = (
-            adj_returns.mean() / adj_returns.std() * np.sqrt(252)
-            if adj_returns.std() > 0
-            else 0.0
+            adj_returns.mean() / adj_returns.std() * np.sqrt(252) if adj_returns.std() > 0 else 0.0
         )
 
-        records.append({
-            "scenario": i,
-            "slippage_bps": slip,
-            "fee_bps": fee,
-            "final_value": float(final_val),
-            "sharpe": float(sharpe),
-            "max_dd": float(max_dd),
-        })
+        records.append(
+            {
+                "scenario": i,
+                "slippage_bps": slip,
+                "fee_bps": fee,
+                "final_value": float(final_val),
+                "sharpe": float(sharpe),
+                "max_dd": float(max_dd),
+            }
+        )
 
     return pd.DataFrame(records)

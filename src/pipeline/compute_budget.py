@@ -108,9 +108,7 @@ class ComputeBudget:
         storage_path: str | Path = "data/compute_budget.json",
     ):
         self.total_budget_seconds = total_budget_hours * 3600
-        self.max_single_experiment_seconds = (
-            self.total_budget_seconds * max_single_experiment_pct
-        )
+        self.max_single_experiment_seconds = self.total_budget_seconds * max_single_experiment_pct
         self.termination_n = termination_n
         self.termination_min_improvement_pct = termination_min_improvement_pct
         self.storage_path = Path(storage_path)
@@ -159,9 +157,7 @@ class ComputeBudget:
     def total_remaining(self) -> float:
         return max(0.0, self.total_budget_seconds - self.total_consumed)
 
-    def track_experiment(
-        self, experiment_id: str, phase: str
-    ) -> _ExperimentTracker:
+    def track_experiment(self, experiment_id: str, phase: str) -> _ExperimentTracker:
         """Context manager to track compute cost of an experiment."""
         return _ExperimentTracker(self, experiment_id, phase)
 
@@ -268,7 +264,6 @@ class ComputeBudget:
             termination_reason=reason,
         )
 
-
     def generate_pareto_frontier(self) -> dict[str, Any]:
         """<pareto_frontier_analysis> — Section 20.4 required output.
 
@@ -292,11 +287,13 @@ class ComputeBudget:
             val = cost.primary_metric_value or 0.0
             if val > best_so_far:
                 best_so_far = val
-                frontier_points.append({
-                    "experiment_id": cost.experiment_id,
-                    "cumulative_cost_seconds": round(cumulative_cost, 2),
-                    "best_metric": round(best_so_far, 6),
-                })
+                frontier_points.append(
+                    {
+                        "experiment_id": cost.experiment_id,
+                        "cumulative_cost_seconds": round(cumulative_cost, 2),
+                        "best_metric": round(best_so_far, 6),
+                    }
+                )
 
         return {
             "report_type": "pareto_frontier_analysis",

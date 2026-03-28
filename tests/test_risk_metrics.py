@@ -39,13 +39,16 @@ def sample_ohlcv(sample_prices):
     np.random.seed(42)
     n = len(sample_prices)
     close = sample_prices.values
-    return pd.DataFrame({
-        "open": close * (1 + np.random.randn(n) * 0.002),
-        "high": close * (1 + np.abs(np.random.randn(n) * 0.005)),
-        "low": close * (1 - np.abs(np.random.randn(n) * 0.005)),
-        "close": close,
-        "volume": np.random.randint(100_000, 5_000_000, n).astype(float),
-    }, index=sample_prices.index)
+    return pd.DataFrame(
+        {
+            "open": close * (1 + np.random.randn(n) * 0.002),
+            "high": close * (1 + np.abs(np.random.randn(n) * 0.005)),
+            "low": close * (1 - np.abs(np.random.randn(n) * 0.005)),
+            "close": close,
+            "volume": np.random.randint(100_000, 5_000_000, n).astype(float),
+        },
+        index=sample_prices.index,
+    )
 
 
 class TestVolatilityEstimators:
@@ -61,15 +64,21 @@ class TestVolatilityEstimators:
 
     def test_garman_klass_vol_non_negative(self, sample_ohlcv):
         vol = garman_klass_vol(
-            sample_ohlcv["open"], sample_ohlcv["high"],
-            sample_ohlcv["low"], sample_ohlcv["close"], 20
+            sample_ohlcv["open"],
+            sample_ohlcv["high"],
+            sample_ohlcv["low"],
+            sample_ohlcv["close"],
+            20,
         ).dropna()
         assert (vol >= 0).all()
 
     def test_yang_zhang_vol_non_negative(self, sample_ohlcv):
         vol = yang_zhang_vol(
-            sample_ohlcv["open"], sample_ohlcv["high"],
-            sample_ohlcv["low"], sample_ohlcv["close"], 20
+            sample_ohlcv["open"],
+            sample_ohlcv["high"],
+            sample_ohlcv["low"],
+            sample_ohlcv["close"],
+            20,
         ).dropna()
         assert (vol >= 0).all()
 
@@ -151,12 +160,21 @@ class TestCalculateRiskMetrics:
     def test_all_columns_added(self, sample_ohlcv):
         result = calculate_risk_metrics(sample_ohlcv)
         expected_cols = [
-            "vol_cc_20", "vol_cc_60", "vol_ewma_60",
-            "vol_parkinson_20", "vol_gk_20", "vol_yz_20",
-            "var_95_60d", "cvar_95_60d",
-            "drawdown", "max_drawdown_252d", "drawdown_duration",
-            "sharpe_252d", "sortino_252d",
-            "skewness_60d", "kurtosis_60d",
+            "vol_cc_20",
+            "vol_cc_60",
+            "vol_ewma_60",
+            "vol_parkinson_20",
+            "vol_gk_20",
+            "vol_yz_20",
+            "var_95_60d",
+            "cvar_95_60d",
+            "drawdown",
+            "max_drawdown_252d",
+            "drawdown_duration",
+            "sharpe_252d",
+            "sortino_252d",
+            "skewness_60d",
+            "kurtosis_60d",
         ]
         for col in expected_cols:
             assert col in result.columns, f"Missing column: {col}"

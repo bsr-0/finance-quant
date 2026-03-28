@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RiskLimits:
     """Hard pre-trade and intraday risk limits.
@@ -71,6 +72,7 @@ class RiskLimits:
 # Pre-trade check result
 # ---------------------------------------------------------------------------
 
+
 class CheckStatus(Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
@@ -93,6 +95,7 @@ class OrderCheckResult:
 # ---------------------------------------------------------------------------
 # Kill switch
 # ---------------------------------------------------------------------------
+
 
 class KillSwitch:
     """Global, thread-safe trading halt mechanism.
@@ -147,6 +150,7 @@ class KillSwitch:
 # ---------------------------------------------------------------------------
 # Intraday risk monitor
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SessionState:
@@ -219,8 +223,10 @@ class IntradayRiskMonitor:
             logger.critical("SHUTDOWN triggered – %s", reason)
             return "shutdown"
 
-        if (drawdown_pct <= -self.limits.max_drawdown_pct
-                or s.realised_pnl <= -self.limits.max_daily_loss):
+        if (
+            drawdown_pct <= -self.limits.max_drawdown_pct
+            or s.realised_pnl <= -self.limits.max_daily_loss
+        ):
             if not s.throttled:
                 s.throttled = True
                 logger.warning(
@@ -272,6 +278,7 @@ class IntradayRiskMonitor:
 # ---------------------------------------------------------------------------
 # Pre-trade checker
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class PortfolioState:
@@ -420,9 +427,7 @@ class PreTradeChecker:
         # 5. Single-name concentration limit
         symbol_notional = abs(new_positions.get(symbol, 0.0))
         concentration = (
-            symbol_notional / projected.gross_exposure
-            if projected.gross_exposure > 0
-            else 0.0
+            symbol_notional / projected.gross_exposure if projected.gross_exposure > 0 else 0.0
         )
         if concentration > lim.max_concentration:
             return OrderCheckResult(

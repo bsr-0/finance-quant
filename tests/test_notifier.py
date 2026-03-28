@@ -84,7 +84,8 @@ class TestNotifier:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         with patch(
-            "pipeline.infrastructure.notifier.httpx.post", return_value=mock_resp,
+            "pipeline.infrastructure.notifier.httpx.post",
+            return_value=mock_resp,
         ) as mock_post:
             n.send(AlertSeverity.WARNING, "Test Alert", "Details here", {"key": "val"})
 
@@ -214,7 +215,8 @@ class TestRiskNotifications:
         )
 
         alerts = [
-            h for h in self.mock_notifier.history
+            h
+            for h in self.mock_notifier.history
             if h["severity"] == "CRITICAL" and "RED" in h["title"]
         ]
         assert len(alerts) == 1
@@ -234,7 +236,8 @@ class TestRiskNotifications:
         )
 
         alerts = [
-            h for h in self.mock_notifier.history
+            h
+            for h in self.mock_notifier.history
             if h["severity"] == "WARNING" and "Daily Loss" in h["title"]
         ]
         assert len(alerts) == 1
@@ -262,7 +265,8 @@ class TestEdgeDecayNotifications:
         monitor.evaluate()
 
         orange_alerts = [
-            h for h in self.mock_notifier.history
+            h
+            for h in self.mock_notifier.history
             if h["severity"] == "WARNING" and "Edge Decay" in h["title"]
         ]
         assert len(orange_alerts) >= 1
@@ -282,15 +286,13 @@ class TestEdgeDecayNotifications:
             monitor.evaluate()
 
         [
-            h for h in self.mock_notifier.history
+            h
+            for h in self.mock_notifier.history
             if h["severity"] == "CRITICAL" and "RED" in h["title"]
         ]
         # RED requires 3 months sustained — may or may not trigger depending
         # on breach count; at minimum ORANGE should fire
-        all_alerts = [
-            h for h in self.mock_notifier.history
-            if "Edge Decay" in h["title"]
-        ]
+        all_alerts = [h for h in self.mock_notifier.history if "Edge Decay" in h["title"]]
         assert len(all_alerts) >= 1
 
 
@@ -323,7 +325,8 @@ class TestReconcilerNotifications:
 
         assert not result.is_clean
         halt_alerts = [
-            h for h in self.mock_notifier.history
+            h
+            for h in self.mock_notifier.history
             if h["severity"] == "CRITICAL" and "Reconciliation" in h["title"]
         ]
         assert len(halt_alerts) == 1

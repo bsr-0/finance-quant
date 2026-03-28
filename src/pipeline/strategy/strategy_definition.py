@@ -39,6 +39,7 @@ from pipeline.strategy.universe import US_LARGE_CAP_EQUITY, UniverseFilter
 # Strategy thesis
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class StrategyThesis:
     """Describes the market inefficiency and alpha source."""
@@ -59,6 +60,7 @@ class StrategyThesis:
 # ---------------------------------------------------------------------------
 # Full strategy definition
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class StrategyDefinition:
@@ -90,6 +92,7 @@ class StrategyDefinition:
 # ---------------------------------------------------------------------------
 # Example strategy: Cross-sectional momentum on US large-cap equities
 # ---------------------------------------------------------------------------
+
 
 def cross_sectional_momentum_strategy() -> StrategyDefinition:
     """Pre-built: multi-timeframe cross-sectional momentum with crash protection.
@@ -127,8 +130,7 @@ def cross_sectional_momentum_strategy() -> StrategyDefinition:
             "Behavioral: Investor underreaction to earnings surprises and "
             "fundamental news (Hong & Stein 1999)",
             "Behavioral: Herding and trend-following by institutional investors",
-            "Structural: Slow-moving capital and rebalancing constraints "
-            "of passive funds",
+            "Structural: Slow-moving capital and rebalancing constraints " "of passive funds",
             "Liquidity: Gradual diffusion of information across heterogeneous "
             "investor populations",
             "Crash protection: Dispersion-based de-leveraging during "
@@ -167,26 +169,26 @@ def cross_sectional_momentum_strategy() -> StrategyDefinition:
     )
 
     signal = momentum_signal(
-        lookback=126,           # 6-1 month primary (was 252)
+        lookback=126,  # 6-1 month primary (was 252)
         skip=21,
-        fast_lookback=63,       # 3-1 month fast component
+        fast_lookback=63,  # 3-1 month fast component
         vol_window=60,
         crash_protection=True,  # Dispersion-based de-leveraging
     )
 
     entry_rules = institutional_entry_rules(
-        signal_threshold=0.3,      # Higher conviction only (was 0.0)
+        signal_threshold=0.3,  # Higher conviction only (was 0.0)
         blocked_regimes=["BEAR"],
         max_sector_exposure=0.30,
     )
 
     exit_engine = ExitEngine(
-        max_holding_days=42,        # ~2 months (was 63)
-        stop_atr_multiple=1.5,      # Tighter stop (was 2.0)
+        max_holding_days=42,  # ~2 months (was 63)
+        stop_atr_multiple=1.5,  # Tighter stop (was 2.0)
         trailing_atr_multiple=2.0,  # Tighter trail (was 2.5)
         trailing_activation_atr=1.0,  # Activate sooner (was 1.5)
-        target_atr_multiple=3.0,    # Take profits sooner (was 4.0)
-        rsi_overbought=75.0,        # Slightly more aggressive (was 80)
+        target_atr_multiple=3.0,  # Take profits sooner (was 4.0)
+        rsi_overbought=75.0,  # Slightly more aggressive (was 80)
     )
 
     sizing = InstitutionalSizingConfig(
@@ -213,9 +215,17 @@ def cross_sectional_momentum_strategy() -> StrategyDefinition:
         max_adv_participation=0.05,
         max_turnover=0.20,
         sectors=[
-            "Technology", "Healthcare", "Financials", "Consumer Discretionary",
-            "Industrials", "Energy", "Utilities", "Materials",
-            "Consumer Staples", "Real Estate", "Communication Services",
+            "Technology",
+            "Healthcare",
+            "Financials",
+            "Consumer Discretionary",
+            "Industrials",
+            "Energy",
+            "Utilities",
+            "Materials",
+            "Consumer Staples",
+            "Real Estate",
+            "Communication Services",
         ],
     )
 

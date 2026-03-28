@@ -117,7 +117,8 @@ class ExitEngine:
             )
             logger.debug(
                 "%s: trailing stop activated at $%.2f",
-                position.symbol, position.trailing_stop,
+                position.symbol,
+                position.trailing_stop,
             )
 
         if position.trailing_activated:
@@ -138,7 +139,10 @@ class ExitEngine:
         if current_close < position.stop_price:
             logger.info(
                 "EXIT %s: STOP LOSS hit at $%.2f (stop=$%.2f, loss=$%.2f)",
-                position.symbol, current_close, position.stop_price, pnl_dollars,
+                position.symbol,
+                current_close,
+                position.stop_price,
+                pnl_dollars,
             )
             return _signal(ExitReason.STOP_LOSS)
 
@@ -146,7 +150,10 @@ class ExitEngine:
         if position.trailing_activated and current_close < position.trailing_stop:
             logger.info(
                 "EXIT %s: TRAILING STOP at $%.2f (trail=$%.2f, P&L=$%.2f)",
-                position.symbol, current_close, position.trailing_stop, pnl_dollars,
+                position.symbol,
+                current_close,
+                position.trailing_stop,
+                pnl_dollars,
             )
             return _signal(ExitReason.TRAILING_STOP)
 
@@ -154,7 +161,9 @@ class ExitEngine:
         if regime == "BEAR":
             logger.info(
                 "EXIT %s: REGIME BEAR detected, closing at $%.2f, P&L=$%.2f",
-                position.symbol, current_close, pnl_dollars,
+                position.symbol,
+                current_close,
+                pnl_dollars,
             )
             return _signal(ExitReason.REGIME_BEAR)
 
@@ -162,7 +171,10 @@ class ExitEngine:
         if not np.isnan(current_sma_50) and current_close < current_sma_50:
             logger.info(
                 "EXIT %s: TREND REVERSAL, close $%.2f < SMA50 $%.2f, P&L=$%.2f",
-                position.symbol, current_close, current_sma_50, pnl_dollars,
+                position.symbol,
+                current_close,
+                current_sma_50,
+                pnl_dollars,
             )
             return _signal(ExitReason.TREND_REVERSAL)
 
@@ -170,7 +182,9 @@ class ExitEngine:
         if current_rsi > self.rsi_overbought and pnl_pct > 0:
             logger.info(
                 "EXIT %s: RSI OVERBOUGHT %.1f with profit, P&L=$%.2f",
-                position.symbol, current_rsi, pnl_dollars,
+                position.symbol,
+                current_rsi,
+                pnl_dollars,
             )
             return _signal(ExitReason.RSI_OVERBOUGHT)
 
@@ -178,7 +192,10 @@ class ExitEngine:
         if current_close >= position.target_1:
             logger.info(
                 "EXIT %s: PROFIT TARGET at $%.2f (target=$%.2f, P&L=$%.2f)",
-                position.symbol, current_close, position.target_1, pnl_dollars,
+                position.symbol,
+                current_close,
+                position.target_1,
+                pnl_dollars,
             )
             return _signal(ExitReason.PROFIT_TARGET)
 
@@ -186,7 +203,9 @@ class ExitEngine:
         if days_held >= self.max_holding_days:
             logger.info(
                 "EXIT %s: TIME EXIT after %d days, P&L=$%.2f",
-                position.symbol, days_held, pnl_dollars,
+                position.symbol,
+                days_held,
+                pnl_dollars,
             )
             return _signal(ExitReason.TIME_EXIT)
 

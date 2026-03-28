@@ -52,13 +52,11 @@ def sample_contract(db):
         from sqlalchemy import text
 
         # Insert source
-        conn.execute(
-            text("""
+        conn.execute(text("""
             INSERT INTO dim_source (name, type)
             VALUES ('test_source', 'api')
             ON CONFLICT DO NOTHING
-        """)
-        )
+        """))
 
         # Get source_id
         result = conn.execute(text("SELECT source_id FROM dim_source WHERE name = 'test_source'"))
@@ -361,4 +359,3 @@ class TestContractSnapshotBuilder:
 
         assert "has_price_outliers" in snapshot
         assert "outlier_score" in snapshot
-

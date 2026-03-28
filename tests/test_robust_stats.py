@@ -31,7 +31,7 @@ def normal_series():
 def series_with_outliers():
     np.random.seed(42)
     data = np.random.randn(200)
-    data[50] = 50.0   # extreme positive outlier
+    data[50] = 50.0  # extreme positive outlier
     data[100] = -40.0  # extreme negative outlier
     return pd.Series(data)
 
@@ -40,11 +40,13 @@ def series_with_outliers():
 def return_df():
     np.random.seed(42)
     n = 200
-    return pd.DataFrame({
-        "A": np.random.randn(n) * 0.01,
-        "B": np.random.randn(n) * 0.015,
-        "C": np.random.randn(n) * 0.02,
-    })
+    return pd.DataFrame(
+        {
+            "A": np.random.randn(n) * 0.01,
+            "B": np.random.randn(n) * 0.015,
+            "C": np.random.randn(n) * 0.02,
+        }
+    )
 
 
 class TestWinsorize:

@@ -101,33 +101,50 @@ def format_signals(
         target_1 = close + atr * target_1_atr_multiple
         target_2 = close + atr * target_2_atr_multiple
 
-        rows.append({
-            "date": date,
-            "ticker": ticker,
-            "direction": "LONG",
-            "score": sig.score,
-            "trend_pts": sig.trend_pts,
-            "pullback_pts": sig.pullback_pts,
-            "volume_pts": sig.volume_pts,
-            "volatility_pts": sig.volatility_pts,
-            "entry_price": round(close, 4),
-            "stop_price": round(stop_price, 4),
-            "target_1": round(target_1, 4),
-            "target_2": round(target_2, 4),
-            "atr": round(atr, 4),
-            "atr_pct": round(atr_pct, 2),
-            "regime": sig.regime,
-            "confidence": _confidence_label(sig.score),
-            "strategy_id": strategy_id,
-        })
+        rows.append(
+            {
+                "date": date,
+                "ticker": ticker,
+                "direction": "LONG",
+                "score": sig.score,
+                "trend_pts": sig.trend_pts,
+                "pullback_pts": sig.pullback_pts,
+                "volume_pts": sig.volume_pts,
+                "volatility_pts": sig.volatility_pts,
+                "entry_price": round(close, 4),
+                "stop_price": round(stop_price, 4),
+                "target_1": round(target_1, 4),
+                "target_2": round(target_2, 4),
+                "atr": round(atr, 4),
+                "atr_pct": round(atr_pct, 2),
+                "regime": sig.regime,
+                "confidence": _confidence_label(sig.score),
+                "strategy_id": strategy_id,
+            }
+        )
 
     if not rows:
-        return pd.DataFrame(columns=[
-            "date", "ticker", "direction", "score", "trend_pts",
-            "pullback_pts", "volume_pts", "volatility_pts",
-            "entry_price", "stop_price", "target_1", "target_2",
-            "atr", "atr_pct", "regime", "confidence", "strategy_id",
-        ])
+        return pd.DataFrame(
+            columns=[
+                "date",
+                "ticker",
+                "direction",
+                "score",
+                "trend_pts",
+                "pullback_pts",
+                "volume_pts",
+                "volatility_pts",
+                "entry_price",
+                "stop_price",
+                "target_1",
+                "target_2",
+                "atr",
+                "atr_pct",
+                "regime",
+                "confidence",
+                "strategy_id",
+            ]
+        )
 
     result = pd.DataFrame(rows)
     result = result.sort_values("score", ascending=False).reset_index(drop=True)

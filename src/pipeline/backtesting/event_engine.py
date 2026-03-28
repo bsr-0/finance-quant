@@ -75,9 +75,9 @@ class Order:
     """A simulated order."""
 
     symbol: str
-    side: str           # "buy" or "sell"
+    side: str  # "buy" or "sell"
     quantity: float
-    order_type: str     # "limit" or "market"
+    order_type: str  # "limit" or "market"
     limit_price: float = 0.0
     timestamp: pd.Timestamp | None = None
     order_id: str = ""
@@ -156,7 +156,7 @@ class EventDrivenBacktester:
         # Portfolio state
         self._cash: float = self.config.initial_capital
         self._positions: dict[str, float] = {}  # symbol → quantity
-        self._avg_costs: dict[str, float] = {}   # symbol → avg cost
+        self._avg_costs: dict[str, float] = {}  # symbol → avg cost
         self._realized_pnl: float = 0.0
         self._total_fees: float = 0.0
 
@@ -252,9 +252,7 @@ class EventDrivenBacktester:
         The order is placed on the event queue with simulated latency.
         """
         self._orders.append(order)
-        fill_time = current_time + pd.Timedelta(
-            milliseconds=self.config.latency_ms
-        )
+        fill_time = current_time + pd.Timedelta(milliseconds=self.config.latency_ms)
         self.push_event(
             timestamp=fill_time,
             event_type="order",
@@ -283,16 +281,18 @@ class EventDrivenBacktester:
             # Record snapshot
             nav = self._compute_nav()
             daily_ret = (nav - prev_nav) / prev_nav if prev_nav > 0 else 0
-            self._snapshots.append({
-                "timestamp": event.timestamp,
-                "nav": nav,
-                "cash": self._cash,
-                "positions_value": nav - self._cash,
-                "realized_pnl": self._realized_pnl,
-                "total_fees": self._total_fees,
-                "daily_return": daily_ret,
-                "num_positions": sum(1 for v in self._positions.values() if v != 0),
-            })
+            self._snapshots.append(
+                {
+                    "timestamp": event.timestamp,
+                    "nav": nav,
+                    "cash": self._cash,
+                    "positions_value": nav - self._cash,
+                    "realized_pnl": self._realized_pnl,
+                    "total_fees": self._total_fees,
+                    "daily_return": daily_ret,
+                    "num_positions": sum(1 for v in self._positions.values() if v != 0),
+                }
+            )
             prev_nav = nav
 
         return self._build_result()
@@ -336,8 +336,12 @@ class EventDrivenBacktester:
             fill_px = base_px + slippage if order.side == "buy" else base_px - slippage
             fee_bps = self.config.taker_fee_bps
         elif order.order_type == "limit":
-            if (order.side == "buy" and order.limit_price >= last_px
-                    or order.side == "sell" and order.limit_price <= last_px):
+            if (
+                order.side == "buy"
+                and order.limit_price >= last_px
+                or order.side == "sell"
+                and order.limit_price <= last_px
+            ):
                 fill_px = order.limit_price
                 fee_bps = self.config.maker_fee_bps
             else:
@@ -413,8 +417,7 @@ class EventDrivenBacktester:
     def _compute_nav(self) -> float:
         """Compute net asset value."""
         positions_value = sum(
-            qty * self._last_price.get(sym, 0)
-            for sym, qty in self._positions.items()
+            qty * self._last_price.get(sym, 0) for sym, qty in self._positions.items()
         )
         return self._cash + positions_value
 

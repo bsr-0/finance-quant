@@ -237,16 +237,18 @@ class TestRawLoaderCorruptionHandling:
         source_dir.mkdir()
 
         # Write one valid file
-        valid_df = pd.DataFrame({
-            "ticker": ["AAPL"],
-            "date": ["2024-01-01"],
-            "open": [150.0],
-            "high": [155.0],
-            "low": [149.0],
-            "close": [153.0],
-            "adj_close": [153.0],
-            "volume": [1000000],
-        })
+        valid_df = pd.DataFrame(
+            {
+                "ticker": ["AAPL"],
+                "date": ["2024-01-01"],
+                "open": [150.0],
+                "high": [155.0],
+                "low": [149.0],
+                "close": [153.0],
+                "adj_close": [153.0],
+                "volume": [1000000],
+            }
+        )
         valid_df.to_parquet(source_dir / "valid.parquet")
 
         # Write one corrupt file
@@ -270,9 +272,7 @@ class TestRawLoaderCorruptionHandling:
             result_corrupt = loader._read_parquet_or_quarantine(
                 source_dir / "corrupt.parquet", handler
             )
-            result_valid = loader._read_parquet_or_quarantine(
-                source_dir / "valid.parquet", handler
-            )
+            result_valid = loader._read_parquet_or_quarantine(source_dir / "valid.parquet", handler)
 
             assert result_corrupt is None
             assert result_valid is not None

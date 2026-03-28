@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 # Capacity Analysis
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CapacityResult:
     """Result of a capacity analysis sweep."""
@@ -110,8 +111,7 @@ def capacity_analysis(
         adv_series = adv.dropna()
         adv_scalar = float(adv_series.median()) if not adv_series.empty else 0.0
         logger.info(
-            "Using median ADV=%.0f from time-varying series "
-            "(p5=%.0f, p95=%.0f)",
+            "Using median ADV=%.0f from time-varying series " "(p5=%.0f, p95=%.0f)",
             adv_scalar,
             adv_series.quantile(0.05),
             adv_series.quantile(0.95),
@@ -180,6 +180,7 @@ def capacity_analysis(
 # ---------------------------------------------------------------------------
 # Sensitivity Analysis
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SensitivityResult:
@@ -256,7 +257,9 @@ def sensitivity_analysis(
         except Exception as exc:
             logger.warning(
                 "sensitivity_analysis: param=%s value=%s error: %s",
-                param_name, val, exc,
+                param_name,
+                val,
+                exc,
             )
             metric_values.append(float("nan"))
 

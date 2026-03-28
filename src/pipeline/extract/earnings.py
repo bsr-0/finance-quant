@@ -76,19 +76,13 @@ class EarningsExtractor:
         return self._circuit.call(_do)
 
     @staticmethod
-    def _parse_earnings_data(
-        modules: dict, ticker: str
-    ) -> list[dict]:
+    def _parse_earnings_data(modules: dict, ticker: str) -> list[dict]:
         """Parse earnings history and revenue data into flat records."""
         history = modules.get("earningsHistory", {}).get("history", [])
 
         # Build a revenue lookup from the earnings.financialsChart.quarterly data
         revenue_by_quarter: dict[str, float] = {}
-        quarterly_data = (
-            modules.get("earnings", {})
-            .get("financialsChart", {})
-            .get("quarterly", [])
-        )
+        quarterly_data = modules.get("earnings", {}).get("financialsChart", {}).get("quarterly", [])
         for q in quarterly_data:
             q_date = q.get("date")  # e.g. "4Q2023"
             rev = q.get("revenue", {}).get("raw")
@@ -128,18 +122,20 @@ class EarningsExtractor:
                     revenue_actual = rev
                     break
 
-            rows.append({
-                "ticker": ticker,
-                "report_date": report_date,
-                "fiscal_quarter_end": period,
-                "eps_estimate": eps_est,
-                "eps_actual": eps_act,
-                "eps_surprise": eps_diff,
-                "eps_surprise_pct": surprise_pct * 100 if surprise_pct is not None else None,
-                "revenue_estimate": None,
-                "revenue_actual": revenue_actual,
-                "report_time": None,
-            })
+            rows.append(
+                {
+                    "ticker": ticker,
+                    "report_date": report_date,
+                    "fiscal_quarter_end": period,
+                    "eps_estimate": eps_est,
+                    "eps_actual": eps_act,
+                    "eps_surprise": eps_diff,
+                    "eps_surprise_pct": surprise_pct * 100 if surprise_pct is not None else None,
+                    "revenue_estimate": None,
+                    "revenue_actual": revenue_actual,
+                    "report_time": None,
+                }
+            )
 
         return rows
 
@@ -214,6 +210,9 @@ def extract_earnings(
     start = date.fromisoformat(start_date) if start_date else None
     end = date.fromisoformat(end_date) if end_date else None
     return extractor.extract_to_raw(
-        output_dir=output_dir, tickers=tickers,
-        start_date=start, end_date=end, run_id=run_id,
+        output_dir=output_dir,
+        tickers=tickers,
+        start_date=start,
+        end_date=end,
+        run_id=run_id,
     )

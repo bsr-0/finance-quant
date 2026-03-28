@@ -64,13 +64,11 @@ class DatabaseResultStore:
 
         with self.db.engine.connect() as conn:
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO meta_model_runs
                     (run_id, model_name, scope, dataset_id, config_json)
                     VALUES (:run_id, :model_name, :scope, :dataset_id, :config_json)
-                """
-                ),
+                """),
                 {
                     "run_id": run_id,
                     "model_name": model_name,
@@ -82,13 +80,11 @@ class DatabaseResultStore:
 
             for metric_name, metric_value in result.metrics.items():
                 conn.execute(
-                    text(
-                        """
+                    text("""
                         INSERT INTO meta_model_metrics
                         (run_id, metric_name, metric_value)
                         VALUES (:run_id, :metric_name, :metric_value)
-                    """
-                    ),
+                    """),
                     {
                         "run_id": run_id,
                         "metric_name": metric_name,
@@ -99,13 +95,11 @@ class DatabaseResultStore:
             for regime, metrics in result.regime_metrics.items():
                 for metric_name, metric_value in metrics.items():
                     conn.execute(
-                        text(
-                            """
+                        text("""
                             INSERT INTO meta_model_regime_metrics
                             (run_id, regime, metric_name, metric_value)
                             VALUES (:run_id, :regime, :metric_name, :metric_value)
-                        """
-                        ),
+                        """),
                         {
                             "run_id": run_id,
                             "regime": regime,
@@ -122,13 +116,11 @@ class DatabaseResultStore:
                 if factor == "intercept":
                     continue
                 conn.execute(
-                    text(
-                        """
+                    text("""
                         INSERT INTO meta_factor_exposures
                         (run_id, factor, beta, t_stat, p_value, r2)
                         VALUES (:run_id, :factor, :beta, :t_stat, :p_value, :r2)
-                    """
-                    ),
+                    """),
                     {
                         "run_id": run_id,
                         "factor": factor,
@@ -141,13 +133,11 @@ class DatabaseResultStore:
 
             for scenario, metrics in result.stress_results.items():
                 conn.execute(
-                    text(
-                        """
+                    text("""
                         INSERT INTO meta_stress_results
                         (run_id, scenario, var, es, max_dd, recovery_days)
                         VALUES (:run_id, :scenario, :var, :es, :max_dd, :recovery_days)
-                    """
-                    ),
+                    """),
                     {
                         "run_id": run_id,
                         "scenario": scenario,
@@ -306,7 +296,9 @@ class Evaluator:
         )
 
     def _compute_core_metrics(
-        self, returns: pd.Series, positions: pd.DataFrame,
+        self,
+        returns: pd.Series,
+        positions: pd.DataFrame,
     ) -> dict[str, float]:
         sharpe, sortino = sharpe_sortino(returns)
         turnover_series = turnover(positions)
@@ -317,8 +309,7 @@ class Evaluator:
             "max_drawdown": max_drawdown(returns),
             "recovery_time": float(drawdown_recovery_time(returns)),
             "turnover_avg": (
-                float(turnover_series.mean())
-                if not turnover_series.empty else float("nan")
+                float(turnover_series.mean()) if not turnover_series.empty else float("nan")
             ),
         }
         if returns is not None and len(returns.dropna()) > 5:

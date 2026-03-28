@@ -113,21 +113,17 @@ class OrderbookSnapshotRunner:
             return
         with self.db.engine.connect() as conn:
             conn.execute(
-                text(
-                    """
+                text("""
                     DELETE FROM raw_polymarket_orderbook_snapshots
                     WHERE ts < NOW() - (:days || ' days')::interval
-                """
-                ),
+                """),
                 {"days": retention_days},
             )
             conn.execute(
-                text(
-                    """
+                text("""
                     DELETE FROM cur_contract_orderbook_snapshots
                     WHERE ts < NOW() - (:days || ' days')::interval
-                """
-                ),
+                """),
                 {"days": retention_days},
             )
             conn.commit()

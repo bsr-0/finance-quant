@@ -54,6 +54,7 @@ def _make_multi_ticker_data(
 # Universe Selection Tests
 # ===========================================================================
 
+
 class TestUniverseSelection:
     def test_universe_builder_filters(self):
         from pipeline.strategy.universe import (
@@ -67,30 +68,50 @@ class TestUniverseSelection:
 
         instruments = [
             InstrumentMetadata(
-                ticker="AAPL", name="Apple", asset_class=AssetClass.EQUITY,
-                sector="Technology", country="US", region=Region.US,
-                exchange=Exchange.NASDAQ, market_cap=3e12,
-                adv_dollars=1e9, avg_spread_bps=1.0,
+                ticker="AAPL",
+                name="Apple",
+                asset_class=AssetClass.EQUITY,
+                sector="Technology",
+                country="US",
+                region=Region.US,
+                exchange=Exchange.NASDAQ,
+                market_cap=3e12,
+                adv_dollars=1e9,
+                avg_spread_bps=1.0,
             ),
             InstrumentMetadata(
-                ticker="PENNY", name="PennyCorp", asset_class=AssetClass.EQUITY,
-                sector="Financials", country="US", region=Region.US,
-                exchange=Exchange.NYSE, market_cap=1e6,
-                adv_dollars=1e5, avg_spread_bps=50.0,
+                ticker="PENNY",
+                name="PennyCorp",
+                asset_class=AssetClass.EQUITY,
+                sector="Financials",
+                country="US",
+                region=Region.US,
+                exchange=Exchange.NYSE,
+                market_cap=1e6,
+                adv_dollars=1e5,
+                avg_spread_bps=50.0,
             ),
             InstrumentMetadata(
-                ticker="SPY", name="SPDR S&P 500", asset_class=AssetClass.ETF,
-                sector="", country="US", region=Region.US,
-                exchange=Exchange.ARCA, market_cap=0,
-                adv_dollars=3e10, avg_spread_bps=0.5,
+                ticker="SPY",
+                name="SPDR S&P 500",
+                asset_class=AssetClass.ETF,
+                sector="",
+                country="US",
+                region=Region.US,
+                exchange=Exchange.ARCA,
+                market_cap=0,
+                adv_dollars=3e10,
+                avg_spread_bps=0.5,
             ),
         ]
 
-        builder = UniverseBuilder(UniverseFilter(
-            min_adv_dollars=1e8,
-            min_price=5.0,
-            max_spread_bps=5.0,
-        ))
+        builder = UniverseBuilder(
+            UniverseFilter(
+                min_adv_dollars=1e8,
+                min_price=5.0,
+                max_spread_bps=5.0,
+            )
+        )
         universe = builder.build(instruments)
 
         assert "AAPL" in universe.ticker_set
@@ -110,14 +131,22 @@ class TestUniverseSelection:
 
         instruments = [
             InstrumentMetadata(
-                ticker="AAPL", sector="Technology", asset_class=AssetClass.EQUITY,
-                region=Region.US, exchange=Exchange.NASDAQ,
-                adv_dollars=1e9, avg_spread_bps=1.0,
+                ticker="AAPL",
+                sector="Technology",
+                asset_class=AssetClass.EQUITY,
+                region=Region.US,
+                exchange=Exchange.NASDAQ,
+                adv_dollars=1e9,
+                avg_spread_bps=1.0,
             ),
             InstrumentMetadata(
-                ticker="JPM", sector="Financials", asset_class=AssetClass.EQUITY,
-                region=Region.US, exchange=Exchange.NYSE,
-                adv_dollars=5e8, avg_spread_bps=1.5,
+                ticker="JPM",
+                sector="Financials",
+                asset_class=AssetClass.EQUITY,
+                region=Region.US,
+                exchange=Exchange.NYSE,
+                adv_dollars=5e8,
+                avg_spread_bps=1.5,
             ),
         ]
 
@@ -132,10 +161,12 @@ class TestUniverseSelection:
         from pipeline.strategy.universe import UniverseBuilder, UniverseFilter
 
         data = _make_multi_ticker_data(["SPY", "QQQ"], n=100)
-        builder = UniverseBuilder(UniverseFilter(
-            min_adv_dollars=0,
-            min_price=0,
-        ))
+        builder = UniverseBuilder(
+            UniverseFilter(
+                min_adv_dollars=0,
+                min_price=0,
+            )
+        )
         universe = builder.build_from_prices(data)
         assert len(universe) == 2
 
@@ -151,21 +182,29 @@ class TestUniverseSelection:
 
         instruments = [
             InstrumentMetadata(
-                ticker="AAPL", asset_class=AssetClass.EQUITY,
-                region=Region.US, exchange=Exchange.NASDAQ,
-                adv_dollars=1e9, avg_spread_bps=1.0,
+                ticker="AAPL",
+                asset_class=AssetClass.EQUITY,
+                region=Region.US,
+                exchange=Exchange.NASDAQ,
+                adv_dollars=1e9,
+                avg_spread_bps=1.0,
             ),
             InstrumentMetadata(
-                ticker="MSFT", asset_class=AssetClass.EQUITY,
-                region=Region.US, exchange=Exchange.NASDAQ,
-                adv_dollars=1e9, avg_spread_bps=1.0,
+                ticker="MSFT",
+                asset_class=AssetClass.EQUITY,
+                region=Region.US,
+                exchange=Exchange.NASDAQ,
+                adv_dollars=1e9,
+                avg_spread_bps=1.0,
             ),
         ]
 
-        builder = UniverseBuilder(UniverseFilter(
-            min_adv_dollars=0,
-            include_only_tickers=["AAPL"],
-        ))
+        builder = UniverseBuilder(
+            UniverseFilter(
+                min_adv_dollars=0,
+                include_only_tickers=["AAPL"],
+            )
+        )
         universe = builder.build(instruments)
         assert universe.tickers == ["AAPL"]
 
@@ -181,9 +220,14 @@ class TestUniverseSelection:
 
         instruments = [
             InstrumentMetadata(
-                ticker="AAPL", name="Apple", asset_class=AssetClass.EQUITY,
-                sector="Technology", region=Region.US, exchange=Exchange.NASDAQ,
-                adv_dollars=1e9, avg_spread_bps=1.0,
+                ticker="AAPL",
+                name="Apple",
+                asset_class=AssetClass.EQUITY,
+                sector="Technology",
+                region=Region.US,
+                exchange=Exchange.NASDAQ,
+                adv_dollars=1e9,
+                avg_spread_bps=1.0,
             ),
         ]
 
@@ -197,6 +241,7 @@ class TestUniverseSelection:
 # ===========================================================================
 # Signal Library Tests
 # ===========================================================================
+
 
 class TestSignalLibrary:
     def test_momentum_return_compute(self):
@@ -288,6 +333,7 @@ class TestSignalLibrary:
 # ===========================================================================
 # Entry Rules Tests
 # ===========================================================================
+
 
 class TestEntryRules:
     def test_signal_threshold(self):
@@ -402,6 +448,7 @@ class TestEntryRules:
 # Position Sizing Tests
 # ===========================================================================
 
+
 class TestInstitutionalPositionSizing:
     def test_volatility_scaled_sizer(self):
         from pipeline.strategy.position_sizing import (
@@ -513,8 +560,10 @@ class TestInstitutionalPositionSizing:
 
         sizer = VolatilityScaledSizer(InstitutionalSizingConfig())
         targets = sizer.compute_targets(
-            pd.Series(dtype=float), pd.Series(dtype=float),
-            pd.Series(dtype=float), capital=1e8,
+            pd.Series(dtype=float),
+            pd.Series(dtype=float),
+            pd.Series(dtype=float),
+            capital=1e8,
         )
         assert targets.position_count == 0
 
@@ -522,6 +571,7 @@ class TestInstitutionalPositionSizing:
 # ===========================================================================
 # Risk Constraints Tests
 # ===========================================================================
+
 
 class TestRiskConstraints:
     def test_position_weight_constraint(self):
@@ -575,10 +625,7 @@ class TestRiskConstraints:
 
         results = cs.evaluate_portfolio(weights, sector_map=sector_map)
         violations = cs.get_violations(results)
-        sector_violations = [
-            v for v in violations
-            if "Sector" in v.constraint.name
-        ]
+        sector_violations = [v for v in violations if "Sector" in v.constraint.name]
         assert len(sector_violations) > 0
 
     def test_drawdown_constraint(self):
@@ -590,8 +637,7 @@ class TestRiskConstraints:
         results = cs.evaluate_portfolio(weights, current_drawdown=0.20)
         violations = cs.get_hard_violations(results)
         dd_violations = [
-            v for v in violations
-            if v.constraint.constraint_type.value == "max_drawdown"
+            v for v in violations if v.constraint.constraint_type.value == "max_drawdown"
         ]
         assert len(dd_violations) > 0
 
@@ -616,6 +662,7 @@ class TestRiskConstraints:
 # Benchmark Tests
 # ===========================================================================
 
+
 class TestBenchmark:
     def test_benchmark_analysis(self):
         from pipeline.strategy.benchmark import compute_benchmark_analysis
@@ -632,7 +679,8 @@ class TestBenchmark:
         )
 
         analysis = compute_benchmark_analysis(
-            strategy_ret, benchmark_ret,
+            strategy_ret,
+            benchmark_ret,
             benchmark_name="S&P 500",
             benchmark_ticker="SPY",
         )
@@ -674,6 +722,7 @@ class TestBenchmark:
 # Backtest Harness Tests
 # ===========================================================================
 
+
 class TestBacktestHarness:
     def test_harness_end_to_end(self):
         from pipeline.strategy.backtest_harness import (
@@ -691,7 +740,9 @@ class TestBacktestHarness:
         from pipeline.strategy.signal_library import SignalPipeline, momentum_signal
 
         data = _make_multi_ticker_data(
-            ["AAPL", "MSFT", "GOOGL"], n=300, seed=42,
+            ["AAPL", "MSFT", "GOOGL"],
+            n=300,
+            seed=42,
         )
 
         sig_def = momentum_signal(lookback=60, skip=5, vol_window=20)
@@ -783,10 +834,13 @@ class TestBacktestHarness:
             signal_pipeline=SignalPipeline(sig_def),
             entry_rules=institutional_entry_rules(signal_threshold=-999.0),
             exit_engine=ExitEngine(max_holding_days=30),
-            sizing_model=create_sizer(InstitutionalSizingConfig(
-                min_trade_notional=0, min_position_weight=0.0,
-                max_position_weight=0.20,
-            )),
+            sizing_model=create_sizer(
+                InstitutionalSizingConfig(
+                    min_trade_notional=0,
+                    min_position_weight=0.0,
+                    max_position_weight=0.20,
+                )
+            ),
             risk_constraints=institutional_constraints(),
             config=BacktestConfig(initial_capital=1e6),
         )
@@ -800,6 +854,7 @@ class TestBacktestHarness:
 # ===========================================================================
 # Strategy Definition Tests
 # ===========================================================================
+
 
 class TestStrategyDefinition:
     def test_cross_sectional_momentum(self):
@@ -833,6 +888,7 @@ class TestStrategyDefinition:
 # ===========================================================================
 # Memo Generator Tests
 # ===========================================================================
+
 
 class TestMemoGenerator:
     def test_memo_contains_all_sections(self):
@@ -925,10 +981,13 @@ class TestMemoGenerator:
             signal_pipeline=SignalPipeline(sig_def),
             entry_rules=institutional_entry_rules(signal_threshold=-999.0),
             exit_engine=ExitEngine(max_holding_days=30),
-            sizing_model=create_sizer(InstitutionalSizingConfig(
-                min_trade_notional=0, min_position_weight=0.0,
-                max_position_weight=0.20,
-            )),
+            sizing_model=create_sizer(
+                InstitutionalSizingConfig(
+                    min_trade_notional=0,
+                    min_position_weight=0.0,
+                    max_position_weight=0.20,
+                )
+            ),
             risk_constraints=institutional_constraints(),
             config=BacktestConfig(initial_capital=1e6),
         )
@@ -954,6 +1013,7 @@ class TestMemoGenerator:
 # Edge Decay Integration Test
 # ===========================================================================
 
+
 class TestEdgeDecayIntegration:
     def test_decay_monitor_in_harness(self):
         from pipeline.strategy.backtest_harness import (
@@ -976,10 +1036,13 @@ class TestEdgeDecayIntegration:
             signal_pipeline=SignalPipeline(sig_def),
             entry_rules=institutional_entry_rules(signal_threshold=-999.0),
             exit_engine=ExitEngine(max_holding_days=30),
-            sizing_model=create_sizer(InstitutionalSizingConfig(
-                min_trade_notional=0, min_position_weight=0.0,
-                max_position_weight=0.20,
-            )),
+            sizing_model=create_sizer(
+                InstitutionalSizingConfig(
+                    min_trade_notional=0,
+                    min_position_weight=0.0,
+                    max_position_weight=0.20,
+                )
+            ),
             risk_constraints=institutional_constraints(),
             config=BacktestConfig(initial_capital=1e6),
         )

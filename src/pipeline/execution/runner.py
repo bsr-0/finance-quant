@@ -112,9 +112,10 @@ class TradingRunner:
 
         mode_label = "DRY RUN" if config.dry_run else ("PAPER" if config.paper_mode else "LIVE")
         logger.info(
-            "Trading runner created: mode=%s, max_capital=$%.2f, "
-            "max_positions=%d",
-            mode_label, config.max_capital, config.max_positions,
+            "Trading runner created: mode=%s, max_capital=$%.2f, " "max_positions=%d",
+            mode_label,
+            config.max_capital,
+            config.max_positions,
         )
 
     @classmethod
@@ -138,9 +139,7 @@ class TradingRunner:
             Configured TradingRunner.
         """
         broker = AlpacaBroker.from_env()
-        base_url = os.environ.get(
-            "ALPACA_BASE_URL", "https://paper-api.alpaca.markets"
-        )
+        base_url = os.environ.get("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
         is_paper = "paper" in base_url.lower()
 
         config = RunnerConfig(
@@ -165,9 +164,7 @@ class TradingRunner:
             ExecutionResult with what happened.
         """
         signal_csv = Path(signal_csv)
-        mode = "DRY RUN" if self.config.dry_run else (
-            "PAPER" if self.config.paper_mode else "LIVE"
-        )
+        mode = "DRY RUN" if self.config.dry_run else ("PAPER" if self.config.paper_mode else "LIVE")
 
         logger.info("=" * 60)
         logger.info("DAILY TRADING RUN — %s mode", mode)
@@ -176,9 +173,7 @@ class TradingRunner:
         logger.info("=" * 60)
 
         if not self.config.paper_mode and not self.config.dry_run:
-            logger.warning(
-                "*** LIVE TRADING MODE — Real money at risk ***"
-            )
+            logger.warning("*** LIVE TRADING MODE — Real money at risk ***")
             notify(
                 AlertSeverity.WARNING,
                 "Daily Run Started — LIVE MODE",
@@ -200,20 +195,23 @@ class TradingRunner:
         for detail in exec_result.details:
             if detail.get("action") in ("ORDER_SUBMITTED", "DRY_RUN_APPROVED"):
                 ticker = detail["ticker"]
-                self.monitor.register_position(TrackedPosition(
-                    symbol=ticker,
-                    entry_date=datetime.now(UTC),
-                    entry_price=detail.get("limit_price", detail.get("price", 0)),
-                    shares=detail.get("shares", 0),
-                    stop_price=detail.get("stop_price", 0),
-                    atr_at_entry=0.0,  # Set from signal if available
-                    signal_score=0,
-                ))
+                self.monitor.register_position(
+                    TrackedPosition(
+                        symbol=ticker,
+                        entry_date=datetime.now(UTC),
+                        entry_price=detail.get("limit_price", detail.get("price", 0)),
+                        shares=detail.get("shares", 0),
+                        stop_price=detail.get("stop_price", 0),
+                        atr_at_entry=0.0,  # Set from signal if available
+                        signal_score=0,
+                    )
+                )
 
         # Step 4: Reconcile
         if not self.config.dry_run:
             logger.info("Step 4: Reconciling positions...")
             from pipeline.execution.reconciler import SystemPosition
+
             system_positions = {}
             for sym, tracked in self.monitor.tracked_positions.items():
                 system_positions[sym] = SystemPosition(

@@ -27,6 +27,7 @@ from pipeline.backtesting.walk_forward import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_ts_index(n: int = 252, freq: str = "B") -> pd.DatetimeIndex:
     return pd.bdate_range("2023-01-01", periods=n, freq=freq)
 
@@ -47,6 +48,7 @@ def _make_features(n: int = 252, seed: int = 42) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # 23.2.1 — Feature Timestamp Assertion
 # ---------------------------------------------------------------------------
+
 
 class TestFeatureTimestampAssertion:
     """Verify that feature as-of timestamps are strictly before the
@@ -84,9 +86,7 @@ class TestFeatureTimestampAssertion:
     def test_features_beyond_signals_detected(self):
         """Features extending beyond signal dates should be flagged."""
         features = _make_features(252)
-        signals = pd.DataFrame(
-            {"signal": 1}, index=features.index[:200]
-        )
+        signals = pd.DataFrame({"signal": 1}, index=features.index[:200])
         passed, violations = check_no_future_data(features, signals)
         assert not passed
         assert any("extend" in v.lower() for v in violations)
@@ -95,6 +95,7 @@ class TestFeatureTimestampAssertion:
 # ---------------------------------------------------------------------------
 # 23.2.2 — Walk-Forward Replay Test
 # ---------------------------------------------------------------------------
+
 
 class TestWalkForwardReplay:
     """Replay walk-forward validation on a frozen dataset and verify
@@ -128,9 +129,7 @@ class TestWalkForwardReplay:
             idx, train_size=200, test_size=50, embargo_size=embargo
         ):
             gap = test_idx[0] - train_idx[-1]
-            assert gap >= embargo, (
-                f"Embargo violation: gap={gap}, required={embargo}"
-            )
+            assert gap >= embargo, f"Embargo violation: gap={gap}, required={embargo}"
 
     def test_reproducible_validation_results(self):
         """Running validation twice on the same data must yield identical results."""
@@ -146,12 +145,24 @@ class TestWalkForwardReplay:
             return {"mae": float((y_true - y_pred).abs().mean())}
 
         result1 = walk_forward_validate(
-            df, train_fn, predict_fn, eval_fn, "target",
-            train_size=200, test_size=50, embargo_size=5
+            df,
+            train_fn,
+            predict_fn,
+            eval_fn,
+            "target",
+            train_size=200,
+            test_size=50,
+            embargo_size=5,
         )
         result2 = walk_forward_validate(
-            df, train_fn, predict_fn, eval_fn, "target",
-            train_size=200, test_size=50, embargo_size=5
+            df,
+            train_fn,
+            predict_fn,
+            eval_fn,
+            "target",
+            train_size=200,
+            test_size=50,
+            embargo_size=5,
         )
 
         assert len(result1.folds) == len(result2.folds)
@@ -162,6 +173,7 @@ class TestWalkForwardReplay:
 # ---------------------------------------------------------------------------
 # 23.2.3 — Data Leakage Canary
 # ---------------------------------------------------------------------------
+
 
 class TestDataLeakageCanary:
     """Insert deliberately future-leaked features and verify that the
@@ -182,9 +194,7 @@ class TestDataLeakageCanary:
                 return float(1.0 / max((actual - preds).abs().mean(), 1e-10))
             return 0.0
 
-        suspicious, stats = data_shift_test(
-            df, "target", strategy_fn, shift_periods=1
-        )
+        suspicious, stats = data_shift_test(df, "target", strategy_fn, shift_periods=1)
         # The canary should make the strategy look suspiciously good
         # and shifting should degrade performance
         assert stats["degradation_pct"] != 0.0 or suspicious
@@ -208,6 +218,7 @@ class TestDataLeakageCanary:
 # ---------------------------------------------------------------------------
 # 23.2.4 — Pipeline Ordering Test
 # ---------------------------------------------------------------------------
+
 
 class TestPipelineOrdering:
     """Verify that pipeline execution order is deterministic."""
@@ -267,6 +278,7 @@ class TestPipelineOrdering:
 # Property-Based Tests (Section 23.1)
 # ---------------------------------------------------------------------------
 
+
 class TestNonNegotiableProperties:
     """Property tests for non-negotiable principles from Section 1."""
 
@@ -278,9 +290,9 @@ class TestNonNegotiableProperties:
         ):
             train_end = idx[train_idx[-1]]
             test_start = idx[test_idx[0]]
-            assert train_end < test_start, (
-                f"Temporal violation: train_end={train_end} >= test_start={test_start}"
-            )
+            assert (
+                train_end < test_start
+            ), f"Temporal violation: train_end={train_end} >= test_start={test_start}"
 
     def test_no_future_data_in_expanding_window(self):
         """Expanding window must never include future data in training."""

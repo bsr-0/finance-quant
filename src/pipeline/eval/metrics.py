@@ -40,14 +40,24 @@ def sharpe_confidence_interval(
     returns = returns.dropna()
     n = len(returns)
     if n < 10:
-        return {"sharpe": np.nan, "se": np.nan, "ci_lower": np.nan,
-                "ci_upper": np.nan, "p_value": np.nan}
+        return {
+            "sharpe": np.nan,
+            "se": np.nan,
+            "ci_lower": np.nan,
+            "ci_upper": np.nan,
+            "p_value": np.nan,
+        }
     excess = returns - risk_free_rate / _TRADING_DAYS
     mu = float(excess.mean())
     sigma = float(excess.std(ddof=1))
     if sigma == 0:
-        return {"sharpe": np.nan, "se": np.nan, "ci_lower": np.nan,
-                "ci_upper": np.nan, "p_value": np.nan}
+        return {
+            "sharpe": np.nan,
+            "se": np.nan,
+            "ci_lower": np.nan,
+            "ci_upper": np.nan,
+            "p_value": np.nan,
+        }
 
     sr_daily = mu / sigma
     sr_annual = sr_daily * np.sqrt(_TRADING_DAYS)
@@ -55,10 +65,7 @@ def sharpe_confidence_interval(
     # Lo (2002) standard error adjusted for skewness/kurtosis
     skew = float(excess.skew())
     kurt = float(excess.kurtosis())  # excess kurtosis
-    se_daily = np.sqrt(
-        (1 + 0.5 * sr_daily**2 - skew * sr_daily
-         + (kurt / 4) * sr_daily**2) / n
-    )
+    se_daily = np.sqrt((1 + 0.5 * sr_daily**2 - skew * sr_daily + (kurt / 4) * sr_daily**2) / n)
     se_annual = se_daily * np.sqrt(_TRADING_DAYS)
 
     z = z_dist.ppf(1 - (1 - confidence) / 2)
@@ -93,7 +100,7 @@ def sharpe_sortino(returns: pd.Series, risk_free_rate: float = 0.0) -> tuple[flo
     sigma = excess.std()
     sharpe = np.nan if sigma == 0 else mu / sigma * np.sqrt(_TRADING_DAYS)
     downside = excess[excess < 0]
-    ds = np.sqrt((downside ** 2).mean()) if len(downside) > 0 else 0.0
+    ds = np.sqrt((downside**2).mean()) if len(downside) > 0 else 0.0
     sortino = sharpe if ds == 0 else mu / ds * np.sqrt(_TRADING_DAYS)
     return float(sharpe), float(sortino)
 

@@ -93,6 +93,7 @@ class TrackedPosition:
     def to_position_state(self) -> PositionState:
         """Convert to the backtest engine's PositionState for exit checking."""
         import pandas as pd
+
         ps = PositionState(
             symbol=self.symbol,
             entry_date=pd.Timestamp(self.entry_date),
@@ -158,10 +159,12 @@ class PositionMonitor:
         """
         self._tracked[tracked.symbol] = tracked
         logger.info(
-            "Registered position: %s %.2f shares @ $%.2f, "
-            "stop=$%.2f, target=$%.2f",
-            tracked.symbol, tracked.shares, tracked.entry_price,
-            tracked.stop_price, tracked.target_1,
+            "Registered position: %s %.2f shares @ $%.2f, " "stop=$%.2f, target=$%.2f",
+            tracked.symbol,
+            tracked.shares,
+            tracked.entry_price,
+            tracked.stop_price,
+            tracked.target_1,
         )
 
     def set_regime(self, regime: str) -> None:
@@ -229,15 +232,17 @@ class PositionMonitor:
             try:
                 close_orders = self.broker.close_all_positions()
                 for order in close_orders:
-                    result.actions.append(ExitAction(
-                        symbol=order.symbol,
-                        reason=ExitReason.STOP_LOSS,
-                        shares=order.qty,
-                        exit_price=0.0,  # market order
-                        pnl_estimate=0.0,
-                        order_id=order.order_id,
-                        success=True,
-                    ))
+                    result.actions.append(
+                        ExitAction(
+                            symbol=order.symbol,
+                            reason=ExitReason.STOP_LOSS,
+                            shares=order.qty,
+                            exit_price=0.0,  # market order
+                            pnl_estimate=0.0,
+                            order_id=order.order_id,
+                            success=True,
+                        )
+                    )
                 result.exits_triggered = len(close_orders)
                 result.exits_executed = len(close_orders)
                 self._tracked.clear()
@@ -273,13 +278,19 @@ class PositionMonitor:
                 else None
             )
 
-            if (rt_quote and self.realtime_feed is not None
-                    and not self.realtime_feed.is_stale(symbol)):
+            if (
+                rt_quote
+                and self.realtime_feed is not None
+                and not self.realtime_feed.is_stale(symbol)
+            ):
                 current_close = rt_quote.price
                 current_high = rt_quote.high if rt_quote.high > 0 else rt_quote.price
                 logger.debug(
                     "%s: using realtime price $%.2f (high=$%.2f, age=%.0fs)",
-                    symbol, current_close, current_high, rt_quote.age_seconds,
+                    symbol,
+                    current_close,
+                    current_high,
+                    rt_quote.age_seconds,
                 )
             else:
                 current_close = broker_pos.current_price
@@ -287,7 +298,9 @@ class PositionMonitor:
                 if rt_quote:
                     logger.warning(
                         "%s: realtime quote stale (%.0fs), using broker price $%.2f",
-                        symbol, rt_quote.age_seconds, current_close,
+                        symbol,
+                        rt_quote.age_seconds,
+                        current_close,
                     )
 
             exit_signal = self.exit_engine.check_exit(
@@ -311,15 +324,23 @@ class PositionMonitor:
                 pnl = (current_close - tracked.entry_price) * tracked.shares
 
                 logger.info(
-                    "EXIT TRIGGERED %s: reason=%s, price=$%.2f, "
-                    "entry=$%.2f, P&L=$%.2f",
-                    symbol, exit_signal.reason.value, current_close,
-                    tracked.entry_price, pnl,
+                    "EXIT TRIGGERED %s: reason=%s, price=$%.2f, " "entry=$%.2f, P&L=$%.2f",
+                    symbol,
+                    exit_signal.reason.value,
+                    current_close,
+                    tracked.entry_price,
+                    pnl,
                 )
 
-                sev = AlertSeverity.WARNING if exit_signal.reason in (
-                    ExitReason.STOP_LOSS, ExitReason.REGIME_BEAR,
-                ) else AlertSeverity.INFO
+                sev = (
+                    AlertSeverity.WARNING
+                    if exit_signal.reason
+                    in (
+                        ExitReason.STOP_LOSS,
+                        ExitReason.REGIME_BEAR,
+                    )
+                    else AlertSeverity.INFO
+                )
                 notify(
                     sev,
                     f"Exit Triggered — {symbol}",
@@ -341,27 +362,31 @@ class PositionMonitor:
                     self.risk_mgr.record_trade_result(pnl)
                     del self._tracked[symbol]
 
-                    result.actions.append(ExitAction(
-                        symbol=symbol,
-                        reason=exit_signal.reason,
-                        shares=tracked.shares,
-                        exit_price=current_close,
-                        pnl_estimate=pnl,
-                        order_id=order.order_id,
-                        success=True,
-                    ))
+                    result.actions.append(
+                        ExitAction(
+                            symbol=symbol,
+                            reason=exit_signal.reason,
+                            shares=tracked.shares,
+                            exit_price=current_close,
+                            pnl_estimate=pnl,
+                            order_id=order.order_id,
+                            success=True,
+                        )
+                    )
 
                 except BrokerError as e:
                     result.exits_failed += 1
-                    result.actions.append(ExitAction(
-                        symbol=symbol,
-                        reason=exit_signal.reason,
-                        shares=tracked.shares,
-                        exit_price=current_close,
-                        pnl_estimate=pnl,
-                        success=False,
-                        error=str(e),
-                    ))
+                    result.actions.append(
+                        ExitAction(
+                            symbol=symbol,
+                            reason=exit_signal.reason,
+                            shares=tracked.shares,
+                            exit_price=current_close,
+                            pnl_estimate=pnl,
+                            success=False,
+                            error=str(e),
+                        )
+                    )
                     logger.error("Failed to close %s: %s", symbol, e)
 
         logger.info(result.summary())

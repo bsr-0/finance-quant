@@ -109,12 +109,13 @@ def evt_tail_risk(returns: pd.Series, threshold_quantile: float = 0.95) -> dict[
 
     # Goodness-of-fit: Kolmogorov-Smirnov test against fitted GPD
     from scipy.stats import kstest
+
     ks_stat, ks_pval = kstest(tail, "genpareto", args=(c, loc, scale))
     if ks_pval < 0.05:
         logger.warning(
-            "GPD fit failed KS test (p=%.4f, stat=%.4f). "
-            "Tail risk estimates may be unreliable.",
-            ks_pval, ks_stat,
+            "GPD fit failed KS test (p=%.4f, stat=%.4f). " "Tail risk estimates may be unreliable.",
+            ks_pval,
+            ks_stat,
         )
 
     var = threshold + genpareto.ppf(0.99, c, loc=loc, scale=scale)
@@ -132,6 +133,7 @@ def evt_tail_risk(returns: pd.Series, threshold_quantile: float = 0.95) -> dict[
 # ---------------------------------------------------------------------------
 # Hypothetical Shocks
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class HypotheticalShock:
@@ -160,9 +162,13 @@ DEFAULT_HYPOTHETICAL_SHOCKS = [
     HypotheticalShock("spread_blowout", spread_multiplier=5.0),
     HypotheticalShock("vol_spike", volatility_multiplier=3.0, price_shock_pct=-0.05),
     HypotheticalShock("liquidity_drought", liquidity_multiplier=0.1, spread_multiplier=3.0),
-    HypotheticalShock("combined_stress",
-                       price_shock_pct=-0.15, spread_multiplier=3.0,
-                       volatility_multiplier=2.5, liquidity_multiplier=0.2),
+    HypotheticalShock(
+        "combined_stress",
+        price_shock_pct=-0.15,
+        spread_multiplier=3.0,
+        volatility_multiplier=2.5,
+        liquidity_multiplier=0.2,
+    ),
 ]
 
 

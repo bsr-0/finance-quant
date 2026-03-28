@@ -40,9 +40,7 @@ class RedditSentimentExtractor:
                 "User-Agent": "MarketDataWarehouse/1.0 (research bot)",
             },
         )
-        self._circuit = get_circuit_breaker(
-            "reddit", failure_threshold=5, recovery_timeout=60.0
-        )
+        self._circuit = get_circuit_breaker("reddit", failure_threshold=5, recovery_timeout=60.0)
         self._metrics = PipelineMetrics("reddit_sentiment_extractor")
 
     def __del__(self) -> None:
@@ -82,15 +80,74 @@ class RedditSentimentExtractor:
             t = dollar_match or plain_match
             if t and len(t) >= 2:
                 # Filter out common English words
-                if t in {"THE", "FOR", "AND", "BUT", "NOT", "ARE", "HAS", "WAS",
-                         "CAN", "HIS", "HER", "ALL", "ONE", "TWO", "DAY", "HOW",
-                         "NOW", "OLD", "NEW", "BIG", "TOP", "OUT", "OFF", "GET",
-                         "GOT", "PUT", "SET", "SAY", "TOO", "USE", "WAY", "MAY",
-                         "WHO", "DID", "ITS", "LET", "LOT", "RUN", "TRY", "ASK",
-                         "OWN", "WHY", "MEN", "YET", "OUR", "ANY", "FEW",
-                         "IMO", "YOLO", "TIL", "PSA", "CEO", "CFO", "IPO",
-                         "SEC", "GDP", "FED", "ATH", "EOD", "EPS", "ETF",
-                         "ITM", "OTM", "ATM", "RSI", "DCA"}:
+                if t in {
+                    "THE",
+                    "FOR",
+                    "AND",
+                    "BUT",
+                    "NOT",
+                    "ARE",
+                    "HAS",
+                    "WAS",
+                    "CAN",
+                    "HIS",
+                    "HER",
+                    "ALL",
+                    "ONE",
+                    "TWO",
+                    "DAY",
+                    "HOW",
+                    "NOW",
+                    "OLD",
+                    "NEW",
+                    "BIG",
+                    "TOP",
+                    "OUT",
+                    "OFF",
+                    "GET",
+                    "GOT",
+                    "PUT",
+                    "SET",
+                    "SAY",
+                    "TOO",
+                    "USE",
+                    "WAY",
+                    "MAY",
+                    "WHO",
+                    "DID",
+                    "ITS",
+                    "LET",
+                    "LOT",
+                    "RUN",
+                    "TRY",
+                    "ASK",
+                    "OWN",
+                    "WHY",
+                    "MEN",
+                    "YET",
+                    "OUR",
+                    "ANY",
+                    "FEW",
+                    "IMO",
+                    "YOLO",
+                    "TIL",
+                    "PSA",
+                    "CEO",
+                    "CFO",
+                    "IPO",
+                    "SEC",
+                    "GDP",
+                    "FED",
+                    "ATH",
+                    "EOD",
+                    "EPS",
+                    "ETF",
+                    "ITM",
+                    "OTM",
+                    "ATM",
+                    "RSI",
+                    "DCA",
+                }:
                     continue
                 if known_tickers and t not in known_tickers:
                     continue
@@ -114,18 +171,20 @@ class RedditSentimentExtractor:
             created = post.get("created_utc")
             created_dt = datetime.fromtimestamp(created, tz=UTC) if created else datetime.now(UTC)
 
-            rows.append({
-                "post_id": post.get("id", ""),
-                "subreddit": subreddit,
-                "title": title,
-                "selftext": selftext[:5000] if selftext else None,  # Truncate long posts
-                "author": post.get("author"),
-                "score": post.get("score", 0),
-                "upvote_ratio": post.get("upvote_ratio"),
-                "num_comments": post.get("num_comments", 0),
-                "created_utc": created_dt,
-                "tickers_mentioned": tickers if tickers else None,
-            })
+            rows.append(
+                {
+                    "post_id": post.get("id", ""),
+                    "subreddit": subreddit,
+                    "title": title,
+                    "selftext": selftext[:5000] if selftext else None,  # Truncate long posts
+                    "author": post.get("author"),
+                    "score": post.get("score", 0),
+                    "upvote_ratio": post.get("upvote_ratio"),
+                    "num_comments": post.get("num_comments", 0),
+                    "created_utc": created_dt,
+                    "tickers_mentioned": tickers if tickers else None,
+                }
+            )
 
         return rows
 
@@ -188,5 +247,7 @@ def extract_reddit_sentiment(
     """CLI-friendly wrapper."""
     extractor = RedditSentimentExtractor()
     return extractor.extract_to_raw(
-        output_dir=output_dir, subreddits=subreddits, run_id=run_id,
+        output_dir=output_dir,
+        subreddits=subreddits,
+        run_id=run_id,
     )

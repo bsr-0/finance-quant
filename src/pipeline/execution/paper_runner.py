@@ -49,6 +49,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PaperRunnerConfig:
     """Configuration for the paper trading runner."""
@@ -90,6 +91,7 @@ class PaperRunnerConfig:
 # ---------------------------------------------------------------------------
 # Status / report types
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class PositionStatus:
@@ -162,6 +164,7 @@ class DailyReport:
 # ---------------------------------------------------------------------------
 # Paper trading runner
 # ---------------------------------------------------------------------------
+
 
 class PaperTradingRunner:
     """Orchestrates paper trading sessions.
@@ -309,8 +312,11 @@ class PaperTradingRunner:
             account = self.broker.get_account_snapshot()
         except BrokerError:
             account = AccountSnapshot(
-                equity=0, cash=0, buying_power=0,
-                positions_market_value=0, position_count=0,
+                equity=0,
+                cash=0,
+                buying_power=0,
+                positions_market_value=0,
+                position_count=0,
                 is_margin_account=False,
             )
 
@@ -324,17 +330,20 @@ class PaperTradingRunner:
         for p in broker_positions:
             pnl_pct = (
                 (p.current_price - p.avg_entry_price) / p.avg_entry_price * 100
-                if p.avg_entry_price > 0 else 0.0
+                if p.avg_entry_price > 0
+                else 0.0
             )
-            positions.append(PositionStatus(
-                symbol=p.symbol,
-                qty=p.qty,
-                avg_entry_price=p.avg_entry_price,
-                current_price=p.current_price,
-                unrealised_pnl=p.unrealised_pnl,
-                unrealised_pnl_pct=pnl_pct,
-                side=p.side,
-            ))
+            positions.append(
+                PositionStatus(
+                    symbol=p.symbol,
+                    qty=p.qty,
+                    avg_entry_price=p.avg_entry_price,
+                    current_price=p.current_price,
+                    unrealised_pnl=p.unrealised_pnl,
+                    unrealised_pnl_pct=pnl_pct,
+                    side=p.side,
+                )
+            )
             total_pnl += p.unrealised_pnl
 
         is_paper = isinstance(self.broker, AlpacaBroker) and self.broker._is_paper

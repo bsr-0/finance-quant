@@ -26,6 +26,7 @@ TI = TechnicalIndicators
 # Signal normalization
 # ---------------------------------------------------------------------------
 
+
 class NormalizationMethod(Enum):
     RAW = "raw"
     ZSCORE = "zscore"
@@ -70,6 +71,7 @@ def min_max_normalize(series: pd.Series, window: int = 252) -> pd.Series:
 # Signal definition
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class SignalConfig:
     """Configuration for a single raw indicator or signal."""
@@ -99,6 +101,7 @@ class SignalFamily(Enum):
 # ---------------------------------------------------------------------------
 # Raw indicator computation
 # ---------------------------------------------------------------------------
+
 
 class RawIndicator(ABC):
     """Base class for raw indicator computation."""
@@ -322,6 +325,7 @@ class BollingerBandPosition(RawIndicator):
 # Signal pipeline
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SignalDefinition:
     """Complete definition of a composite signal with multiple indicators."""
@@ -361,9 +365,7 @@ class SignalPipeline:
     def __init__(self, signal_def: SignalDefinition) -> None:
         self.signal_def = signal_def
 
-    def compute_raw(
-        self, price_data: dict[str, pd.DataFrame]
-    ) -> dict[str, pd.DataFrame]:
+    def compute_raw(self, price_data: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
         """Compute raw indicator values for all instruments.
 
         Returns:
@@ -381,16 +383,16 @@ class SignalPipeline:
                     indicator_values[config.name] = raw
                 except Exception:
                     logger.warning(
-                        "Failed to compute %s for %s", config.name, ticker,
+                        "Failed to compute %s for %s",
+                        config.name,
+                        ticker,
                         exc_info=True,
                     )
             if indicator_values:
                 results[ticker] = pd.DataFrame(indicator_values)
         return results
 
-    def normalize(
-        self, raw_data: dict[str, pd.DataFrame]
-    ) -> dict[str, pd.DataFrame]:
+    def normalize(self, raw_data: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
         """Apply normalization to raw indicator values."""
         normalized: dict[str, pd.DataFrame] = {}
         for ticker, raw_df in raw_data.items():
@@ -404,9 +406,9 @@ class SignalPipeline:
                 if config.normalization == NormalizationMethod.ZSCORE:
                     norm_df[col] = zscore_normalize(series, config.lookback_window)
                 elif config.normalization == NormalizationMethod.PERCENTILE:
-                    norm_df[col] = series.rolling(
-                        config.lookback_window, min_periods=20
-                    ).rank(pct=True)
+                    norm_df[col] = series.rolling(config.lookback_window, min_periods=20).rank(
+                        pct=True
+                    )
                 elif config.normalization == NormalizationMethod.MIN_MAX:
                     norm_df[col] = min_max_normalize(series, config.lookback_window)
                 elif config.normalization == NormalizationMethod.WINSORIZE:
@@ -424,18 +426,14 @@ class SignalPipeline:
             normalized[ticker] = norm_df
         return normalized
 
-    def combine(
-        self, normalized_data: dict[str, pd.DataFrame]
-    ) -> pd.DataFrame:
+    def combine(self, normalized_data: dict[str, pd.DataFrame]) -> pd.DataFrame:
         """Combine normalized indicators into a composite signal per ticker.
 
         Returns:
             DataFrame with tickers as columns and dates as index,
             containing the weighted composite signal.
         """
-        weights = {
-            cfg.name: cfg.weight for _, cfg in self.signal_def.indicators
-        }
+        weights = {cfg.name: cfg.weight for _, cfg in self.signal_def.indicators}
         total_weight = sum(weights.values())
         if total_weight == 0:
             total_weight = 1.0
@@ -470,6 +468,7 @@ class SignalPipeline:
 # ---------------------------------------------------------------------------
 # Pre-built signal definitions
 # ---------------------------------------------------------------------------
+
 
 def momentum_signal(
     lookback: int = 126,
@@ -567,9 +566,7 @@ def momentum_signal(
             SignalConfig(
                 name="crash_protection",
                 description="Momentum crash protection (penalise high dispersion)",
-                formula=(
-                    r"D_{i,t} = -\frac{|\text{ret}_{i,5d}|}{\sigma_{i,60}}"
-                ),
+                formula=(r"D_{i,t} = -\frac{|\text{ret}_{i,5d}|}{\sigma_{i,60}}"),
                 normalization=NormalizationMethod.ZSCORE,
                 lookback_window=lookback,
                 weight=0.10,

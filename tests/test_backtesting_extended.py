@@ -36,6 +36,7 @@ from pipeline.backtesting.survivorship import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def sample_returns():
     """Daily returns with slight positive drift."""
@@ -53,13 +54,16 @@ def sample_price_df():
     n = 200
     idx = pd.bdate_range("2024-01-01", periods=n)
     prices = 100 * np.exp(np.cumsum(np.random.normal(0.0003, 0.01, n)))
-    return pd.DataFrame({
-        "close": prices,
-        "open": prices * (1 + np.random.randn(n) * 0.002),
-        "high": prices * (1 + abs(np.random.randn(n) * 0.005)),
-        "low": prices * (1 - abs(np.random.randn(n) * 0.005)),
-        "volume": np.random.randint(100_000, 1_000_000, n).astype(float),
-    }, index=idx)
+    return pd.DataFrame(
+        {
+            "close": prices,
+            "open": prices * (1 + np.random.randn(n) * 0.002),
+            "high": prices * (1 + abs(np.random.randn(n) * 0.005)),
+            "low": prices * (1 - abs(np.random.randn(n) * 0.005)),
+            "volume": np.random.randint(100_000, 1_000_000, n).astype(float),
+        },
+        index=idx,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -86,10 +90,14 @@ class TestEventDrivenBacktester:
         def on_data(data):
             if not buy_triggered[0] and data.get("price", 0) > 0:
                 buy_triggered[0] = True
-                return [Order(
-                    symbol="TEST", side="buy",
-                    quantity=100, order_type="market",
-                )]
+                return [
+                    Order(
+                        symbol="TEST",
+                        side="buy",
+                        quantity=100,
+                        order_type="market",
+                    )
+                ]
             return None
 
         engine.on_market_data = on_data
@@ -172,9 +180,7 @@ class TestMonteCarlo:
         assert result.percentiles["p5"] <= result.percentiles["p95"]
 
     def test_execution_stress(self, sample_returns):
-        result = execution_stress_test(
-            sample_returns, n_scenarios=20, seed=42
-        )
+        result = execution_stress_test(sample_returns, n_scenarios=20, seed=42)
         assert len(result) == 20
         assert "slippage_bps" in result.columns
         assert "sharpe" in result.columns
@@ -193,14 +199,14 @@ class TestMonteCarlo:
 class TestSymbolUniverse:
     def test_active_symbols(self):
         universe = SymbolUniverse()
-        universe.add_symbol(SymbolInfo(
-            "AAPL", listing_date=pd.Timestamp("1980-12-12")
-        ))
-        universe.add_symbol(SymbolInfo(
-            "ENRN",
-            listing_date=pd.Timestamp("1985-04-01"),
-            delisting_date=pd.Timestamp("2001-12-02"),
-        ))
+        universe.add_symbol(SymbolInfo("AAPL", listing_date=pd.Timestamp("1980-12-12")))
+        universe.add_symbol(
+            SymbolInfo(
+                "ENRN",
+                listing_date=pd.Timestamp("1985-04-01"),
+                delisting_date=pd.Timestamp("2001-12-02"),
+            )
+        )
 
         # In 2000, both active
         active_2000 = universe.get_active_symbols(pd.Timestamp("2000-01-01"))
@@ -214,9 +220,7 @@ class TestSymbolUniverse:
 
     def test_listing_date_filter(self):
         universe = SymbolUniverse()
-        universe.add_symbol(SymbolInfo(
-            "NEW", listing_date=pd.Timestamp("2020-01-01")
-        ))
+        universe.add_symbol(SymbolInfo("NEW", listing_date=pd.Timestamp("2020-01-01")))
         # Before listing
         assert "NEW" not in universe.get_active_symbols(pd.Timestamp("2019-01-01"))
         # After listing
@@ -232,11 +236,13 @@ class TestSymbolUniverse:
         assert summary["delisted"] == 1
 
     def test_bulk_load(self):
-        df = pd.DataFrame({
-            "ticker": ["X", "Y"],
-            "listing_date": ["2010-01-01", "2015-01-01"],
-            "delisting_date": [None, "2020-01-01"],
-        })
+        df = pd.DataFrame(
+            {
+                "ticker": ["X", "Y"],
+                "listing_date": ["2010-01-01", "2015-01-01"],
+                "delisting_date": [None, "2020-01-01"],
+            }
+        )
         universe = SymbolUniverse()
         universe.add_symbols_from_df(df)
         assert len(universe.all_symbols) == 2
@@ -245,24 +251,32 @@ class TestSymbolUniverse:
 class TestCorporateActionMapper:
     def test_rename_resolution(self):
         mapper = CorporateActionMapper()
-        mapper.add_action(CorporateAction(
-            date=pd.Timestamp("2020-01-01"),
-            old_ticker="FB",
-            new_ticker="META",
-        ))
+        mapper.add_action(
+            CorporateAction(
+                date=pd.Timestamp("2020-01-01"),
+                old_ticker="FB",
+                new_ticker="META",
+            )
+        )
         assert mapper.resolve_current("FB") == "META"
         assert "FB" in mapper.resolve_historical("META")
 
     def test_chain_resolution(self):
         mapper = CorporateActionMapper()
-        mapper.add_action(CorporateAction(
-            date=pd.Timestamp("2010-01-01"),
-            old_ticker="A", new_ticker="B",
-        ))
-        mapper.add_action(CorporateAction(
-            date=pd.Timestamp("2020-01-01"),
-            old_ticker="B", new_ticker="C",
-        ))
+        mapper.add_action(
+            CorporateAction(
+                date=pd.Timestamp("2010-01-01"),
+                old_ticker="A",
+                new_ticker="B",
+            )
+        )
+        mapper.add_action(
+            CorporateAction(
+                date=pd.Timestamp("2020-01-01"),
+                old_ticker="B",
+                new_ticker="C",
+            )
+        )
         assert mapper.resolve_current("A") == "C"
         historical = mapper.resolve_historical("C")
         assert "A" in historical
@@ -270,26 +284,29 @@ class TestCorporateActionMapper:
 
     def test_price_adjustment(self):
         mapper = CorporateActionMapper()
-        mapper.add_action(CorporateAction(
-            date=pd.Timestamp("2020-06-01"),
-            old_ticker="AAPL",
-            new_ticker="AAPL",
-            action_type="split",
-            adjustment_factor=4.0,
-        ))
+        mapper.add_action(
+            CorporateAction(
+                date=pd.Timestamp("2020-06-01"),
+                old_ticker="AAPL",
+                new_ticker="AAPL",
+                action_type="split",
+                adjustment_factor=4.0,
+            )
+        )
         assert mapper.get_price_adjustment("AAPL") == pytest.approx(4.0)
 
 
 class TestFilterUniverseAtDate:
     def test_filters_correctly(self):
         universe = SymbolUniverse()
-        universe.add_symbol(SymbolInfo(
-            "A", listing_date=pd.Timestamp("2020-01-01")
-        ))
-        universe.add_symbol(SymbolInfo(
-            "B", listing_date=pd.Timestamp("2020-01-01"),
-            delisting_date=pd.Timestamp("2021-06-01"),
-        ))
+        universe.add_symbol(SymbolInfo("A", listing_date=pd.Timestamp("2020-01-01")))
+        universe.add_symbol(
+            SymbolInfo(
+                "B",
+                listing_date=pd.Timestamp("2020-01-01"),
+                delisting_date=pd.Timestamp("2021-06-01"),
+            )
+        )
 
         dates = pd.bdate_range("2020-01-01", periods=500)
         price_data = {
@@ -298,18 +315,14 @@ class TestFilterUniverseAtDate:
         }
 
         # In 2021, both active
-        filtered = filter_universe_at_date(
-            price_data, universe, pd.Timestamp("2021-01-01")
-        )
+        filtered = filter_universe_at_date(price_data, universe, pd.Timestamp("2021-01-01"))
         assert "A" in filtered
         assert "B" in filtered
         # Data truncated to date
         assert filtered["A"].index[-1] <= pd.Timestamp("2021-01-01")
 
         # In 2022, B delisted
-        filtered = filter_universe_at_date(
-            price_data, universe, pd.Timestamp("2022-01-01")
-        )
+        filtered = filter_universe_at_date(price_data, universe, pd.Timestamp("2022-01-01"))
         assert "A" in filtered
         assert "B" not in filtered
 
@@ -348,19 +361,20 @@ class TestBiasChecks:
                 return 0.0
             return float(rets.mean() / rets.std() * np.sqrt(252))
 
-        suspicious, stats = random_shuffle_test(
-            sample_returns, sharpe_fn, n_shuffles=50, seed=42
-        )
+        suspicious, stats = random_shuffle_test(sample_returns, sharpe_fn, n_shuffles=50, seed=42)
         assert "original_metric" in stats
         assert "z_score" in stats
 
     def test_data_shift_test(self):
         idx = pd.bdate_range("2020-01-01", periods=200)
         np.random.seed(42)
-        features = pd.DataFrame({
-            "feature": np.random.randn(200),
-            "target": np.random.randn(200) * 0.01,
-        }, index=idx)
+        features = pd.DataFrame(
+            {
+                "feature": np.random.randn(200),
+                "target": np.random.randn(200) * 0.01,
+            },
+            index=idx,
+        )
 
         def metric_fn(df):
             return float(df["target"].mean() * 252)

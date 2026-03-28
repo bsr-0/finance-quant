@@ -128,9 +128,9 @@ class MetricsCollector:
                     "min_ms": min(values),
                     "max_ms": max(values),
                     "avg_ms": sum(values) / len(values),
-                    "p95_ms": sorted(values)[int(len(values) * 0.95)]
-                    if len(values) > 20
-                    else max(values),
+                    "p95_ms": (
+                        sorted(values)[int(len(values) * 0.95)] if len(values) > 20 else max(values)
+                    ),
                 }
 
         return summary

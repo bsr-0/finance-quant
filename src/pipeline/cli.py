@@ -52,6 +52,7 @@ console = Console()
 
 def _validate_range(min_val=None, max_val=None):
     """Create a Typer callback that enforces numeric bounds."""
+
     def _check(value):
         if value is None:
             return value
@@ -60,6 +61,7 @@ def _validate_range(min_val=None, max_val=None):
         if max_val is not None and value > max_val:
             raise typer.BadParameter(f"Must be <= {max_val}, got {value}")
         return value
+
     return _check
 
 
@@ -342,18 +344,25 @@ def orderbook_snapshots(
         None, "--interval", "-i", help="Snapshot interval (e.g., 1m, 5m, 1h, off)"
     ),  # noqa: B008
     iterations: int = typer.Option(
-        1, "--iterations", "-n", help="Number of iterations (0 = forever)",
+        1,
+        "--iterations",
+        "-n",
+        help="Number of iterations (0 = forever)",
         callback=_validate_range(min_val=0),
     ),  # noqa: B008
     retention_days: int = typer.Option(
-        30, "--retention-days", help="Retention window in days",
+        30,
+        "--retention-days",
+        help="Retention window in days",
         callback=_validate_range(min_val=1),
     ),  # noqa: B008
     transform: bool = typer.Option(
         True, "--transform/--no-transform", help="Transform snapshots to curated"
     ),  # noqa: B008
     max_markets: int | None = typer.Option(
-        None, "--max-markets", help="Override market count",
+        None,
+        "--max-markets",
+        help="Override market count",
         callback=_validate_range(min_val=1),
     ),  # noqa: B008
 ):
@@ -451,13 +460,21 @@ def _read_data(path: Path) -> pd.DataFrame:
 @app.command()
 def evaluate(
     scope: str = typer.Option("equity", "--scope", "-s", help="equity or prediction"),  # noqa: B008
-    signals_path: Path | None = typer.Option(None, "--signals", help="Signals file path"),  # noqa: B008
+    signals_path: Path | None = typer.Option(  # noqa: B008
+        None, "--signals", help="Signals file path"
+    ),
     probs_path: Path | None = typer.Option(  # noqa: B008
         None, "--probs", help="Prediction market probs file path"
     ),
-    prices_path: Path | None = typer.Option(None, "--prices", help="Prices file path"),  # noqa: B008
-    outcomes_path: Path | None = typer.Option(None, "--outcomes", help="Outcomes file path"),  # noqa: B008
-    factors_from_db: bool = typer.Option(True, "--factors-from-db", help="Load factors from DB"),  # noqa: B008
+    prices_path: Path | None = typer.Option(  # noqa: B008
+        None, "--prices", help="Prices file path"
+    ),
+    outcomes_path: Path | None = typer.Option(  # noqa: B008
+        None, "--outcomes", help="Outcomes file path"
+    ),
+    factors_from_db: bool = typer.Option(
+        True, "--factors-from-db", help="Load factors from DB"
+    ),  # noqa: B008
     model_name: str = typer.Option("model", "--model-name"),  # noqa: B008
     dataset_id: str | None = typer.Option(None, "--dataset-id"),  # noqa: B008
 ):
@@ -669,11 +686,16 @@ def generate_signals(
         Path("data/signals"), "--output", "-o", help="Output directory for signal CSV"
     ),
     threshold: int = typer.Option(  # noqa: B008
-        60, "--threshold", "-t", help="Minimum signal score",
+        60,
+        "--threshold",
+        "-t",
+        help="Minimum signal score",
         callback=_validate_range(min_val=0, max_val=100),
     ),
     min_volume: float = typer.Option(  # noqa: B008
-        50_000, "--min-volume", help="Minimum average daily volume",
+        50_000,
+        "--min-volume",
+        help="Minimum average daily volume",
         callback=_validate_range(min_val=0),
     ),
 ):
@@ -814,13 +836,19 @@ def generate_signals(
 
 @app.command()
 def execute_signals(
-    signal_csv: Path = typer.Argument(..., help="Path to signal CSV file from generate-signals"),  # noqa: B008
+    signal_csv: Path = typer.Argument(  # noqa: B008
+        ..., help="Path to signal CSV file from generate-signals"
+    ),
     max_capital: float = typer.Option(
-        300.0, "--max-capital", help="Maximum capital to deploy ($)",
+        300.0,
+        "--max-capital",
+        help="Maximum capital to deploy ($)",
         callback=_validate_range(min_val=0),
     ),
     max_positions: int = typer.Option(
-        2, "--max-positions", help="Maximum simultaneous positions",
+        2,
+        "--max-positions",
+        help="Maximum simultaneous positions",
         callback=_validate_range(min_val=1),
     ),
     dry_run: bool = typer.Option(
@@ -1012,11 +1040,17 @@ def monitor_prices(
     ),
     mode: str = typer.Option("websocket", "--mode", "-m", help="Feed mode: websocket or polling"),
     interval: int = typer.Option(
-        5, "--interval", "-i", help="Display refresh interval (seconds)",
+        5,
+        "--interval",
+        "-i",
+        help="Display refresh interval (seconds)",
         callback=_validate_range(min_val=1),
     ),
     duration: int = typer.Option(
-        0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)",
+        0,
+        "--duration",
+        "-d",
+        help="Run for N seconds (0 = until Ctrl-C)",
         callback=_validate_range(min_val=0),
     ),
     paper: bool = typer.Option(True, "--paper/--live", help="Use paper or live API keys"),
@@ -1121,11 +1155,17 @@ def monitor_prices(
 @app.command()
 def monitor_positions(
     poll_seconds: int = typer.Option(
-        60, "--poll", "-p", help="Check interval in seconds",
+        60,
+        "--poll",
+        "-p",
+        help="Check interval in seconds",
         callback=_validate_range(min_val=1),
     ),
     duration: int = typer.Option(
-        0, "--duration", "-d", help="Run for N seconds (0 = until Ctrl-C)",
+        0,
+        "--duration",
+        "-d",
+        help="Run for N seconds (0 = until Ctrl-C)",
         callback=_validate_range(min_val=0),
     ),
     paper: bool = typer.Option(True, "--paper/--live", help="Use paper or live keys"),
@@ -1442,7 +1482,10 @@ def daily_predictions(
         None, "--date", "-d", help="Signal date (YYYY-MM-DD). Default: today."
     ),  # noqa: B008
     threshold: int = typer.Option(
-        60, "--threshold", "-t", help="Minimum signal score",
+        60,
+        "--threshold",
+        "-t",
+        help="Minimum signal score",
         callback=_validate_range(min_val=0, max_val=100),
     ),  # noqa: B008
 ):
@@ -1566,9 +1609,7 @@ def daily_predictions(
     if eligible:
         from pipeline.strategy.signal_output import format_signals, write_signal_csv
 
-        signals_df = format_signals(
-            scores=eligible, price_data=indicator_data, date=signal_date
-        )
+        signals_df = format_signals(scores=eligible, price_data=indicator_data, date=signal_date)
         if not signals_df.empty:
             filepath = write_signal_csv(signals_df, signals_dir, signal_date)
             console.print(f"  Wrote {len(signals_df)} signals to {filepath}")
