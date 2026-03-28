@@ -56,6 +56,9 @@ class SymbolSnapshotBuilder:
             "days_to_next_earnings": None,
             "last_eps_surprise_pct": None,
             "short_interest_ratio": None,
+            "cot_noncommercial_net": None,
+            "cot_commercial_net": None,
+            "cot_noncommercial_pct_oi": None,
         }
 
         price_df = self._get_price_series(symbol_id, asof_ts, lookback_days)
@@ -111,6 +114,9 @@ class SymbolSnapshotBuilder:
 
         short = self._get_short_interest(symbol_id, asof_ts)
         snapshot.update(short)
+
+        cot = self._get_cot_positioning(symbol_id, asof_ts)
+        snapshot.update(cot)
 
         return snapshot
 
@@ -391,6 +397,69 @@ class SymbolSnapshotBuilder:
 
         if rows and rows[0]["days_to_cover"] is not None:
             result["short_interest_ratio"] = float(rows[0]["days_to_cover"])
+
+        return result
+
+    # Mapping from equity tickers to CFTC COT commodity codes
+    _TICKER_TO_COT_CODE: dict[str, str] = {
+        "SPY": "13874A",
+        "VOO": "13874A",
+        "VTI": "13874A",
+        "IVV": "13874A",
+        "QQQ": "209742",
+        "IWM": "239742",
+        "TLT": "043602",
+        "IEF": "043602",
+        "SHY": "043602",
+        "GLD": "098662",
+        "SLV": "098662",
+        "USO": "023651",
+        "DIA": "13874A",
+    }
+
+    def _get_cot_positioning(self, symbol_id: UUID, asof_ts: datetime) -> dict:
+        """Get latest CFTC COT positioning for the symbol's underlying futures market."""
+        result: dict[str, float | None] = {
+            "cot_noncommercial_net": None,
+            "cot_commercial_net": None,
+            "cot_noncommercial_pct_oi": None,
+        }
+        if not self.db.table_exists("cur_cftc_cot"):
+            return result
+
+        # Resolve ticker for this symbol_id
+        ticker_rows = self.db.run_query(
+            "SELECT ticker FROM dim_symbol WHERE symbol_id = :symbol_id",
+            {"symbol_id": str(symbol_id)},
+        )
+        if not ticker_rows:
+            return result
+
+        ticker = ticker_rows[0]["ticker"]
+        commodity_code = self._TICKER_TO_COT_CODE.get(ticker)
+        if commodity_code is None:
+            return result
+
+        rows = self.db.run_query(
+            """
+            SELECT noncommercial_net, commercial_net, noncommercial_pct_oi
+            FROM cur_cftc_cot
+            WHERE commodity_code = :commodity_code
+              AND available_time <= :asof_ts
+            ORDER BY report_date DESC
+            LIMIT 1
+        """,
+            {"commodity_code": commodity_code, "asof_ts": asof_ts},
+        )
+
+        if rows:
+            row = rows[0]
+            if row["noncommercial_net"] is not None:
+                result["cot_noncommercial_net"] = float(row["noncommercial_net"])
+            if row["commercial_net"] is not None:
+                result["cot_commercial_net"] = float(row["commercial_net"])
+            if row["noncommercial_pct_oi"] is not None:
+                result["cot_noncommercial_pct_oi"] = float(row["noncommercial_pct_oi"])
 
         return result
 

@@ -181,6 +181,10 @@ etf_flows:
     - EFA
     - VWO
 
+# CFTC Commitments of Traders settings
+cftc_cot:
+  enabled: true
+
 # Factor data settings
 factors:
   source: ken_french

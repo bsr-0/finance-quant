@@ -276,6 +276,26 @@ class EtfFlowsSettings(BaseSettings):
     )
 
 
+class CftcCotSettings(BaseSettings):
+    """CFTC Commitments of Traders settings."""
+
+    model_config = SettingsConfigDict(env_prefix="CFTC_")
+
+    enabled: bool = True
+    base_url: str = "https://www.cftc.gov/dea/newcot"
+    commodity_codes: dict[str, str] = Field(
+        default_factory=lambda: {
+            "13874A": "E-MINI S&P 500",
+            "209742": "E-MINI NASDAQ-100",
+            "239742": "E-MINI RUSSELL 2000",
+            "043602": "10-YEAR T-NOTE",
+            "088691": "VIX FUTURES",
+            "098662": "GOLD",
+            "023651": "CRUDE OIL, LIGHT SWEET",
+        }
+    )
+
+
 class ExecutionSettings(BaseSettings):
     """Alpaca broker execution settings.
 
@@ -545,6 +565,7 @@ class PipelineSettings(BaseSettings):
     sentiment: SentimentSettings = Field(default_factory=SentimentSettings)
     short_interest: ShortInterestSettings = Field(default_factory=ShortInterestSettings)
     etf_flows: EtfFlowsSettings = Field(default_factory=EtfFlowsSettings)
+    cftc_cot: CftcCotSettings = Field(default_factory=CftcCotSettings)
 
     # Execution / broker
     execution: ExecutionSettings = Field(default_factory=ExecutionSettings)

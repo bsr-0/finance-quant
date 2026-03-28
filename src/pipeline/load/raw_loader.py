@@ -1073,6 +1073,85 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} ETF flow records")
         return rows_loaded
 
+    def load_cftc_cot(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
+        """Load CFTC COT data from parquet file."""
+        logger.info(f"Loading CFTC COT from {file_path}")
+        handler = corruption_handler or CorruptionHandler("cftc_cot")
+
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
+            return 0
+
+        insert_sql = text("""
+            INSERT INTO raw_cftc_cot
+            (commodity_code, commodity_name, report_date,
+             commercial_long, commercial_short,
+             noncommercial_long, noncommercial_short, noncommercial_spreading,
+             nonreportable_long, nonreportable_short, open_interest,
+             raw_data, extracted_at, run_id)
+            VALUES (:commodity_code, :commodity_name, :report_date,
+                    :commercial_long, :commercial_short,
+                    :noncommercial_long, :noncommercial_short, :noncommercial_spreading,
+                    :nonreportable_long, :nonreportable_short, :open_interest,
+                    :raw_data, :extracted_at, :run_id)
+            ON CONFLICT (commodity_code, report_date) DO UPDATE SET
+                commercial_long = EXCLUDED.commercial_long,
+                commercial_short = EXCLUDED.commercial_short,
+                noncommercial_long = EXCLUDED.noncommercial_long,
+                noncommercial_short = EXCLUDED.noncommercial_short,
+                noncommercial_spreading = EXCLUDED.noncommercial_spreading,
+                nonreportable_long = EXCLUDED.nonreportable_long,
+                nonreportable_short = EXCLUDED.nonreportable_short,
+                open_interest = EXCLUDED.open_interest,
+                raw_data = EXCLUDED.raw_data,
+                extracted_at = EXCLUDED.extracted_at,
+                run_id = EXCLUDED.run_id
+        """)
+
+        records = []
+        for row in df.to_dict(orient="records"):
+            row["run_id"] = run_id
+            row["raw_data"] = json.dumps(row, default=str)
+            row["extracted_at"] = row.get("extracted_at", pd.Timestamp.now())
+            records.append(
+                {
+                    k: row.get(k)
+                    for k in [
+                        "commodity_code",
+                        "commodity_name",
+                        "report_date",
+                        "commercial_long",
+                        "commercial_short",
+                        "noncommercial_long",
+                        "noncommercial_short",
+                        "noncommercial_spreading",
+                        "nonreportable_long",
+                        "nonreportable_short",
+                        "open_interest",
+                        "raw_data",
+                        "extracted_at",
+                        "run_id",
+                    ]
+                }
+            )
+
+        records = self._filter_valid_records(
+            records, ["commodity_code", "report_date"], handler, file_path
+        )
+
+        rows_loaded = 0
+        with self.db.engine.connect() as conn:
+            rows_loaded += self._batch_insert(conn, insert_sql, records)
+            conn.commit()
+
+        logger.info(f"Loaded {rows_loaded} CFTC COT records")
+        return rows_loaded
+
     def load_all_raw_files(self, raw_dir: Path, source: str, run_id: UUID | None = None) -> int:
         """Load all raw files for a source.
 
@@ -1123,6 +1202,8 @@ class RawLoader:
                     total_rows += self.load_short_interest(file_path, run_id, handler)
                 elif source == "etf_flows":
                     total_rows += self.load_etf_flows(file_path, run_id, handler)
+                elif source == "cftc_cot":
+                    total_rows += self.load_cftc_cot(file_path, run_id, handler)
             except Exception as e:
                 handler.record_corrupt_file(file_path, e)
                 logger.error(f"Error loading {file_path}: {e}")

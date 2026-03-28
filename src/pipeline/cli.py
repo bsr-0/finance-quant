@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import subprocess
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -18,6 +18,7 @@ from rich.table import Table
 from pipeline.db import get_db_manager
 from pipeline.dq.data_quality_monitor import DataQualityMonitor, Severity
 from pipeline.dq.tests_sql import run_dq_tests
+from pipeline.extract.cftc_cot import extract_cftc_cot
 from pipeline.extract.earnings import extract_earnings
 from pipeline.extract.etf_flows import extract_etf_flows
 from pipeline.extract.factors_ff import extract_factors_ff
@@ -143,7 +144,7 @@ def extract(
         ...,
         help="Source to extract (fred, gdelt, polymarket, prices, factors, "
         "sec-fundamentals, sec-insider, sec-13f, options, earnings, "
-        "reddit-sentiment, short-interest, etf-flows)",
+        "reddit-sentiment, short-interest, etf-flows, cftc-cot)",
     ),
     start: str | None = typer.Option(
         None, "--start", "-s", help="Start date (YYYY-MM-DD)"
@@ -194,6 +195,10 @@ def extract(
             files = extract_short_interest(raw_path, run_id=run_id)
         elif source == "etf-flows":
             files = extract_etf_flows(raw_path, run_id=run_id)
+        elif source == "cftc-cot":
+            s = date.fromisoformat(start) if start else None
+            e = date.fromisoformat(end) if end else None
+            files = extract_cftc_cot(raw_path, start_date=s, end_date=e, run_id=run_id)
         else:
             raise typer.BadParameter(f"Unknown source: {source}")
 
@@ -214,7 +219,7 @@ def load_raw(
         ...,
         help="Source to load (fred, gdelt, polymarket, prices, factors, "
         "sec_fundamentals, sec_insider, sec_13f, options, earnings, "
-        "reddit_sentiment, short_interest, etf_flows)",
+        "reddit_sentiment, short_interest, etf_flows, cftc_cot)",
     ),
     raw_dir: Path | None = typer.Option(  # noqa: B008
         None, "--raw-dir", "-r", help="Raw data directory"
@@ -582,6 +587,7 @@ def inventory():
         ("cur_earnings_events", "date", "report_date"),
         ("cur_short_interest", "date", "settlement_date"),
         ("cur_etf_flows_daily", "date", "date"),
+        ("cur_cftc_cot", "date", "report_date"),
     ]
 
     table = Table(title="Data Inventory")
