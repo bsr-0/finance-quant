@@ -14,6 +14,8 @@ permissions:
 jobs:
   daily-predictions:
     runs-on: ubuntu-latest
+    env:
+      FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
     steps:
       - name: Checkout repository
@@ -39,9 +41,7 @@ jobs:
           python -m pipeline.cli load-raw prices
 
       - name: Extract FRED macro data
-        if: ${{ secrets.FRED_API_KEY != '' }}
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        if: ${{ env.FRED_API_KEY != '' }}
         run: |
           END_DATE=$(date +%Y-%m-%d)
           START_DATE=$(date -d "-365 days" +%Y-%m-%d)
