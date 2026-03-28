@@ -1646,6 +1646,134 @@ def daily_predictions(
     console.print(f"  View at: {output_dir}/index.html")
 
 
+@app.command()
+def backfill_predictions(
+    start: str = typer.Option(
+        ..., "--start", "-s", help="Start date (YYYY-MM-DD)"
+    ),
+    end: str | None = typer.Option(
+        None, "--end", "-e", help="End date (YYYY-MM-DD). Default: today."
+    ),
+    threshold: int = typer.Option(60, "--threshold", "-t", help="Minimum signal score"),
+):
+    """Backfill prediction history by running signals over a date range.
+
+    Extracts prices once, then iterates over each trading day in the range,
+    generating signals and resolving outcomes against future price data.
+    This seeds the prediction history and site for initial deployment.
+    """
+    import yaml as _yaml
+
+    from pipeline.strategy.signals import SignalEngine, compute_indicators
+    from pipeline.web.performance_tracker import PerformanceTracker
+    from pipeline.web.static_builder import build_static_site
+
+    console.print("[bold blue]Backfilling predictions...[/bold blue]")
+
+    config_path = Path("config.yaml")
+    config = (_yaml.safe_load(config_path.read_text()) or {}) if config_path.exists() else {}
+    dp_config = config.get("daily_predictions", {})
+    universe = dp_config.get("universe", ["SPY", "QQQ", "IWM"])
+    signals_dir = Path(dp_config.get("signals_dir", "data/signals"))
+    history_path = Path(dp_config.get("history_file", "data/prediction_history.json"))
+    output_dir = Path(dp_config.get("output_dir", "site"))
+    lookback = dp_config.get("lookback_days", 252)
+
+    signals_dir.mkdir(parents=True, exist_ok=True)
+
+    end_date = pd.Timestamp(end) if end else pd.Timestamp.now().normalize()
+    start_date = pd.Timestamp(start)
+
+    # Load price data from database (full range needed for backfill)
+    db = get_db_manager()
+    price_data: dict[str, pd.DataFrame] = {}
+
+    for ticker in universe:
+        try:
+            rows = db.run_query(
+                "SELECT p.date, p.open, p.high, p.low, p.close, p.volume "
+                "FROM cur_prices_ohlcv_daily p "
+                "JOIN dim_symbol s ON p.symbol_id = s.symbol_id "
+                "WHERE s.ticker = :ticker "
+                "ORDER BY p.date",
+                {"ticker": ticker},
+            )
+            if rows:
+                df = pd.DataFrame(rows)
+                df["date"] = pd.to_datetime(df["date"])
+                df = df.set_index("date").sort_index()
+                for col in ("open", "high", "low", "close", "volume"):
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+                if len(df) >= 50:
+                    price_data[ticker] = df
+        except Exception as exc:
+            logger.warning("Could not load %s: %s", ticker, exc)
+
+    if not price_data:
+        console.print("[red]No price data available. Run extract + load first.[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"  Loaded {len(price_data)} tickers")
+
+    # Build trading day schedule within the date range
+    trading_days = pd.bdate_range(start_date, end_date)
+    # Filter to dates where we have enough price history for indicators
+    earliest_data = min(df.index.min() for df in price_data.values())
+    min_signal_date = earliest_data + pd.Timedelta(days=70)  # need ~50 bars
+    trading_days = [d for d in trading_days if d >= min_signal_date and d <= end_date]
+
+    console.print(f"  Backfilling {len(trading_days)} trading days: {trading_days[0].date()} → {trading_days[-1].date()}")
+
+    tracker = PerformanceTracker(history_path)
+    engine = SignalEngine(entry_threshold=threshold)
+    total_signals = 0
+
+    for i, signal_date in enumerate(trading_days):
+        # Build indicator data using only data up to signal_date (no look-ahead)
+        indicator_data: dict[str, pd.DataFrame] = {}
+        for ticker, df in price_data.items():
+            hist = df[df.index <= signal_date].tail(lookback)
+            required = {"open", "high", "low", "close", "volume"}
+            if len(hist) >= 50 and required.issubset(set(hist.columns)):
+                indicator_data[ticker] = compute_indicators(hist)
+
+        if not indicator_data:
+            continue
+
+        spy_prices = indicator_data["SPY"]["close"] if "SPY" in indicator_data else None
+        scores = engine.score_universe(indicator_data, spy_prices=spy_prices, date=signal_date)
+        eligible = [s for s in scores if s.entry_eligible]
+
+        if eligible:
+            from pipeline.strategy.signal_output import format_signals, write_signal_csv
+
+            signals_df = format_signals(scores=eligible, price_data=indicator_data, date=signal_date)
+            if not signals_df.empty:
+                write_signal_csv(signals_df, signals_dir, signal_date)
+                added = tracker.add_signals(signals_df, str(signal_date.date()))
+                total_signals += added
+
+        # Resolve past outcomes using full price data (we have future data in backfill)
+        tracker.resolve_outcomes(price_data, str(signal_date.date()))
+
+        if (i + 1) % 20 == 0:
+            console.print(f"    ... {i + 1}/{len(trading_days)} days processed, {total_signals} signals so far")
+
+    tracker.save()
+
+    # Build site with backfilled data
+    build_static_site(output_dir=output_dir, signals_dir=signals_dir, history_path=history_path)
+
+    stats = tracker.get_stats()
+    console.print(f"\n[bold green]Backfill complete![/bold green]")
+    console.print(f"  Total predictions: {stats['total']}")
+    console.print(f"  Resolved: {stats['resolved']} ({stats['hit_target']} wins, {stats['stopped_out']} stopped, {stats['expired']} expired)")
+    console.print(f"  Active: {stats['active']}")
+    console.print(f"  Win rate: {stats['win_rate']}%")
+    console.print(f"  Avg P&L: {stats['avg_pnl_pct']}%")
+
+
 def main():
     """Entry point for CLI."""
     app()
