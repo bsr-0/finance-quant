@@ -1723,7 +1723,10 @@ def backfill_predictions(
     min_signal_date = earliest_data + pd.Timedelta(days=70)  # need ~50 bars
     trading_days = [d for d in trading_days if d >= min_signal_date and d <= end_date]
 
-    console.print(f"  Backfilling {len(trading_days)} trading days: {trading_days[0].date()} → {trading_days[-1].date()}")
+    console.print(
+        f"  Backfilling {len(trading_days)} trading days:"
+        f" {trading_days[0].date()} → {trading_days[-1].date()}"
+    )
 
     tracker = PerformanceTracker(history_path)
     engine = SignalEngine(entry_threshold=threshold)
@@ -1748,7 +1751,9 @@ def backfill_predictions(
         if eligible:
             from pipeline.strategy.signal_output import format_signals, write_signal_csv
 
-            signals_df = format_signals(scores=eligible, price_data=indicator_data, date=signal_date)
+            signals_df = format_signals(
+                scores=eligible, price_data=indicator_data, date=signal_date,
+            )
             if not signals_df.empty:
                 write_signal_csv(signals_df, signals_dir, signal_date)
                 added = tracker.add_signals(signals_df, str(signal_date.date()))
@@ -1758,7 +1763,10 @@ def backfill_predictions(
         tracker.resolve_outcomes(price_data, str(signal_date.date()))
 
         if (i + 1) % 20 == 0:
-            console.print(f"    ... {i + 1}/{len(trading_days)} days processed, {total_signals} signals so far")
+            console.print(
+                f"    ... {i + 1}/{len(trading_days)} days processed,"
+                f" {total_signals} signals so far"
+            )
 
     tracker.save()
 
@@ -1766,9 +1774,15 @@ def backfill_predictions(
     build_static_site(output_dir=output_dir, signals_dir=signals_dir, history_path=history_path)
 
     stats = tracker.get_stats()
-    console.print(f"\n[bold green]Backfill complete![/bold green]")
+    console.print("\n[bold green]Backfill complete![/bold green]")
     console.print(f"  Total predictions: {stats['total']}")
-    console.print(f"  Resolved: {stats['resolved']} ({stats['hit_target']} wins, {stats['stopped_out']} stopped, {stats['expired']} expired)")
+    resolved = stats["resolved"]
+    wins = stats["hit_target"]
+    stopped = stats["stopped_out"]
+    expired = stats["expired"]
+    console.print(
+        f"  Resolved: {resolved} ({wins} wins, {stopped} stopped, {expired} expired)"
+    )
     console.print(f"  Active: {stats['active']}")
     console.print(f"  Win rate: {stats['win_rate']}%")
     console.print(f"  Avg P&L: {stats['avg_pnl_pct']}%")
