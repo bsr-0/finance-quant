@@ -324,14 +324,25 @@ class DataQualityMonitor:
         """Run all data quality checks."""
         alerts = []
 
-        # Freshness checks
+        # Freshness checks — only check tables whose raw source has data,
+        # so schema-seeded placeholder rows don't trigger false CRITICAL alerts.
         freshness_configs = [
-            ("cur_prices_ohlcv_daily", "available_time", 48),
-            ("cur_contract_prices", "available_time", 2),
-            ("cur_macro_observations", "available_time", 168),  # 1 week for macro
+            ("cur_prices_ohlcv_daily", "available_time", 48, "raw_prices_ohlcv"),
+            ("cur_contract_prices", "available_time", 2, "raw_polymarket_prices"),
+            ("cur_macro_observations", "available_time", 168, "raw_fred_observations"),
         ]
 
-        for table, col, threshold in freshness_configs:
+        for table, col, threshold, raw_table in freshness_configs:
+            raw_count = 0
+            try:
+                raw_result = self.db.run_query(
+                    f"SELECT COUNT(*) as n FROM {_validate_identifier(raw_table)}"
+                )
+                raw_count = raw_result[0]["n"] if raw_result else 0
+            except Exception:
+                pass
+            if raw_count == 0:
+                continue
             alert = self.check_freshness(table, col, threshold)
             if alert:
                 alerts.append(alert)
