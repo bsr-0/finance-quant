@@ -313,7 +313,8 @@ class DailyRiskDashboard:
         checks.append((
             "returns_history_adequate",
             has_returns,
-            f"Length={len(returns.dropna()) if returns is not None else 0}" if not has_returns else "OK",
+            (f"Length={len(returns.dropna()) if returns is not None else 0}"
+             if not has_returns else "OK"),
         ))
 
         # Limits configured

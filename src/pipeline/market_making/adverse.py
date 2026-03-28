@@ -245,10 +245,7 @@ class AdverseSelectionDetector:
         for f in fills_deque:
             if len(f.post_fill_mids) >= shortest_h:
                 future_mid = f.post_fill_mids[shortest_h - 1]
-                if f.side == "buy":
-                    pnl = future_mid - f.fill_price
-                else:
-                    pnl = f.fill_price - future_mid
+                pnl = future_mid - f.fill_price if f.side == "buy" else f.fill_price - future_mid
                 sides[f.side].append(pnl)
 
         return {

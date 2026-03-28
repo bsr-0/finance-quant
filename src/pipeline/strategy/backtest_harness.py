@@ -134,7 +134,9 @@ class HarnessBacktestResult:
                     val_str = "N/A"
                 elif abs(v) < 10 and "Ratio" in k or "Factor" in k or "Exposure" in k:
                     val_str = f"{v:.3f}"
-                elif "Return" in k or "Drawdown" in k or "Rate" in k or "Turnover" in k or "Market" in k:
+                elif any(
+                    s in k for s in ("Return", "Drawdown", "Rate", "Turnover", "Market")
+                ):
                     val_str = f"{v:.2%}"
                 else:
                     val_str = f"{v:,.2f}"
@@ -283,7 +285,12 @@ class BacktestHarness:
                     current_date=date,
                     current_close=float(row["close"]),
                     current_high=float(row["high"]),
-                    current_atr=current_vols.get(ticker, pos.atr_at_entry) / np.sqrt(_TRADING_DAYS) * float(row["close"]) if current_vols.get(ticker) else pos.atr_at_entry,
+                    current_atr=(
+                        current_vols.get(ticker, pos.atr_at_entry)
+                        / np.sqrt(_TRADING_DAYS) * float(row["close"])
+                        if current_vols.get(ticker)
+                        else pos.atr_at_entry
+                    ),
                     current_rsi=50.0,
                     current_sma_50=float(row["close"]),
                     regime="BULL",
@@ -486,7 +493,10 @@ class BacktestHarness:
         downside = returns[returns < 0]
         if len(downside) > 0:
             ds_std = float(np.sqrt((downside ** 2).mean()))
-            sortino = float(returns.mean() / ds_std * np.sqrt(_TRADING_DAYS)) if ds_std > 0 else np.nan
+            sortino = (
+                float(returns.mean() / ds_std * np.sqrt(_TRADING_DAYS))
+                if ds_std > 0 else np.nan
+            )
         else:
             sortino = np.nan
 
@@ -509,7 +519,10 @@ class BacktestHarness:
             pf_num = winners["pnl"].sum() if len(winners) > 0 else 0
             pf_den = abs(losers["pnl"].sum()) if len(losers) > 0 else 0
             profit_factor = pf_num / pf_den if pf_den > 0 else float("inf")
-            avg_hold = float(trades["days_held"].mean()) if "days_held" in trades.columns else np.nan
+            avg_hold = (
+                float(trades["days_held"].mean())
+                if "days_held" in trades.columns else np.nan
+            )
         else:
             hit_rate = avg_win = avg_loss = avg_hold = np.nan
             profit_factor = np.nan

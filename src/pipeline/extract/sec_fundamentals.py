@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
@@ -43,7 +43,7 @@ class SecFundamentalsExtractor:
     """Extract quarterly/annual financial data from SEC EDGAR XBRL API."""
 
     def __init__(self) -> None:
-        settings = get_settings()
+        get_settings()
         self.client = httpx.Client(
             timeout=30.0,
             headers={"User-Agent": SEC_USER_AGENT},
@@ -240,7 +240,7 @@ class SecFundamentalsExtractor:
                 if df.empty:
                     continue
 
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
                 file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"

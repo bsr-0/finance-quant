@@ -17,15 +17,15 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class DeploymentStage(str, Enum):
+class DeploymentStage(StrEnum):
     RESEARCH = "research"
     SHADOW = "shadow"
     CANARY = "canary"
@@ -35,7 +35,7 @@ class DeploymentStage(str, Enum):
     ROLLED_BACK = "rolled_back"
 
 
-class AlertSeverity(str, Enum):
+class AlertSeverity(StrEnum):
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -115,7 +115,7 @@ class DeploymentRecord:
     experiment_id: str
     from_stage: DeploymentStage
     to_stage: DeploymentStage
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     approved_by: str = ""
     notes: str = ""
     metrics_at_transition: dict[str, float] = field(default_factory=dict)
@@ -449,8 +449,8 @@ class DeploymentPipeline:
             return []
         fired = []
         for trigger in config.rollback_triggers:
-            if trigger.metric in current_metrics:
-                if trigger.evaluate(current_metrics[trigger.metric]):
+            if (trigger.metric in current_metrics
+                    and trigger.evaluate(current_metrics[trigger.metric])):
                     fired.append(trigger)
                     logger.warning(
                         "Rollback trigger fired for %s: %s (value=%s, threshold=%s)",
@@ -533,7 +533,7 @@ class DeploymentPipeline:
             "experiment_id": experiment_id,
             "current_stage": self.get_current_stage(experiment_id).value,
             "drift_results": drift_results or {},
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
     def export_retraining_log(self) -> dict[str, Any]:
@@ -554,5 +554,5 @@ class DeploymentPipeline:
                 ]
                 for exp_id, records in self._deployments.items()
             },
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }

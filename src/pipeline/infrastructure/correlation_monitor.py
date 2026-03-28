@@ -267,10 +267,7 @@ class CorrelationMonitor:
 
             # Simple OLS beta
             cov = np.cov(port_vals, factor_vals)
-            if cov.shape == (2, 2) and cov[1, 1] > 0:
-                beta = float(cov[0, 1] / cov[1, 1])
-            else:
-                beta = 0.0
+            beta = float(cov[0, 1] / cov[1, 1]) if cov.shape == (2, 2) and cov[1, 1] > 0 else 0.0
 
             notional_exposure = beta * nav
             pct_of_nav = abs(beta)

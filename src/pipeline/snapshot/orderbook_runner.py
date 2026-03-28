@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from __future__ import annotations
-
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 
@@ -47,7 +45,7 @@ class OrderbookSnapshotRunner:
             logger.warning("No markets found for orderbook snapshot")
             return 0
 
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
         records = []
 
         for market in markets:

@@ -12,25 +12,25 @@ be trusted. The registry provides:
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import hashlib
 import json
 import logging
 import os
 import tempfile
+from collections import defaultdict
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from collections import defaultdict
-
 logger = logging.getLogger(__name__)
 
 
-class ExperimentStatus(str, Enum):
+class ExperimentStatus(StrEnum):
     """Status of an experiment in the registry."""
 
     RUNNING = "running"
@@ -64,7 +64,7 @@ class ExperimentRecord:
     path_risk_metrics: dict[str, float] = field(default_factory=dict)
     reproducibility_hash: str = ""
     experiment_timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
     status: ExperimentStatus = ExperimentStatus.RUNNING
     agent: str = ""
@@ -162,10 +162,8 @@ class ExperimentRegistry:
                     fcntl.flock(f, fcntl.LOCK_UN)
             os.replace(tmp_path, str(self.storage_path))
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
 
     def create_experiment(self, **kwargs: Any) -> ExperimentRecord:
@@ -344,7 +342,7 @@ class KnowledgeFinding:
     evidence: dict[str, Any] = field(default_factory=dict)
     experiment_ids: list[str] = field(default_factory=list)
     works: bool = True  # True = this approach works; False = doesn't work
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -405,10 +403,8 @@ class KnowledgeStore:
                     fcntl.flock(tf, fcntl.LOCK_UN)
             os.replace(tmp_path, str(self.storage_path))
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
 
     def store_finding(
@@ -480,7 +476,7 @@ class KnowledgeStore:
             "report_type": "knowledge_retention_report",
             "domains": domain_summaries,
             "total_findings": len(self._findings),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
     def export(self) -> list[dict[str, Any]]:

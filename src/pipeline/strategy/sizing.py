@@ -130,7 +130,8 @@ class PositionSizer:
             return SizeResult(
                 shares=0, position_value=0, risk_per_share=0,
                 total_risk=0, risk_pct_of_equity=0, stop_price=0,
-                rejected=True, reject_reason=f"Price ${entry_price:.2f} below minimum ${cfg.min_share_price:.2f}",
+                rejected=True,
+                reject_reason=f"Price ${entry_price:.2f} below minimum ${cfg.min_share_price:.2f}",
             )
 
         max_pos = self.max_positions(equity)

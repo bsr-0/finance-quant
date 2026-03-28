@@ -110,7 +110,10 @@ def compute_benchmark_analysis(
     # Beta and alpha
     cov = np.cov(s_ret.values, b_ret.values)
     beta = float(cov[0, 1] / cov[1, 1]) if cov[1, 1] > 0 else np.nan
-    alpha = float(s_ret.mean() - beta * b_ret.mean()) * _TRADING_DAYS if not np.isnan(beta) else np.nan
+    alpha = (
+        float(s_ret.mean() - beta * b_ret.mean()) * _TRADING_DAYS
+        if not np.isnan(beta) else np.nan
+    )
 
     # Capture ratios
     up_months = b_ret > 0
@@ -131,8 +134,14 @@ def compute_benchmark_analysis(
     rf_daily = risk_free_rate / _TRADING_DAYS
     s_excess = s_ret - rf_daily
     b_excess = b_ret - rf_daily
-    s_sharpe = float(s_excess.mean() / s_excess.std() * np.sqrt(_TRADING_DAYS)) if s_excess.std() > 0 else np.nan
-    b_sharpe = float(b_excess.mean() / b_excess.std() * np.sqrt(_TRADING_DAYS)) if b_excess.std() > 0 else np.nan
+    s_sharpe = (
+        float(s_excess.mean() / s_excess.std() * np.sqrt(_TRADING_DAYS))
+        if s_excess.std() > 0 else np.nan
+    )
+    b_sharpe = (
+        float(b_excess.mean() / b_excess.std() * np.sqrt(_TRADING_DAYS))
+        if b_excess.std() > 0 else np.nan
+    )
 
     # Total returns
     s_cum = (1 + s_ret).cumprod()

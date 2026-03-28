@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pipeline.execution.broker import (
     BaseBroker,
@@ -88,10 +88,10 @@ class AlpacaBroker(BaseBroker):
     ) -> None:
         try:
             from alpaca.trading.client import TradingClient
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "alpaca-py is required for Alpaca broker. " "Install with: pip install alpaca-py"
-            )
+            ) from e
 
         self._is_paper = "paper" in base_url.lower()
         self._client = TradingClient(
@@ -124,7 +124,7 @@ class AlpacaBroker(BaseBroker):
         try:
             acct = self._client.get_account()
         except Exception as e:
-            raise BrokerError(f"Failed to fetch Alpaca account: {_sanitize_error(e)}")
+            raise BrokerError(f"Failed to fetch Alpaca account: {_sanitize_error(e)}") from e
 
         equity = float(acct.equity)  # type: ignore[arg-type, union-attr]
         cash = float(acct.cash)  # type: ignore[arg-type, union-attr]
@@ -167,12 +167,14 @@ class AlpacaBroker(BaseBroker):
 
     def submit_order(self, order: Order) -> Order:
         """Submit an order to Alpaca."""
+        from alpaca.trading.enums import TimeInForce
         from alpaca.trading.requests import (
             LimitOrderRequest,
             MarketOrderRequest,
+        )
+        from alpaca.trading.requests import (
             OrderSide as AlpacaSide,
         )
-        from alpaca.trading.enums import TimeInForce
 
         try:
             side = AlpacaSide.BUY if order.side == OrderSide.BUY else AlpacaSide.SELL
@@ -202,7 +204,7 @@ class AlpacaBroker(BaseBroker):
 
             order.order_id = str(result.id)  # type: ignore[union-attr]
             order.status = _STATUS_MAP.get(str(result.status), OrderStatus.SUBMITTED)  # type: ignore[union-attr]
-            order.submitted_at = datetime.now(timezone.utc)
+            order.submitted_at = datetime.now(UTC)
 
             if result.filled_qty:  # type: ignore[union-attr]
                 order.filled_qty = float(result.filled_qty)  # type: ignore[union-attr]
@@ -227,7 +229,7 @@ class AlpacaBroker(BaseBroker):
         except Exception as e:
             order.status = OrderStatus.REJECTED
             order.reject_reason = _sanitize_error(e)
-            raise BrokerError(f"Order submission failed: {_sanitize_error(e)}")
+            raise BrokerError(f"Order submission failed: {_sanitize_error(e)}") from e
 
     def get_order_status(self, order_id: str) -> Order:
         """Query order status from Alpaca."""
@@ -247,7 +249,7 @@ class AlpacaBroker(BaseBroker):
             )
             return order
         except Exception as e:
-            raise BrokerError(f"Failed to get order {order_id}: {_sanitize_error(e)}")
+            raise BrokerError(f"Failed to get order {order_id}: {_sanitize_error(e)}") from e
 
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an order on Alpaca."""
@@ -264,7 +266,7 @@ class AlpacaBroker(BaseBroker):
         try:
             alpaca_positions = self._client.get_all_positions()
         except Exception as e:
-            raise BrokerError(f"Failed to fetch positions: {_sanitize_error(e)}")
+            raise BrokerError(f"Failed to fetch positions: {_sanitize_error(e)}") from e
 
         positions = []
         for p in alpaca_positions:
@@ -298,7 +300,7 @@ class AlpacaBroker(BaseBroker):
             logger.info("Close position submitted for %s → order %s", symbol, order.order_id)
             return order
         except Exception as e:
-            raise BrokerError(f"Failed to close position {symbol}: {_sanitize_error(e)}")
+            raise BrokerError(f"Failed to close position {symbol}: {_sanitize_error(e)}") from e
 
     def close_all_positions(self) -> list[Order]:
         """Close ALL positions (RED circuit breaker action)."""
@@ -306,7 +308,7 @@ class AlpacaBroker(BaseBroker):
         try:
             results = self._client.close_all_positions(cancel_orders=True)
         except Exception as e:
-            raise BrokerError(f"Failed to close all positions: {_sanitize_error(e)}")
+            raise BrokerError(f"Failed to close all positions: {_sanitize_error(e)}") from e
 
         orders = []
         for r in results:

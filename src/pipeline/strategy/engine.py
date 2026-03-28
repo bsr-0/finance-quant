@@ -18,7 +18,7 @@ from pipeline.strategy.edge_decay import EdgeDecayMonitor
 from pipeline.strategy.exits import ExitEngine, ExitReason, PositionState
 from pipeline.strategy.risk import DrawdownLevel, SwingRiskManager
 from pipeline.strategy.signals import SignalEngine, compute_indicators
-from pipeline.strategy.sizing import PositionSizer, SizingConfig, SizeResult
+from pipeline.strategy.sizing import PositionSizer, SizeResult, SizingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -339,7 +339,9 @@ class SwingStrategyEngine:
                             position_value=adjusted_shares * entry_price,
                             risk_per_share=size_result.risk_per_share,
                             total_risk=adjusted_shares * size_result.risk_per_share,
-                            risk_pct_of_equity=adjusted_shares * size_result.risk_per_share / equity,
+                            risk_pct_of_equity=(
+                                adjusted_shares * size_result.risk_per_share / equity
+                            ),
                             stop_price=size_result.stop_price,
                         )
 
@@ -381,7 +383,10 @@ class SwingStrategyEngine:
             )
             equity = cash + positions_value
             daily_ret = (equity - prev_equity) / prev_equity if prev_equity > 0 else 0
-            dd_pct = (equity - self.risk_mgr._peak_equity) / self.risk_mgr._peak_equity if self.risk_mgr._peak_equity > 0 else 0
+            if self.risk_mgr._peak_equity > 0:
+                dd_pct = (equity - self.risk_mgr._peak_equity) / self.risk_mgr._peak_equity
+            else:
+                dd_pct = 0
 
             snapshots.append(DailySnapshot(
                 date=date,

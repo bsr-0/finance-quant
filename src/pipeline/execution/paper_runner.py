@@ -30,9 +30,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 from pipeline.execution.alpaca_broker import AlpacaBroker
 from pipeline.execution.broker import BaseBroker, BrokerError
@@ -152,7 +151,8 @@ class DailyReport:
             lines.append(f"  Exits: {', '.join(self.exit_orders)}")
         if self.reconciliation_clean is not None:
             lines.append(
-                f"  Reconciliation: {'CLEAN' if self.reconciliation_clean else 'DISCREPANCIES FOUND'}"
+                "  Reconciliation: "
+                f"{'CLEAN' if self.reconciliation_clean else 'DISCREPANCIES FOUND'}"
             )
         if self.errors:
             lines.append(f"  Errors: {'; '.join(self.errors)}")
@@ -288,7 +288,7 @@ class PaperTradingRunner:
             errors.append(f"Account fetch error: {e}")
 
         report = DailyReport(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             signal_file=signal_file_str,
             execution_result=execution_result,
             exit_orders=exit_orders,
@@ -337,13 +337,14 @@ class PaperTradingRunner:
             ))
             total_pnl += p.unrealised_pnl
 
-        mode = "PAPER" if isinstance(self.broker, AlpacaBroker) and self.broker._is_paper else "LIVE"
+        is_paper = isinstance(self.broker, AlpacaBroker) and self.broker._is_paper
+        mode = "PAPER" if is_paper else "LIVE"
 
         recon = self.reconciler.last_result
         recon_clean = recon.is_clean if recon else None
 
         return PaperTradingStatus(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             mode=mode,
             account_equity=account.equity,
             account_cash=account.cash,

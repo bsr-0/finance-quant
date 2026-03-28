@@ -9,13 +9,13 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class DataCategory(str, Enum):
+class DataCategory(StrEnum):
     """Data freshness categories per Section 19.3."""
 
     REALTIME = "realtime"  # seconds to minutes
@@ -24,7 +24,7 @@ class DataCategory(str, Enum):
     HISTORICAL = "historical"  # static, validate checksums
 
 
-class StalenessAction(str, Enum):
+class StalenessAction(StrEnum):
     """What to do when data goes stale."""
 
     SUSPEND = "suspend_decisions"

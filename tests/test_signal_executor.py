@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pandas as pd
 
@@ -16,12 +16,12 @@ from pipeline.execution.broker import (
     Position,
 )
 from pipeline.execution.capital_guard import AccountSnapshot, CapitalGuardConfig
-from pipeline.execution.signal_executor import SignalExecutor
 from pipeline.execution.position_monitor import (
     PositionMonitor,
     TrackedPosition,
 )
-
+from pipeline.execution.signal_executor import SignalExecutor
+from pipeline.strategy.risk import SwingRiskManager
 
 # ---------------------------------------------------------------------------
 # Mock broker
@@ -66,7 +66,7 @@ class MockBroker(BaseBroker):
         order.status = OrderStatus.FILLED
         order.filled_qty = order.qty
         order.filled_avg_price = order.limit_price or 100.0
-        order.submitted_at = datetime.now(timezone.utc)
+        order.submitted_at = datetime.now(UTC)
         self.submitted_orders.append(order)
         return order
 
@@ -116,7 +116,7 @@ def make_signal_df(
     prices = prices or [150.0]
 
     rows = []
-    for ticker, score, price in zip(tickers, scores, prices):
+    for ticker, score, price in zip(tickers, scores, prices, strict=False):
         atr = price * 0.02  # 2% ATR
         rows.append({
             "date": "2025-03-06",
@@ -286,7 +286,7 @@ class TestPositionMonitor:
         config = CapitalGuardConfig(max_capital=400)
         monitor = PositionMonitor(broker=broker, guard_config=config)
         # Use a recent entry date to avoid time-exit (max 15 days)
-        recent_entry = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        recent_entry = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         monitor.register_position(TrackedPosition(
             symbol="AAPL",
             entry_date=recent_entry,
@@ -310,7 +310,7 @@ class TestPositionMonitor:
         monitor = PositionMonitor(broker=broker, guard_config=config)
         monitor.register_position(TrackedPosition(
             symbol="AAPL",
-            entry_date=datetime(2025, 3, 1, tzinfo=timezone.utc),
+            entry_date=datetime(2025, 3, 1, tzinfo=UTC),
             entry_price=150.0,
             shares=2,
             stop_price=145.5,
@@ -339,11 +339,11 @@ class TestPositionMonitor:
             broker=broker, guard_config=config, risk_manager=risk_mgr,
         )
         monitor.register_position(TrackedPosition(
-            symbol="AAPL", entry_date=datetime(2025, 3, 1, tzinfo=timezone.utc),
+            symbol="AAPL", entry_date=datetime(2025, 3, 1, tzinfo=UTC),
             entry_price=150, shares=2, stop_price=140, atr_at_entry=3,
         ))
         monitor.register_position(TrackedPosition(
-            symbol="MSFT", entry_date=datetime(2025, 3, 1, tzinfo=timezone.utc),
+            symbol="MSFT", entry_date=datetime(2025, 3, 1, tzinfo=UTC),
             entry_price=150, shares=1, stop_price=140, atr_at_entry=3,
         ))
 
@@ -362,7 +362,7 @@ class TestPositionMonitor:
         )
         monitor.register_position(TrackedPosition(
             symbol="AAPL",
-            entry_date=datetime(2025, 3, 1, tzinfo=timezone.utc),
+            entry_date=datetime(2025, 3, 1, tzinfo=UTC),
             entry_price=150.0,
             shares=2,
             stop_price=145.5,
@@ -387,5 +387,5 @@ class TestPositionMonitor:
         assert result.positions_checked == 1
 
 
-# Need this import for the RED circuit breaker test
-from pipeline.strategy.risk import SwingRiskManager
+
+# RED circuit breaker tests below use SwingRiskManager imported at top of file

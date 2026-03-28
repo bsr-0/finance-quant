@@ -7,13 +7,12 @@ polling backend, and PositionMonitor integration with realtime prices.
 from __future__ import annotations
 
 import threading
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
 
 from pipeline.execution.realtime_feed import PriceQuote, RealtimePriceFeed
-
 
 # ---------------------------------------------------------------------------
 # PriceQuote unit tests
@@ -37,7 +36,7 @@ class TestPriceQuote:
         assert q.spread == 0.0
 
     def test_age_seconds(self):
-        old_ts = datetime.now(timezone.utc) - timedelta(seconds=30)
+        old_ts = datetime.now(UTC) - timedelta(seconds=30)
         q = PriceQuote(symbol="AAPL", price=150.0, timestamp=old_ts)
         assert q.age_seconds >= 29.0
 
@@ -52,14 +51,14 @@ class TestPriceQuote:
 
 class TestRealtimePriceFeed:
     def _make_feed(self, **kwargs):
-        defaults = dict(
-            symbols=["AAPL", "MSFT"],
-            api_key="test-key",
-            secret_key="test-secret",
-            mode="polling",
-            poll_interval=1,
-            stale_threshold=120,
-        )
+        defaults = {
+            "symbols": ["AAPL", "MSFT"],
+            "api_key": "test-key",
+            "secret_key": "test-secret",
+            "mode": "polling",
+            "poll_interval": 1,
+            "stale_threshold": 120,
+        }
         defaults.update(kwargs)
         return RealtimePriceFeed(**defaults)
 
@@ -108,7 +107,7 @@ class TestRealtimePriceFeed:
 
     def test_stale_detection(self):
         feed = self._make_feed(stale_threshold=5)
-        old_ts = datetime.now(timezone.utc) - timedelta(seconds=10)
+        old_ts = datetime.now(UTC) - timedelta(seconds=10)
         feed._update_price(PriceQuote(symbol="AAPL", price=155.0, timestamp=old_ts))
         assert feed.is_stale("AAPL") is True
 
@@ -281,8 +280,8 @@ class TestPositionMonitorRealtimeIntegration:
     """Test that PositionMonitor uses realtime prices when available."""
 
     def test_monitor_uses_realtime_price(self):
+        from pipeline.execution.capital_guard import AccountSnapshot, CapitalGuardConfig
         from pipeline.execution.position_monitor import PositionMonitor, TrackedPosition
-        from pipeline.execution.capital_guard import CapitalGuardConfig, AccountSnapshot
 
         # Mock broker
         broker = MagicMock()
@@ -318,7 +317,7 @@ class TestPositionMonitorRealtimeIntegration:
         # Register a position with stop at $143
         tracked = TrackedPosition(
             symbol="AAPL",
-            entry_date=datetime.now(timezone.utc) - timedelta(days=1),
+            entry_date=datetime.now(UTC) - timedelta(days=1),
             entry_price=145.0,
             shares=1.0,
             stop_price=143.0,
@@ -333,9 +332,9 @@ class TestPositionMonitorRealtimeIntegration:
         assert result.actions[0].reason.value == "stop_loss"
 
     def test_monitor_falls_back_to_broker_when_stale(self):
-        from pipeline.execution.position_monitor import PositionMonitor, TrackedPosition
-        from pipeline.execution.capital_guard import CapitalGuardConfig, AccountSnapshot
         from pipeline.execution.broker import Position
+        from pipeline.execution.capital_guard import AccountSnapshot, CapitalGuardConfig
+        from pipeline.execution.position_monitor import PositionMonitor, TrackedPosition
 
         broker = MagicMock()
         broker.get_account_snapshot.return_value = AccountSnapshot(
@@ -356,7 +355,7 @@ class TestPositionMonitorRealtimeIntegration:
         rt_feed.is_running = True
         old_quote = PriceQuote(
             symbol="AAPL", price=140.0,
-            timestamp=datetime.now(timezone.utc) - timedelta(seconds=300),
+            timestamp=datetime.now(UTC) - timedelta(seconds=300),
         )
         rt_feed.get_latest.return_value = old_quote
         rt_feed.is_stale.return_value = True  # Stale!
@@ -369,7 +368,7 @@ class TestPositionMonitorRealtimeIntegration:
 
         tracked = TrackedPosition(
             symbol="AAPL",
-            entry_date=datetime.now(timezone.utc) - timedelta(days=1),
+            entry_date=datetime.now(UTC) - timedelta(days=1),
             entry_price=145.0,
             shares=1.0,
             stop_price=143.0,
@@ -383,9 +382,9 @@ class TestPositionMonitorRealtimeIntegration:
         assert result.exits_triggered == 0
 
     def test_monitor_works_without_feed(self):
-        from pipeline.execution.position_monitor import PositionMonitor, TrackedPosition
-        from pipeline.execution.capital_guard import CapitalGuardConfig, AccountSnapshot
         from pipeline.execution.broker import Position
+        from pipeline.execution.capital_guard import AccountSnapshot, CapitalGuardConfig
+        from pipeline.execution.position_monitor import PositionMonitor, TrackedPosition
 
         broker = MagicMock()
         broker.get_account_snapshot.return_value = AccountSnapshot(
@@ -408,7 +407,7 @@ class TestPositionMonitorRealtimeIntegration:
 
         tracked = TrackedPosition(
             symbol="AAPL",
-            entry_date=datetime.now(timezone.utc) - timedelta(days=1),
+            entry_date=datetime.now(UTC) - timedelta(days=1),
             entry_price=145.0,
             shares=1.0,
             stop_price=143.0,

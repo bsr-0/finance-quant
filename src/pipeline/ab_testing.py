@@ -17,8 +17,8 @@ import json
 import logging
 import math
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -29,7 +29,7 @@ from scipy.stats import norm
 logger = logging.getLogger(__name__)
 
 
-class TestStatus(str, Enum):
+class TestStatus(StrEnum):
     DESIGNED = "designed"
     RUNNING = "running"
     STOPPED_EARLY = "stopped_early"
@@ -56,7 +56,7 @@ class ABTestConfig:
     n_interim_looks: int = 4  # number of interim analyses
     status: TestStatus = TestStatus.DESIGNED
     created_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
     def to_dict(self) -> dict[str, Any]:
@@ -178,7 +178,7 @@ class ABTestObservation:
     primary_value: float = 0.0
     secondary_values: dict[str, float] = field(default_factory=dict)
     timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
 

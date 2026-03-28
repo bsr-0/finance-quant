@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from pipeline.execution.broker import BaseBroker, Position
 from pipeline.execution.capital_guard import AccountSnapshot
 from pipeline.execution.reconciler import (
@@ -11,7 +10,6 @@ from pipeline.execution.reconciler import (
     Severity,
     SystemPosition,
 )
-
 
 # ---------------------------------------------------------------------------
 # Mock broker

@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pipeline.execution.alpaca_broker import AlpacaBroker
@@ -202,7 +202,7 @@ class TradingRunner:
                 ticker = detail["ticker"]
                 self.monitor.register_position(TrackedPosition(
                     symbol=ticker,
-                    entry_date=datetime.now(timezone.utc),
+                    entry_date=datetime.now(UTC),
                     entry_price=detail.get("limit_price", detail.get("price", 0)),
                     shares=detail.get("shares", 0),
                     stop_price=detail.get("stop_price", 0),

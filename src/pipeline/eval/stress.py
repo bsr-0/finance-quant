@@ -269,12 +269,12 @@ def apply_correlated_shock(
 
     # Simulate correlated shocks
     try:
-        L = np.linalg.cholesky(corr)
+        chol = np.linalg.cholesky(corr)
     except np.linalg.LinAlgError:
-        L = np.eye(n_assets)
+        chol = np.eye(n_assets)
 
     z = rng.standard_normal((n_simulations, n_assets))
-    correlated_z = z @ L.T
+    correlated_z = z @ chol.T
 
     # Scale shocks: mean = price_shock_pct, vol = |price_shock_pct| * 0.5
     vol_scale = max(abs(shock.price_shock_pct) * 0.5, 0.01)

@@ -136,7 +136,8 @@ class MomentumReturn(RawIndicator):
     @property
     def formula(self) -> str:
         return (
-            rf"\text{{MOM}}_{{i,t}} = \frac{{P_{{i,t-{self.skip}}}}}{{P_{{i,t-{self.lookback}}}}} - 1"
+            rf"\text{{MOM}}_{{i,t}} = \frac{{P_{{i,t-{self.skip}}}}}"
+            rf"{{P_{{i,t-{self.lookback}}}}} - 1"
         )
 
     def compute(self, df: pd.DataFrame) -> pd.Series:
@@ -291,7 +292,8 @@ class BollingerBandPosition(RawIndicator):
     r"""Position within Bollinger Bands (0 = lower, 1 = upper).
 
     .. math::
-        \text{BB\%}_{i,t} = \frac{P_{i,t} - BB_{\text{lower}}}{BB_{\text{upper}} - BB_{\text{lower}}}
+        \text{BB\%}_{i,t} = \frac{P_{i,t} - BB_{\text{lower}}}
+        {BB_{\text{upper}} - BB_{\text{lower}}}
     """
 
     def __init__(self, window: int = 20, num_std: float = 2.0) -> None:
@@ -393,7 +395,7 @@ class SignalPipeline:
         normalized: dict[str, pd.DataFrame] = {}
         for ticker, raw_df in raw_data.items():
             norm_df = pd.DataFrame(index=raw_df.index)
-            for indicator, config in self.signal_def.indicators:
+            for _indicator, config in self.signal_def.indicators:
                 col = config.name
                 if col not in raw_df.columns:
                     continue
@@ -503,7 +505,10 @@ def momentum_signal(
         SignalConfig(
             name="momentum_return",
             description=f"{lookback // 21}-1 month total return",
-            formula=rf"\text{{MOM}}_{{i,t}} = \frac{{P_{{i,t-{skip}}}}}{{P_{{i,t-{lookback}}}}} - 1",
+            formula=(
+                rf"\text{{MOM}}_{{i,t}} = \frac{{P_{{i,t-{skip}}}}}"
+                rf"{{P_{{i,t-{lookback}}}}} - 1"
+            ),
             normalization=NormalizationMethod.ZSCORE,
             lookback_window=lookback,
             weight=0.40,
@@ -516,7 +521,10 @@ def momentum_signal(
         SignalConfig(
             name="momentum_fast",
             description=f"{fast_lookback // 21}-1 month total return",
-            formula=rf"\text{{MOM}}_{{fast}} = \frac{{P_{{i,t-{skip}}}}}{{P_{{i,t-{fast_lookback}}}}} - 1",
+            formula=(
+                rf"\text{{MOM}}_{{fast}} = \frac{{P_{{i,t-{skip}}}}}"
+                rf"{{P_{{i,t-{fast_lookback}}}}} - 1"
+            ),
             normalization=NormalizationMethod.ZSCORE,
             lookback_window=fast_lookback,
             weight=0.20,
@@ -542,7 +550,10 @@ def momentum_signal(
         SignalConfig(
             name="volatility",
             description="Realized volatility (penalize high-vol names)",
-            formula=rf"\sigma_{{i,t}} = \text{{std}}(\text{{ret}}_i, {vol_window}) \times \sqrt{{252}}",
+            formula=(
+                rf"\sigma_{{i,t}} = \text{{std}}"
+                rf"(\text{{ret}}_i, {vol_window}) \times \sqrt{{252}}"
+            ),
             normalization=NormalizationMethod.ZSCORE,
             lookback_window=lookback,
             weight=0.15,

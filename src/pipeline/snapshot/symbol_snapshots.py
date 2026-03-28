@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -29,10 +29,7 @@ class SymbolSnapshotBuilder:
         asof_ts: datetime,
         lookback_days: int = 60,
     ) -> dict | None:
-        if asof_ts.tzinfo is None:
-            asof_ts = asof_ts.replace(tzinfo=timezone.utc)
-        else:
-            asof_ts = asof_ts.astimezone(timezone.utc)
+        asof_ts = asof_ts.replace(tzinfo=UTC) if asof_ts.tzinfo is None else asof_ts.astimezone(UTC)
         snapshot: dict[str, Any] = {
             "symbol_id": symbol_id,
             "asof_ts": asof_ts,
@@ -164,13 +161,16 @@ class SymbolSnapshotBuilder:
             ORDER BY s.provider_series_code, o.period_end DESC
         """
         results = self.db.run_query(query, {"asof_ts": asof_ts})
-        return {r["series_code"]: float(r["value"]) if r["value"] is not None else None for r in results}
+        return {
+            r["series_code"]: float(r["value"]) if r["value"] is not None else None
+            for r in results
+        }
 
     def _get_news_counts(self, asof_ts: datetime) -> dict:
         windows = {"1h": timedelta(hours=1), "24h": timedelta(hours=24), "7d": timedelta(days=7)}
         counts = {}
         if not self.db.table_exists("cur_news_items"):
-            return {name: 0 for name in windows}
+            return dict.fromkeys(windows, 0)
         for name, delta in windows.items():
             start_ts = asof_ts - delta
             query = """
@@ -185,7 +185,10 @@ class SymbolSnapshotBuilder:
 
     def _get_fundamentals(self, symbol_id: UUID, asof_ts: datetime, price: float | None) -> dict:
         """Get latest fundamental ratios as of asof_ts."""
-        result: dict[str, float | None] = {"pe_ratio": None, "pb_ratio": None, "debt_to_equity": None, "roe": None}
+        result: dict[str, float | None] = {
+            "pe_ratio": None, "pb_ratio": None,
+            "debt_to_equity": None, "roe": None,
+        }
         if not self.db.table_exists("cur_fundamentals_quarterly"):
             return result
 
@@ -203,7 +206,10 @@ class SymbolSnapshotBuilder:
         if not rows:
             return result
 
-        metrics = {r["metric_name"]: float(r["metric_value"]) for r in rows if r["metric_value"] is not None}
+        metrics = {
+            r["metric_name"]: float(r["metric_value"])
+            for r in rows if r["metric_value"] is not None
+        }
 
         eps = metrics.get("EarningsPerShareDiluted") or metrics.get("EarningsPerShareBasic")
         if price and eps and eps != 0:
@@ -228,7 +234,10 @@ class SymbolSnapshotBuilder:
 
     def _get_insider_activity(self, symbol_id: UUID, asof_ts: datetime) -> dict:
         """Get insider trading signals in a 90-day window."""
-        result: dict[str, float | int | None] = {"insider_net_shares_90d": None, "insider_buy_count_90d": None}
+        result: dict[str, float | int | None] = {
+            "insider_net_shares_90d": None,
+            "insider_buy_count_90d": None,
+        }
         if not self.db.table_exists("cur_insider_trades"):
             return result
 
@@ -275,7 +284,11 @@ class SymbolSnapshotBuilder:
 
     def _get_options_iv(self, symbol_id: UUID, asof_ts: datetime) -> dict:
         """Get latest options IV metrics."""
-        result: dict[str, float | None] = {"iv_30d": None, "put_call_volume_ratio": None, "skew_25d": None}
+        result: dict[str, float | None] = {
+            "iv_30d": None,
+            "put_call_volume_ratio": None,
+            "skew_25d": None,
+        }
         if not self.db.table_exists("cur_options_summary_daily"):
             return result
 
@@ -301,7 +314,10 @@ class SymbolSnapshotBuilder:
 
     def _get_earnings_features(self, symbol_id: UUID, asof_ts: datetime) -> dict:
         """Get earnings surprise and next earnings date."""
-        result: dict[str, float | int | None] = {"days_to_next_earnings": None, "last_eps_surprise_pct": None}
+        result: dict[str, float | int | None] = {
+            "days_to_next_earnings": None,
+            "last_eps_surprise_pct": None,
+        }
         if not self.db.table_exists("cur_earnings_events"):
             return result
 
@@ -367,9 +383,9 @@ class SymbolSnapshotBuilder:
             symbol_ids = [UUID(r["symbol_id"]) for r in result]
 
         if not start_ts:
-            start_ts = datetime.now(timezone.utc) - timedelta(days=90)
+            start_ts = datetime.now(UTC) - timedelta(days=90)
         if not end_ts:
-            end_ts = datetime.now(timezone.utc)
+            end_ts = datetime.now(UTC)
 
         freq_map = {"1h": "H", "1d": "D", "15min": "15min"}
         pandas_freq = freq_map.get(frequency, "D")

@@ -299,8 +299,15 @@ class TestSecFundamentalsExtractor:
                         "label": "Revenue",
                         "units": {
                             "USD": [
-                                {"form": "8-K", "filed": "2024-01-01", "end": "2023-12-31", "val": 100},
-                                {"form": "10-Q", "filed": "2024-01-15", "end": "2023-12-31", "val": 200, "accn": "x", "fy": 2024, "fp": "Q1"},
+                                {
+                                    "form": "8-K", "filed": "2024-01-01",
+                                    "end": "2023-12-31", "val": 100,
+                                },
+                                {
+                                    "form": "10-Q", "filed": "2024-01-15",
+                                    "end": "2023-12-31", "val": 200,
+                                    "accn": "x", "fy": 2024, "fp": "Q1",
+                                },
                             ]
                         },
                     }
@@ -308,7 +315,9 @@ class TestSecFundamentalsExtractor:
             }
         }
 
-        rows = SecFundamentalsExtractor._parse_facts(facts_json, ticker="AAPL", cik=320193, metrics=["Revenues"])
+        rows = SecFundamentalsExtractor._parse_facts(
+            facts_json, ticker="AAPL", cik=320193, metrics=["Revenues"],
+        )
         assert len(rows) == 1
         assert rows[0]["form_type"] == "10-Q"
 
@@ -353,7 +362,9 @@ class TestSecInsiderExtractor:
         </ownershipDocument>
         """
 
-        rows = SecInsiderExtractor._parse_form4_xml(xml_text, ticker="AAPL", cik=320193, filing_date="2024-01-16")
+        rows = SecInsiderExtractor._parse_form4_xml(
+            xml_text, ticker="AAPL", cik=320193, filing_date="2024-01-16",
+        )
 
         assert len(rows) == 1
         assert rows[0]["insider_name"] == "John Doe"
@@ -364,7 +375,9 @@ class TestSecInsiderExtractor:
     def test_parse_form4_xml_invalid(self):
         from pipeline.extract.sec_insider import SecInsiderExtractor
 
-        rows = SecInsiderExtractor._parse_form4_xml("not xml", ticker="AAPL", cik=320193, filing_date="2024-01-16")
+        rows = SecInsiderExtractor._parse_form4_xml(
+            "not xml", ticker="AAPL", cik=320193, filing_date="2024-01-16",
+        )
         assert rows == []
 
 
@@ -506,7 +519,11 @@ class TestEarningsExtractor:
             "earnings": {
                 "financialsChart": {
                     "quarterly": [
-                        {"date": "3Q2023", "revenue": {"raw": 89500000000}, "earnings": {"raw": 22960000000}},
+                        {
+                            "date": "3Q2023",
+                            "revenue": {"raw": 89500000000},
+                            "earnings": {"raw": 22960000000},
+                        },
                     ]
                 }
             },

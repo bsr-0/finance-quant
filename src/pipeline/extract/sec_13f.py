@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 import xml.etree.ElementTree as ET
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
@@ -144,7 +145,7 @@ class Sec13FExtractor:
             info_tables = root.findall(".//infoTable")
 
         for entry in info_tables:
-            def _text(path: str) -> str | None:
+            def _text(path: str, entry: ET.Element = entry) -> str | None:
                 # Try with namespace
                 el = entry.find(f"ns:{path}", _NS)
                 if el is None:
@@ -182,10 +183,8 @@ class Sec13FExtractor:
                     sh_type = shares_el.find("sshPrnamtType")
 
                 if sh_val is not None and sh_val.text:
-                    try:
+                    with contextlib.suppress(ValueError):
                         shares = int(sh_val.text.strip())
-                    except ValueError:
-                        pass
                 if sh_type is not None and sh_type.text:
                     shares_type = sh_type.text.strip()
 
@@ -218,10 +217,8 @@ class Sec13FExtractor:
 
             market_value = None
             if value_str:
-                try:
+                with contextlib.suppress(ValueError):
                     market_value = int(value_str) * 1000  # 13F reports values in thousands
-                except ValueError:
-                    pass
 
             rows.append({
                 "filer_cik": filer_cik,
@@ -291,7 +288,7 @@ class Sec13FExtractor:
                     continue
 
                 df = pd.DataFrame(all_rows)
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
                 safe_name = filer_name.replace(" ", "_").lower()

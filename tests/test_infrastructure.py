@@ -1,5 +1,6 @@
 """Unit tests for infrastructure modules (no database required)."""
 
+import contextlib
 import json
 import threading
 import time
@@ -169,10 +170,8 @@ class TestCircuitBreaker:
 
         def do_failures():
             for _ in range(20):
-                try:
+                with contextlib.suppress(ValueError, CircuitBreakerOpenError):
                     cb.call(lambda: (_ for _ in ()).throw(ValueError))
-                except (ValueError, CircuitBreakerOpenError):
-                    pass
 
         threads = [threading.Thread(target=do_failures) for _ in range(4)]
         for t in threads:

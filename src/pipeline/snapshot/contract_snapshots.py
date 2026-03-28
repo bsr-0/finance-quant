@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import numpy as np
@@ -126,7 +126,8 @@ class ContractSnapshotBuilder:
         snapshot["price_staleness_hours"] = staleness["price_staleness_hours"]
         snapshot["macro_staleness_days"] = staleness["macro_staleness_days"]
         snapshot["last_price_ts"] = staleness["last_price_ts"]
-        if staleness["price_staleness_hours"] is not None and staleness["price_staleness_hours"] > 24:
+        if (staleness["price_staleness_hours"] is not None
+                and staleness["price_staleness_hours"] > 24):
             logger.warning(
                 f"Price data for {contract_id} is "
                 f"{staleness['price_staleness_hours']:.1f} hours stale"
@@ -346,10 +347,10 @@ class ContractSnapshotBuilder:
             if isinstance(last_price_ts, str):
                 last_price_ts = datetime.fromisoformat(last_price_ts.replace("Z", "+00:00"))
             asof_aware = (
-                asof_ts.replace(tzinfo=timezone.utc) if asof_ts.tzinfo is None else asof_ts
+                asof_ts.replace(tzinfo=UTC) if asof_ts.tzinfo is None else asof_ts
             )
             lp_aware = (
-                last_price_ts.replace(tzinfo=timezone.utc)
+                last_price_ts.replace(tzinfo=UTC)
                 if last_price_ts.tzinfo is None
                 else last_price_ts
             )
@@ -524,9 +525,9 @@ class ContractSnapshotBuilder:
             contract_ids = [UUID(r["contract_id"]) for r in result]
 
         if not start_ts:
-            start_ts = datetime.now(timezone.utc) - timedelta(days=30)
+            start_ts = datetime.now(UTC) - timedelta(days=30)
         if not end_ts:
-            end_ts = datetime.now(timezone.utc)
+            end_ts = datetime.now(UTC)
 
         # Generate timestamp series
         freq_map = {"1h": "H", "1d": "D", "15min": "15min"}
@@ -557,7 +558,8 @@ class ContractSnapshotBuilder:
                  volume_24h, trade_count_24h, price_volatility_24h, price_volatility_24h_robust,
                  trade_outlier_pct, trade_imbalance, avg_trade_size, trade_size_std,
                  price_staleness_hours, macro_staleness_days, data_quality_score,
-                 macro_panel, news_counts, event_counts_24h, event_tone_avg, event_time, available_time,
+                 macro_panel, news_counts, event_counts_24h,
+                 event_tone_avg, event_time, available_time,
                  last_price_ts, has_price_outliers, outlier_score,
                  micro_trade_imbalance, micro_buy_sell_ratio)
                 VALUES (:contract_id, :asof_ts, :implied_p_yes, :spread, :depth_best_bid,

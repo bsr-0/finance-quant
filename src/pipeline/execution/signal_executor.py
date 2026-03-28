@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -214,7 +214,7 @@ class SignalExecutor:
             self.initialize()
 
         result = ExecutionResult(
-            date=datetime.now(timezone.utc),
+            date=datetime.now(UTC),
             signals_parsed=len(signals_df),
             signals_eligible=0,
             orders_submitted=0,
@@ -392,7 +392,9 @@ class SignalExecutor:
                         avg_entry_price=submitted.filled_avg_price or signal.entry_price,
                         side="long",
                     )
-                elif submitted.status in (OrderStatus.SUBMITTED, OrderStatus.PENDING, OrderStatus.PARTIAL):
+                elif submitted.status in (
+                    OrderStatus.SUBMITTED, OrderStatus.PENDING, OrderStatus.PARTIAL,
+                ):
                     pending_order_ids.append(submitted.order_id)
 
                 result.details.append({
@@ -416,7 +418,8 @@ class SignalExecutor:
                 notify(
                     AlertSeverity.INFO,
                     f"Order Submitted — {signal.ticker}",
-                    f"{shares:.4f} shares @ ${signal.entry_price:.2f} limit → {submitted.status.value}",
+                    f"{shares:.4f} shares @ ${signal.entry_price:.2f}"
+                    f" limit → {submitted.status.value}",
                     {
                         "order_id": submitted.order_id,
                         "ticker": signal.ticker,
@@ -522,7 +525,10 @@ class SignalExecutor:
 
         # Cancel orders still open after timeout
         for oid in pending:
-            logger.warning("Order %s still open after %ds — cancelling", oid, self.fill_poll_timeout)
+            logger.warning(
+                "Order %s still open after %ds — cancelling",
+                oid, self.fill_poll_timeout,
+            )
             try:
                 self.broker.cancel_order(oid)
                 try:

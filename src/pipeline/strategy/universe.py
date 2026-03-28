@@ -190,9 +190,8 @@ class UniverseBuilder:
 
     @staticmethod
     def _passes_filters(inst: InstrumentMetadata, f: UniverseFilter) -> bool:
-        if f.include_only_tickers is not None:
-            if inst.ticker not in f.include_only_tickers:
-                return False
+        if f.include_only_tickers is not None and inst.ticker not in f.include_only_tickers:
+            return False
 
         if inst.ticker in f.exclude_tickers:
             return False
@@ -218,10 +217,7 @@ class UniverseBuilder:
         if f.require_shortable and not inst.is_shortable:
             return False
 
-        if inst.sector in f.exclude_sectors:
-            return False
-
-        return True
+        return inst.sector not in f.exclude_sectors
 
     def build_from_prices(
         self,

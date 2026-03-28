@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
@@ -117,7 +117,7 @@ class EtfFlowsExtractor:
             return []
 
         df = pd.DataFrame(all_rows)
-        df["extracted_at"] = datetime.now(timezone.utc)
+        df["extracted_at"] = datetime.now(UTC)
         df["run_id"] = run_id
 
         file_path = output_dir / f"etf_flows_{today}.parquet"

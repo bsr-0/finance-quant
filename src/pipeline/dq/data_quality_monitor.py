@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -34,7 +34,7 @@ class DataQualityAlert:
     severity: Severity
     message: str
     details: dict = field(default_factory=dict)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     resolved_at: datetime | None = None
 
 
@@ -109,7 +109,7 @@ class DataQualityMonitor:
 
         if not result or not result[0]["latest_ts"]:
             return DataQualityAlert(
-                alert_id=f"freshness_{table_name}_{datetime.now(timezone.utc).isoformat()}",
+                alert_id=f"freshness_{table_name}_{datetime.now(UTC).isoformat()}",
                 table_name=table_name,
                 check_name="freshness",
                 severity=Severity.ERROR,
@@ -123,15 +123,15 @@ class DataQualityMonitor:
 
         # Ensure both are tz-aware for subtraction
         if latest_ts.tzinfo is None:
-            latest_ts = latest_ts.replace(tzinfo=timezone.utc)
+            latest_ts = latest_ts.replace(tzinfo=UTC)
         age_hours = (
-            datetime.now(timezone.utc) - latest_ts
+            datetime.now(UTC) - latest_ts
         ).total_seconds() / 3600
 
         if age_hours > max_age_hours:
             severity = Severity.CRITICAL if age_hours > max_age_hours * 2 else Severity.WARNING
             return DataQualityAlert(
-                alert_id=f"freshness_{table_name}_{datetime.now(timezone.utc).isoformat()}",
+                alert_id=f"freshness_{table_name}_{datetime.now(UTC).isoformat()}",
                 table_name=table_name,
                 check_name="freshness",
                 severity=severity,
@@ -186,7 +186,7 @@ class DataQualityMonitor:
 
         if incomplete_cols:
             return DataQualityAlert(
-                alert_id=f"completeness_{table_name}_{datetime.now(timezone.utc).isoformat()}",
+                alert_id=f"completeness_{table_name}_{datetime.now(UTC).isoformat()}",
                 table_name=table_name,
                 check_name="completeness",
                 severity=Severity.WARNING,
@@ -217,7 +217,9 @@ class DataQualityMonitor:
             mad AS (
                 SELECT
                     p.symbol_id,
-                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ABS(p.close - m.median_price)) AS mad_price
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (
+                        ORDER BY ABS(p.close - m.median_price)
+                    ) AS mad_price
                 FROM {table_name} p
                 JOIN med m ON p.symbol_id = m.symbol_id
                 GROUP BY p.symbol_id
@@ -243,7 +245,7 @@ class DataQualityMonitor:
 
         if result:
             return DataQualityAlert(
-                alert_id=f"price_anomaly_{datetime.now(timezone.utc).isoformat()}",
+                alert_id=f"price_anomaly_{datetime.now(UTC).isoformat()}",
                 table_name=table_name,
                 check_name="price_anomaly",
                 severity=Severity.WARNING,
@@ -272,7 +274,7 @@ class DataQualityMonitor:
 
         if delisted_pct < min_delisted_pct:
             return DataQualityAlert(
-                alert_id=f"survivor_bias_{datetime.now(timezone.utc).isoformat()}",
+                alert_id=f"survivor_bias_{datetime.now(UTC).isoformat()}",
                 table_name="dim_symbol",
                 check_name="survivor_bias",
                 severity=Severity.WARNING,
@@ -310,7 +312,7 @@ class DataQualityMonitor:
 
         if result:
             return DataQualityAlert(
-                alert_id=f"look_ahead_{datetime.now(timezone.utc).isoformat()}",
+                alert_id=f"look_ahead_{datetime.now(UTC).isoformat()}",
                 table_name=table_name,
                 check_name="look_ahead_bias",
                 severity=Severity.CRITICAL,
@@ -403,7 +405,7 @@ class DataQualityMonitor:
     def generate_quality_report(self, output_path: Path | None = None) -> dict:
         """Generate comprehensive quality report."""
         report: dict[str, Any] = {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "checks": {},
             "alerts": [],
             "recommendations": [],

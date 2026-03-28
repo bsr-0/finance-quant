@@ -13,13 +13,13 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class TaskState(str, Enum):
+class TaskState(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"

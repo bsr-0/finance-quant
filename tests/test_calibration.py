@@ -7,8 +7,8 @@ import pandas as pd
 import pytest
 
 from pipeline.calibration import (
-    CalibrationMethod,
     CalibratedModelWrapper,
+    CalibrationMethod,
     Calibrator,
     generate_calibration_comparison,
 )
@@ -113,15 +113,15 @@ class TestCalibratedModelWrapper:
         def train_fn(train_df: pd.DataFrame) -> object:
             from sklearn.linear_model import LogisticRegression
 
-            X = train_df[["feat1", "feat2"]].values
+            x_data = train_df[["feat1", "feat2"]].values
             y = train_df["target"].values
             model = LogisticRegression(max_iter=200)
-            model.fit(X, y)
+            model.fit(x_data, y)
             return model
 
         def predict_fn(model: object, test_df: pd.DataFrame) -> pd.Series:
-            X = test_df[["feat1", "feat2"]].values
-            probs = model.predict_proba(X)[:, 1]  # type: ignore[union-attr]
+            x_data = test_df[["feat1", "feat2"]].values
+            probs = model.predict_proba(x_data)[:, 1]  # type: ignore[union-attr]
             return pd.Series(probs, index=test_df.index)
 
         def eval_fn(y_true: pd.Series, y_pred: pd.Series) -> dict[str, float]:

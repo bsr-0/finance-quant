@@ -11,6 +11,7 @@ Supported model families:
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import logging
 import time
@@ -126,11 +127,11 @@ def _create_estimator(spec: ModelSpec) -> Any:
     if family == "lightgbm":
         try:
             import lightgbm as lgb
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "LightGBM is not installed. Install it with: "
                 "pip install market-data-warehouse[ml]"
-            )
+            ) from e
         hp.setdefault("verbosity", -1)
         hp.setdefault("n_jobs", -1)
         if spec.objective in ("logloss", "classification"):
@@ -140,11 +141,11 @@ def _create_estimator(spec: ModelSpec) -> Any:
     if family == "xgboost":
         try:
             import xgboost as xgb
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "XGBoost is not installed. Install it with: "
                 "pip install market-data-warehouse[ml]"
-            )
+            ) from e
         hp.setdefault("verbosity", 0)
         hp.setdefault("n_jobs", -1)
         if spec.objective in ("logloss", "classification"):
@@ -209,23 +210,23 @@ class ModelSearcher:
         def train_fn(train_df: pd.DataFrame) -> Any:
             estimator = _create_estimator(spec)
             cols = feature_cols or [c for c in train_df.columns if c != target_col]
-            X = train_df[cols].values
+            x_data = train_df[cols].values
             y = train_df[target_col].values
-            estimator.fit(X, y)
+            estimator.fit(x_data, y)
             return {"estimator": estimator, "feature_cols": cols}
 
         def predict_fn(model_bundle: Any, test_df: pd.DataFrame) -> pd.Series:
             estimator = model_bundle["estimator"]
             cols = model_bundle["feature_cols"]
-            X = test_df[cols].values
+            x_data = test_df[cols].values
 
             if hasattr(estimator, "predict_proba"):
                 try:
-                    preds = estimator.predict_proba(X)[:, 1]
+                    preds = estimator.predict_proba(x_data)[:, 1]
                 except (IndexError, AttributeError):
-                    preds = estimator.predict(X)
+                    preds = estimator.predict(x_data)
             else:
-                preds = estimator.predict(X)
+                preds = estimator.predict(x_data)
 
             return pd.Series(preds, index=test_df.index, name="prediction")
 
@@ -297,7 +298,7 @@ class ModelSearcher:
 
         specs = []
         for combo in itertools.product(*values):
-            hp = dict(zip(keys, combo))
+            hp = dict(zip(keys, combo, strict=False))
             for w, obj in itertools.product(windows2, objectives):
                 specs.append(
                     ModelSpec(
@@ -431,10 +432,8 @@ class ModelSearcher:
             except Exception as e:
                 elapsed = time.time() - start_time
                 if self.budget:
-                    try:
+                    with contextlib.suppress(Exception):
                         tracker.__exit__(type(e), e, None)
-                    except Exception:
-                        pass
                 self.registry.fail_experiment(record.experiment_id, str(e))
                 logger.warning("Candidate %d [%s] failed: %s", i + 1, spec.model_family, e)
 

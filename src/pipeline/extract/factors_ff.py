@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import logging
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -77,7 +77,7 @@ def extract_factors_ff(output_dir: Path, run_id: str | None = None) -> list[Path
 
     df = df[["mkt_rf", "smb", "hml", "rmw", "cma", "mom", "rf"]].dropna()
     df = df.reset_index()
-    df["extracted_at"] = datetime.now(timezone.utc)
+    df["extracted_at"] = datetime.now(UTC)
     df["run_id"] = run_id
 
     file_path = output_dir / "ff_factors_daily.parquet"

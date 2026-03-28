@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class FailureModeReport:
             "all_passed": self.all_passed,
             "checks": [c.to_dict() for c in self.checks],
             "failed_checks": self.failed_checks or [],
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
 
@@ -100,7 +100,10 @@ class FailureModeChecker:
         return FailureCheck(
             check_name="monitoring_active",
             passed=monitoring_active,
-            reason="" if monitoring_active else "Production system lacks active monitoring dashboard",
+            reason=(
+                "" if monitoring_active
+                else "Production system lacks active monitoring dashboard"
+            ),
         )
 
     @staticmethod

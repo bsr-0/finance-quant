@@ -30,7 +30,7 @@ def _make_multi_ticker_data(
     seed: int = 42,
 ) -> dict[str, pd.DataFrame]:
     """Generate synthetic OHLCV data for multiple tickers."""
-    rng = np.random.RandomState(seed)
+    np.random.RandomState(seed)
     dates = pd.bdate_range("2022-01-01", periods=n, freq="B")
     result = {}
     for i, ticker in enumerate(tickers):
@@ -57,8 +57,12 @@ def _make_multi_ticker_data(
 class TestUniverseSelection:
     def test_universe_builder_filters(self):
         from pipeline.strategy.universe import (
-            AssetClass, Exchange, InstrumentMetadata, Region,
-            UniverseBuilder, UniverseFilter,
+            AssetClass,
+            Exchange,
+            InstrumentMetadata,
+            Region,
+            UniverseBuilder,
+            UniverseFilter,
         )
 
         instruments = [
@@ -96,8 +100,12 @@ class TestUniverseSelection:
 
     def test_universe_by_sector(self):
         from pipeline.strategy.universe import (
-            AssetClass, Exchange, InstrumentMetadata, Region,
-            UniverseBuilder, UniverseFilter,
+            AssetClass,
+            Exchange,
+            InstrumentMetadata,
+            Region,
+            UniverseBuilder,
+            UniverseFilter,
         )
 
         instruments = [
@@ -133,8 +141,12 @@ class TestUniverseSelection:
 
     def test_include_only_tickers(self):
         from pipeline.strategy.universe import (
-            AssetClass, Exchange, InstrumentMetadata, Region,
-            UniverseBuilder, UniverseFilter,
+            AssetClass,
+            Exchange,
+            InstrumentMetadata,
+            Region,
+            UniverseBuilder,
+            UniverseFilter,
         )
 
         instruments = [
@@ -159,8 +171,12 @@ class TestUniverseSelection:
 
     def test_metadata_df(self):
         from pipeline.strategy.universe import (
-            AssetClass, Exchange, InstrumentMetadata, Region,
-            UniverseBuilder, UniverseFilter,
+            AssetClass,
+            Exchange,
+            InstrumentMetadata,
+            Region,
+            UniverseBuilder,
+            UniverseFilter,
         )
 
         instruments = [
@@ -276,7 +292,8 @@ class TestSignalLibrary:
 class TestEntryRules:
     def test_signal_threshold(self):
         from pipeline.strategy.entry_rules import (
-            EntryContext, SignalThresholdCondition,
+            EntryContext,
+            SignalThresholdCondition,
         )
 
         cond = SignalThresholdCondition(threshold=0.5)
@@ -310,7 +327,8 @@ class TestEntryRules:
 
     def test_no_duplicate_position(self):
         from pipeline.strategy.entry_rules import (
-            EntryContext, NoDuplicatePositionCondition,
+            EntryContext,
+            NoDuplicatePositionCondition,
         )
 
         cond = NoDuplicatePositionCondition()
@@ -346,8 +364,10 @@ class TestEntryRules:
 
     def test_entry_rule_set_and_logic(self):
         from pipeline.strategy.entry_rules import (
-            EntryContext, EntryRuleSet,
-            SignalThresholdCondition, RegimeCondition,
+            EntryContext,
+            EntryRuleSet,
+            RegimeCondition,
+            SignalThresholdCondition,
         )
 
         rules = EntryRuleSet()
@@ -363,7 +383,8 @@ class TestEntryRules:
 
     def test_institutional_entry_rules(self):
         from pipeline.strategy.entry_rules import (
-            EntryContext, institutional_entry_rules,
+            EntryContext,
+            institutional_entry_rules,
         )
 
         rules = institutional_entry_rules(signal_threshold=0.0)
@@ -384,7 +405,9 @@ class TestEntryRules:
 class TestInstitutionalPositionSizing:
     def test_volatility_scaled_sizer(self):
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, SizingMethod, VolatilityScaledSizer,
+            InstitutionalSizingConfig,
+            SizingMethod,
+            VolatilityScaledSizer,
         )
 
         config = InstitutionalSizingConfig(
@@ -409,7 +432,8 @@ class TestInstitutionalPositionSizing:
 
     def test_fixed_fraction_sizer(self):
         from pipeline.strategy.position_sizing import (
-            FixedFractionSizer, InstitutionalSizingConfig,
+            FixedFractionSizer,
+            InstitutionalSizingConfig,
         )
 
         config = InstitutionalSizingConfig(
@@ -427,7 +451,8 @@ class TestInstitutionalPositionSizing:
 
     def test_signal_weighted_sizer(self):
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, SignalWeightedSizer,
+            InstitutionalSizingConfig,
+            SignalWeightedSizer,
         )
 
         config = InstitutionalSizingConfig(min_trade_notional=0, min_position_weight=0.0)
@@ -444,8 +469,10 @@ class TestInstitutionalPositionSizing:
 
     def test_create_sizer_factory(self):
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, SizingMethod,
-            VolatilityScaledSizer, FixedFractionSizer,
+            FixedFractionSizer,
+            InstitutionalSizingConfig,
+            SizingMethod,
+            VolatilityScaledSizer,
             create_sizer,
         )
 
@@ -457,7 +484,9 @@ class TestInstitutionalPositionSizing:
 
     def test_gross_exposure_constraint(self):
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, SizingMethod, VolatilityScaledSizer,
+            InstitutionalSizingConfig,
+            SizingMethod,
+            VolatilityScaledSizer,
         )
 
         config = InstitutionalSizingConfig(
@@ -478,7 +507,8 @@ class TestInstitutionalPositionSizing:
 
     def test_empty_signals(self):
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, VolatilityScaledSizer,
+            InstitutionalSizingConfig,
+            VolatilityScaledSizer,
         )
 
         sizer = VolatilityScaledSizer(InstitutionalSizingConfig())
@@ -496,7 +526,9 @@ class TestInstitutionalPositionSizing:
 class TestRiskConstraints:
     def test_position_weight_constraint(self):
         from pipeline.strategy.risk_constraints import (
-            RiskConstraint, ConstraintType, ConstraintSeverity,
+            ConstraintSeverity,
+            ConstraintType,
+            RiskConstraint,
         )
 
         constraint = RiskConstraint(
@@ -524,7 +556,7 @@ class TestRiskConstraints:
         weights = pd.Series({"AAPL": 0.03, "MSFT": 0.02, "GOOGL": 0.01})
         results = cs.evaluate_portfolio(weights)
 
-        violations = cs.get_violations(results)
+        cs.get_violations(results)
         # These weights are well within limits
         hard_violations = cs.get_hard_violations(results)
         assert len(hard_violations) == 0
@@ -619,7 +651,8 @@ class TestBenchmark:
 
     def test_benchmark_to_markdown(self):
         from pipeline.strategy.benchmark import (
-            BenchmarkAnalysis, benchmark_analysis_to_markdown,
+            BenchmarkAnalysis,
+            benchmark_analysis_to_markdown,
         )
 
         analyses = [
@@ -644,12 +677,15 @@ class TestBenchmark:
 class TestBacktestHarness:
     def test_harness_end_to_end(self):
         from pipeline.strategy.backtest_harness import (
-            BacktestConfig, BacktestHarness,
+            BacktestConfig,
+            BacktestHarness,
         )
         from pipeline.strategy.entry_rules import institutional_entry_rules
         from pipeline.strategy.exits import ExitEngine
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, SizingMethod, create_sizer,
+            InstitutionalSizingConfig,
+            SizingMethod,
+            create_sizer,
         )
         from pipeline.strategy.risk_constraints import institutional_constraints
         from pipeline.strategy.signal_library import SignalPipeline, momentum_signal
@@ -709,7 +745,8 @@ class TestBacktestHarness:
         from pipeline.strategy.entry_rules import EntryRuleSet
         from pipeline.strategy.exits import ExitEngine
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, create_sizer,
+            InstitutionalSizingConfig,
+            create_sizer,
         )
         from pipeline.strategy.risk_constraints import RiskConstraintSet
         from pipeline.strategy.signal_library import SignalPipeline, momentum_signal
@@ -727,12 +764,14 @@ class TestBacktestHarness:
 
     def test_harness_summary_table(self):
         from pipeline.strategy.backtest_harness import (
-            BacktestConfig, BacktestHarness,
+            BacktestConfig,
+            BacktestHarness,
         )
         from pipeline.strategy.entry_rules import institutional_entry_rules
         from pipeline.strategy.exits import ExitEngine
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, create_sizer,
+            InstitutionalSizingConfig,
+            create_sizer,
         )
         from pipeline.strategy.risk_constraints import institutional_constraints
         from pipeline.strategy.signal_library import SignalPipeline, momentum_signal
@@ -862,13 +901,15 @@ class TestMemoGenerator:
 
     def test_memo_with_backtest_result(self):
         from pipeline.strategy.backtest_harness import (
-            BacktestConfig, BacktestHarness,
+            BacktestConfig,
+            BacktestHarness,
         )
         from pipeline.strategy.entry_rules import institutional_entry_rules
         from pipeline.strategy.exits import ExitEngine
         from pipeline.strategy.memo_generator import generate_memo
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, create_sizer,
+            InstitutionalSizingConfig,
+            create_sizer,
         )
         from pipeline.strategy.risk_constraints import institutional_constraints
         from pipeline.strategy.signal_library import SignalPipeline, momentum_signal
@@ -916,12 +957,14 @@ class TestMemoGenerator:
 class TestEdgeDecayIntegration:
     def test_decay_monitor_in_harness(self):
         from pipeline.strategy.backtest_harness import (
-            BacktestConfig, BacktestHarness,
+            BacktestConfig,
+            BacktestHarness,
         )
         from pipeline.strategy.entry_rules import institutional_entry_rules
         from pipeline.strategy.exits import ExitEngine
         from pipeline.strategy.position_sizing import (
-            InstitutionalSizingConfig, create_sizer,
+            InstitutionalSizingConfig,
+            create_sizer,
         )
         from pipeline.strategy.risk_constraints import institutional_constraints
         from pipeline.strategy.signal_library import SignalPipeline, momentum_signal

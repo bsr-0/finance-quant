@@ -241,7 +241,8 @@ class VolatilityScaledSizer(PositionSizingModel):
     r"""Volatility-scaled position sizing (inverse volatility weighting).
 
     .. math::
-        w_i = \frac{\sigma_{\text{target}}}{\sigma_i \cdot \sqrt{N}} \cdot \text{sign}(s_i) \cdot c_i
+        w_i = \frac{\sigma_{\text{target}}}{\sigma_i \cdot \sqrt{N}}
+              \cdot \text{sign}(s_i) \cdot c_i
 
     where :math:`c_i` is the conviction scalar derived from signal strength.
     """

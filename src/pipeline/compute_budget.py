@@ -11,7 +11,7 @@ import json
 import logging
 import time
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -279,7 +279,7 @@ class ComputeBudget:
             return {
                 "report_type": "pareto_frontier_analysis",
                 "frontier_points": [],
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
             }
 
         sorted_by_time = sorted(completed, key=lambda c: c.start_time)
@@ -304,7 +304,7 @@ class ComputeBudget:
             "total_experiments": len(completed),
             "total_cost_seconds": round(cumulative_cost, 2),
             "final_best_metric": round(best_so_far, 6),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
     def export_search_termination_justification(self) -> dict[str, Any]:
@@ -321,7 +321,7 @@ class ComputeBudget:
                 report.total_consumed_seconds / max(self.total_budget_seconds, 1), 4
             ),
             "cost_per_improvement": report.cost_per_improvement,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
 

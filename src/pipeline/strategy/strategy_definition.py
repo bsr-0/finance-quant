@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from pipeline.strategy.backtest_harness import BacktestConfig
-from pipeline.strategy.benchmark import BenchmarkSuite, US_EQUITY_BENCHMARKS
+from pipeline.strategy.benchmark import US_EQUITY_BENCHMARKS, BenchmarkSuite
 from pipeline.strategy.entry_rules import EntryRuleSet, institutional_entry_rules
 from pipeline.strategy.exits import ExitEngine
 from pipeline.strategy.position_sizing import (
@@ -33,8 +33,7 @@ from pipeline.strategy.risk_constraints import (
     institutional_constraints,
 )
 from pipeline.strategy.signal_library import SignalDefinition
-from pipeline.strategy.universe import UniverseFilter, US_LARGE_CAP_EQUITY
-
+from pipeline.strategy.universe import US_LARGE_CAP_EQUITY, UniverseFilter
 
 # ---------------------------------------------------------------------------
 # Strategy thesis

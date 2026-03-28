@@ -14,8 +14,8 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -23,20 +23,20 @@ from uuid import uuid4
 logger = logging.getLogger(__name__)
 
 
-class AuthorityLevel(str, Enum):
+class AuthorityLevel(StrEnum):
     AUTONOMOUS = "autonomous"
     NOTIFY = "notify"
     APPROVE = "approve"
 
 
-class ApprovalStatus(str, Enum):
+class ApprovalStatus(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
     DENIED = "denied"
     EXPIRED = "expired"
 
 
-class GovernanceDomain(str, Enum):
+class GovernanceDomain(StrEnum):
     FINANCE = "finance"
     BETTING = "betting"
     ELECTIONS = "elections"
@@ -68,7 +68,7 @@ class ApprovalRequest:
     reviewed_by: str = ""
     review_timestamp: str = ""
     review_notes: str = ""
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 @dataclass
@@ -92,7 +92,7 @@ class GovernanceAuditEntry:
     actor: str = ""
     justification: str = ""
     outcome: str = ""
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     related_request_id: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -345,7 +345,7 @@ class GovernanceFramework:
             return False
         req.status = ApprovalStatus.APPROVED
         req.reviewed_by = reviewed_by
-        req.review_timestamp = datetime.now(timezone.utc).isoformat()
+        req.review_timestamp = datetime.now(UTC).isoformat()
         req.review_notes = notes
         self._log_audit(
             "approval_decision",
@@ -365,7 +365,7 @@ class GovernanceFramework:
             return False
         req.status = ApprovalStatus.DENIED
         req.reviewed_by = reviewed_by
-        req.review_timestamp = datetime.now(timezone.utc).isoformat()
+        req.review_timestamp = datetime.now(UTC).isoformat()
         req.review_notes = reason
         self._log_audit(
             "approval_decision",
@@ -382,13 +382,14 @@ class GovernanceFramework:
         """Run all compliance checkpoints for the domain (Section 21.3)."""
         for checkpoint in self._compliance_checkpoints:
             checkpoint.checked = True
-            checkpoint.check_timestamp = datetime.now(timezone.utc).isoformat()
+            checkpoint.check_timestamp = datetime.now(UTC).isoformat()
             checkpoint.check_result = "reviewed"
         self._log_audit(
             "compliance_check",
             "system",
             "completed",
-            f"Ran {len(self._compliance_checkpoints)} compliance checkpoints for {self.domain.value}",
+            f"Ran {len(self._compliance_checkpoints)} compliance "
+            f"checkpoints for {self.domain.value}",
         )
         self._save()
         return self._compliance_checkpoints
@@ -401,7 +402,7 @@ class GovernanceFramework:
 
         Returns a list of expired request IDs.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expired_ids: list[str] = []
         for req in self._approval_requests.values():
             if req.status != ApprovalStatus.PENDING:
@@ -411,7 +412,7 @@ class GovernanceFramework:
             try:
                 exp_dt = datetime.fromisoformat(req.expiration)
                 if exp_dt.tzinfo is None:
-                    exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                    exp_dt = exp_dt.replace(tzinfo=UTC)
             except (ValueError, TypeError):
                 continue
             if now > exp_dt:
@@ -474,7 +475,7 @@ class GovernanceFramework:
                 for r in self._approval_requests.values()
             ],
             "total_requests": len(self._approval_requests),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
     def export_escalation_protocol(self) -> dict[str, Any]:
@@ -516,5 +517,5 @@ class GovernanceFramework:
                 "6. For regulatory issues, escalate to compliance officer",
             ],
             "compliance_domains": [d.value for d in GovernanceDomain],
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }

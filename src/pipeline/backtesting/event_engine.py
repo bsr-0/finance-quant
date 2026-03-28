@@ -336,10 +336,8 @@ class EventDrivenBacktester:
             fill_px = base_px + slippage if order.side == "buy" else base_px - slippage
             fee_bps = self.config.taker_fee_bps
         elif order.order_type == "limit":
-            if order.side == "buy" and order.limit_price >= last_px:
-                fill_px = order.limit_price
-                fee_bps = self.config.maker_fee_bps
-            elif order.side == "sell" and order.limit_price <= last_px:
+            if (order.side == "buy" and order.limit_price >= last_px
+                    or order.side == "sell" and order.limit_price <= last_px):
                 fill_px = order.limit_price
                 fee_bps = self.config.maker_fee_bps
             else:

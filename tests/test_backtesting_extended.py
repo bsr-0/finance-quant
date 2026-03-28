@@ -7,6 +7,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pipeline.backtesting.bias_checks import (
+    check_no_future_data,
+    data_shift_test,
+    enforce_timestamp_ordering,
+    random_shuffle_test,
+)
 from pipeline.backtesting.event_engine import (
     EventDrivenBacktester,
     EventEngineConfig,
@@ -25,13 +31,6 @@ from pipeline.backtesting.survivorship import (
     SymbolUniverse,
     filter_universe_at_date,
 )
-from pipeline.backtesting.bias_checks import (
-    check_no_future_data,
-    data_shift_test,
-    enforce_timestamp_ordering,
-    random_shuffle_test,
-)
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

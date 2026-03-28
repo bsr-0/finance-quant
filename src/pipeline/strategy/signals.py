@@ -147,9 +147,8 @@ class SignalEngine:
         # --- Volume confirmation (max 15) ---
         vol = row.get("volume", 0)
         vol_sma = row.get("volume_sma_20", 0)
-        if vol_sma > 0 and not np.isnan(vol_sma):
-            if vol < vol_sma * 0.8:
-                volume += 10
+        if vol_sma > 0 and not np.isnan(vol_sma) and vol < vol_sma * 0.8:
+            volume += 10
         obv_sl = row.get("obv_slope", 0)
         if not np.isnan(obv_sl) and obv_sl > 0:
             volume += 5
@@ -160,9 +159,8 @@ class SignalEngine:
             volatility += 5
         macd_hist = row.get("macd_hist", 0)
         macd_prev = row.get("macd_hist_prev", 0)
-        if not np.isnan(macd_hist) and not np.isnan(macd_prev):
-            if macd_hist > macd_prev:
-                volatility += 5
+        if not np.isnan(macd_hist) and not np.isnan(macd_prev) and macd_hist > macd_prev:
+            volatility += 5
         wr = row.get("williams_r", -50)
         if not np.isnan(wr) and wr < -80:
             volatility += 5
@@ -193,7 +191,10 @@ class SignalEngine:
         if spy_prices is not None and len(spy_prices) >= 50:
             regimes = classify_regimes(spy_prices)
             if len(regimes) > 0:
-                regime = regimes.iloc[-1].upper() if date is None else regimes.get(date, "BULL").upper()
+                if date is None:
+                    regime = regimes.iloc[-1].upper()
+                else:
+                    regime = regimes.get(date, "BULL").upper()
                 if regime == "FLAT":
                     regime = "NEUTRAL"
 

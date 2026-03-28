@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -21,7 +21,6 @@ from pipeline.execution.paper_runner import (
     PaperRunnerConfig,
     PaperTradingRunner,
 )
-
 
 # ---------------------------------------------------------------------------
 # Mock broker for paper runner tests
@@ -60,7 +59,7 @@ class PaperMockBroker(BaseBroker):
         self._order_counter += 1
         order.order_id = f"paper-{self._order_counter}"
         order.status = OrderStatus.SUBMITTED
-        order.submitted_at = datetime.now(timezone.utc)
+        order.submitted_at = datetime.now(UTC)
         self.submitted_orders.append(order)
         return order
 
@@ -257,7 +256,7 @@ class TestGetStatus:
 class TestDailyReport:
     def test_report_summary(self):
         report = DailyReport(
-            timestamp=datetime(2024, 1, 15, 16, 0, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2024, 1, 15, 16, 0, 0, tzinfo=UTC),
             signal_file="signals/signals_20240115.csv",
             execution_result=None,
             exit_orders=["AAPL"],
@@ -274,7 +273,7 @@ class TestDailyReport:
 
     def test_report_with_errors(self):
         report = DailyReport(
-            timestamp=datetime(2024, 1, 15, tzinfo=timezone.utc),
+            timestamp=datetime(2024, 1, 15, tzinfo=UTC),
             signal_file=None,
             execution_result=None,
             exit_orders=[],

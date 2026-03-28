@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -75,7 +75,7 @@ class PerformanceTracker:
 
     def save(self) -> None:
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
-        self.history.last_updated = datetime.now(timezone.utc).isoformat()
+        self.history.last_updated = datetime.now(UTC).isoformat()
         self.history_path.write_text(
             json.dumps(self.history.to_dict(), indent=2, default=str)
         )

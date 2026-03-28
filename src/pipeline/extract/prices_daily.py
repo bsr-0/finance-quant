@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -235,7 +235,7 @@ class YahooFinanceExtractor:
                     continue
 
                 # Add metadata
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
                 # Save to parquet
@@ -388,7 +388,7 @@ class AlpacaPriceExtractor:
                 if df.empty:
                     continue
 
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
                 file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
@@ -519,7 +519,7 @@ class PolygonPriceExtractor:
                 if df.empty:
                     continue
 
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
                 file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
@@ -651,7 +651,7 @@ class PriceExtractor:
                 if self._adjust and label == "yahoo":
                     df = adjust_for_corporate_actions(df)
 
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
                 df["data_source"] = label
 

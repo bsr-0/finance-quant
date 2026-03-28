@@ -7,6 +7,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pipeline.eval.stress import (
+    DEFAULT_SCENARIOS,
+    HypotheticalShock,
+    apply_hypothetical_shock,
+    run_all_stress_tests,
+)
 from pipeline.infrastructure.correlation_monitor import (
     CorrelationConfig,
     CorrelationMonitor,
@@ -17,13 +23,6 @@ from pipeline.infrastructure.risk_dashboard import (
     format_dashboard_text,
     report_to_dict,
 )
-from pipeline.eval.stress import (
-    DEFAULT_SCENARIOS,
-    HypotheticalShock,
-    apply_hypothetical_shock,
-    run_all_stress_tests,
-)
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

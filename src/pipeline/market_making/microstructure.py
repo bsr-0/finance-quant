@@ -73,8 +73,8 @@ class OrderBookSnapshot:
 
         +1 = all weight on bid, -1 = all weight on ask.
         """
-        bid_total = sum(l.size for l in self.bids[:3])
-        ask_total = sum(l.size for l in self.asks[:3])
+        bid_total = sum(level.size for level in self.bids[:3])
+        ask_total = sum(level.size for level in self.asks[:3])
         total = bid_total + ask_total
         if total == 0:
             return 0.0
@@ -83,8 +83,8 @@ class OrderBookSnapshot:
     @property
     def depth_ratio(self) -> float:
         """Ratio of total bid depth to total ask depth (top 5 levels)."""
-        bid_depth = sum(l.size for l in self.bids[:5])
-        ask_depth = sum(l.size for l in self.asks[:5])
+        bid_depth = sum(level.size for level in self.bids[:5])
+        ask_depth = sum(level.size for level in self.asks[:5])
         if ask_depth == 0:
             return float("inf") if bid_depth > 0 else 1.0
         return bid_depth / ask_depth

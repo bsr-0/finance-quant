@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
@@ -64,7 +64,10 @@ class ShortInterestExtractor:
             stats = result[0].get("defaultKeyStatistics", {})
             short_interest = stats.get("sharesShort", {}).get("raw")
             short_date = stats.get("dateShortInterest", {}).get("raw")
-            avg_volume = stats.get("averageDailyVolume10Day", {}).get("raw") or stats.get("averageVolume", {}).get("raw")
+            avg_volume = (
+                stats.get("averageDailyVolume10Day", {}).get("raw")
+                or stats.get("averageVolume", {}).get("raw")
+            )
             float_shares = stats.get("floatShares", {}).get("raw")
             short_ratio = stats.get("shortRatio", {}).get("raw")
             short_pct = stats.get("shortPercentOfFloat", {}).get("raw")
@@ -73,7 +76,7 @@ class ShortInterestExtractor:
                 return []
 
             settlement = (
-                datetime.fromtimestamp(short_date, tz=timezone.utc).date()
+                datetime.fromtimestamp(short_date, tz=UTC).date()
                 if isinstance(short_date, (int, float))
                 else date.today()
             )
@@ -120,7 +123,7 @@ class ShortInterestExtractor:
             return []
 
         df = pd.DataFrame(all_rows)
-        df["extracted_at"] = datetime.now(timezone.utc)
+        df["extracted_at"] = datetime.now(UTC)
         df["run_id"] = run_id
 
         file_path = output_dir / f"short_interest_{today}.parquet"

@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Protocol
 
@@ -63,7 +63,7 @@ class AccountSnapshot:
     is_margin_account: bool
     """True if the account has margin enabled."""
 
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     """When this snapshot was taken."""
 
 
@@ -150,7 +150,10 @@ class GuardCheckResult:
     def summary(self) -> str:
         status = "APPROVED" if self.approved else "REJECTED"
         failed = ", ".join(self.checks_failed) if self.checks_failed else "none"
-        return f"{status} ({len(self.checks_passed)}/{len(self.checks_run)} passed, failed: {failed})"
+        return (
+            f"{status} ({len(self.checks_passed)}/"
+            f"{len(self.checks_run)} passed, failed: {failed})"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -359,7 +362,7 @@ class CapitalGuard:
         self, account: AccountSnapshot, order_notional: float,
     ) -> tuple[bool, str]:
         """QAQC-8: Must not exceed daily order count limit."""
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         if self._daily_order_date != today:
             self._daily_order_count = 0
             self._daily_order_date = today
@@ -372,7 +375,7 @@ class CapitalGuard:
         return True, ""
 
     def _increment_daily_orders(self) -> None:
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         if self._daily_order_date != today:
             self._daily_order_count = 0
             self._daily_order_date = today

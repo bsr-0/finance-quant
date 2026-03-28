@@ -29,12 +29,17 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-
-from pipeline.market_making.spread import SpreadCalculator, SpreadConfig
+from pipeline.market_making.adverse import (
+    AdverseConfig,
+    AdverseSelectionDetector,
+    FillRecord,
+)
+from pipeline.market_making.hedging import HedgeConfig, HedgeManager, HedgeTrade
 from pipeline.market_making.inventory import (
     InventoryConfig,
     InventoryManager,
 )
+from pipeline.market_making.microstructure import MicrostructureAnalyzer
 from pipeline.market_making.quoting import (
     EventType,
     MarketEvent,
@@ -42,13 +47,7 @@ from pipeline.market_making.quoting import (
     QuoteEngine,
     QuoteUpdate,
 )
-from pipeline.market_making.adverse import (
-    AdverseConfig,
-    AdverseSelectionDetector,
-    FillRecord,
-)
-from pipeline.market_making.hedging import HedgeConfig, HedgeManager, HedgeTrade
-from pipeline.market_making.microstructure import MicrostructureAnalyzer
+from pipeline.market_making.spread import SpreadCalculator, SpreadConfig
 
 logger = logging.getLogger(__name__)
 
@@ -257,21 +256,17 @@ class MarketMakingEngine:
         )
 
         # Update PnL
-        pnl_delta = 0.0
         if side == "buy":
-            pnl_delta = -(quantity * price)  # Cash outflow
+            -(quantity * price)  # Cash outflow
         else:
-            pnl_delta = quantity * price  # Cash inflow
+            quantity * price  # Cash inflow
 
         # Check if we need hedging
         inventories = {
             sym: self.inventory_mgr.get_or_create(sym).position
             for sym in self.inventory_mgr._inventories
         }
-        max_positions = {
-            sym: self.config.risk_limits.max_inventory_per_symbol
-            for sym in inventories
-        }
+        max_positions = dict.fromkeys(inventories, self.config.risk_limits.max_inventory_per_symbol)
         hedges = self.hedge_mgr.compute_hedges(
             inventories=inventories,
             prices=self._prices,
@@ -398,7 +393,8 @@ class MarketMakingEngine:
         checks.append((
             "risk_limits_loaded",
             limits.max_daily_loss > 0 and limits.max_inventory_per_symbol > 0,
-            f"max_loss={limits.max_daily_loss:,.0f}, max_inv={limits.max_inventory_per_symbol:,.0f}",
+            f"max_loss={limits.max_daily_loss:,.0f}, "
+            f"max_inv={limits.max_inventory_per_symbol:,.0f}",
         ))
 
         # 2. Inventory flat

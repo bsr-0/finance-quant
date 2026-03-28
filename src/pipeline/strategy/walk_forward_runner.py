@@ -97,7 +97,7 @@ class WalkForwardResult:
             return pd.DataFrame()
 
         rows: list[dict[str, Any]] = []
-        for i, (fold, oos) in enumerate(zip(self.folds, self.out_of_sample_metrics)):
+        for i, (fold, oos) in enumerate(zip(self.folds, self.out_of_sample_metrics, strict=False)):
             row: dict[str, Any] = {
                 "fold": i,
                 "test_start": fold.test_start,
@@ -108,7 +108,9 @@ class WalkForwardResult:
             rows.append(row)
 
         # Add mean row
-        mean_row: dict[str, Any] = {"fold": "MEAN", "test_start": "", "test_end": "", "test_size": ""}
+        mean_row: dict[str, Any] = {
+            "fold": "MEAN", "test_start": "", "test_end": "", "test_size": "",
+        }
         mean_row.update(self.oos_mean_metrics)
         rows.append(mean_row)
 

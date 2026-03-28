@@ -18,26 +18,26 @@ from rich.table import Table
 from pipeline.db import get_db_manager
 from pipeline.dq.data_quality_monitor import DataQualityMonitor, Severity
 from pipeline.dq.tests_sql import run_dq_tests
-from pipeline.extract.fred import extract_fred
+from pipeline.extract.earnings import extract_earnings
+from pipeline.extract.etf_flows import extract_etf_flows
 from pipeline.extract.factors_ff import extract_factors_ff
+from pipeline.extract.fred import extract_fred
 from pipeline.extract.gdelt import extract_gdelt
+from pipeline.extract.options_data import extract_options
 from pipeline.extract.polymarket import extract_polymarket
 from pipeline.extract.prices_daily import extract_prices
+from pipeline.extract.reddit_sentiment import extract_reddit_sentiment
+from pipeline.extract.sec_13f import extract_sec_13f
 from pipeline.extract.sec_fundamentals import extract_sec_fundamentals
 from pipeline.extract.sec_insider import extract_sec_insider
-from pipeline.extract.sec_13f import extract_sec_13f
-from pipeline.extract.options_data import extract_options
-from pipeline.extract.earnings import extract_earnings
-from pipeline.extract.reddit_sentiment import extract_reddit_sentiment
 from pipeline.extract.short_interest import extract_short_interest
-from pipeline.extract.etf_flows import extract_etf_flows
+from pipeline.historical.latency import refresh_latency_stats
 from pipeline.load.raw_loader import RawLoader
 from pipeline.logging_config import configure_logging
 from pipeline.settings import get_settings
 from pipeline.snapshot.orderbook_runner import OrderbookSnapshotRunner
 from pipeline.snapshot.symbol_snapshots import SymbolSnapshotBuilder
 from pipeline.transform.curated import CuratedTransformer
-from pipeline.historical.latency import refresh_latency_stats
 
 # Setup logging (respect LOG_FORMAT=json and LOG_LEVEL env vars)
 configure_logging(
@@ -307,14 +307,14 @@ def build_snapshots(
 
 @app.command()
 def build_symbol_snapshots(
-    symbols: list[str] | None = typer.Option(
+    symbols: list[str] | None = typer.Option(  # noqa: B008
         None, "--symbol", "-s", help="Symbol IDs"
-    ),  # noqa: B008
+    ),
     start: str | None = typer.Option(None, "--start", help="Start timestamp"),  # noqa: B008
     end: str | None = typer.Option(None, "--end", help="End timestamp"),  # noqa: B008
-    freq: str = typer.Option(
+    freq: str = typer.Option(  # noqa: B008
         "1d", "--freq", help="Snapshot frequency (1h, 1d, 15min)"
-    ),  # noqa: B008
+    ),
 ):
     """Build training snapshots for equity symbols."""
     run_id = record_pipeline_run(
@@ -450,16 +450,16 @@ def _read_data(path: Path) -> pd.DataFrame:
 
 @app.command()
 def evaluate(
-    scope: str = typer.Option("equity", "--scope", "-s", help="equity or prediction"),
-    signals_path: Path | None = typer.Option(None, "--signals", help="Signals file path"),
-    probs_path: Path | None = typer.Option(
+    scope: str = typer.Option("equity", "--scope", "-s", help="equity or prediction"),  # noqa: B008
+    signals_path: Path | None = typer.Option(None, "--signals", help="Signals file path"),  # noqa: B008
+    probs_path: Path | None = typer.Option(  # noqa: B008
         None, "--probs", help="Prediction market probs file path"
     ),
-    prices_path: Path | None = typer.Option(None, "--prices", help="Prices file path"),
-    outcomes_path: Path | None = typer.Option(None, "--outcomes", help="Outcomes file path"),
-    factors_from_db: bool = typer.Option(True, "--factors-from-db", help="Load factors from DB"),
-    model_name: str = typer.Option("model", "--model-name"),
-    dataset_id: str | None = typer.Option(None, "--dataset-id"),
+    prices_path: Path | None = typer.Option(None, "--prices", help="Prices file path"),  # noqa: B008
+    outcomes_path: Path | None = typer.Option(None, "--outcomes", help="Outcomes file path"),  # noqa: B008
+    factors_from_db: bool = typer.Option(True, "--factors-from-db", help="Load factors from DB"),  # noqa: B008
+    model_name: str = typer.Option("model", "--model-name"),  # noqa: B008
+    dataset_id: str | None = typer.Option(None, "--dataset-id"),  # noqa: B008
 ):
     """Evaluate a model using institutional-grade rubric metrics."""
     settings = get_settings()
@@ -602,9 +602,9 @@ def inventory():
 
 @app.command()
 def init_db(
-    ddl_dir: Path | None = typer.Option(
+    ddl_dir: Path | None = typer.Option(  # noqa: B008
         None, "--ddl-dir", "-d", help="DDL directory"
-    ),  # noqa: B008
+    ),
     force: bool = typer.Option(False, "--force", help="Force re-initialization"),  # noqa: B008
 ):
     """Initialize database schema."""
@@ -656,26 +656,26 @@ def run_pipeline(
 
 @app.command()
 def generate_signals(
-    date: str | None = typer.Option(
+    date: str | None = typer.Option(  # noqa: B008
         None, "--date", "-d", help="Signal date (YYYY-MM-DD). Default: latest in data."
-    ),  # noqa: B008
-    prices_dir: Path | None = typer.Option(
+    ),
+    prices_dir: Path | None = typer.Option(  # noqa: B008
         None, "--prices-dir", help="Directory with per-ticker CSV/parquet files"
-    ),  # noqa: B008
-    spy_path: Path | None = typer.Option(
+    ),
+    spy_path: Path | None = typer.Option(  # noqa: B008
         None, "--spy", help="SPY prices CSV/parquet for regime classification"
-    ),  # noqa: B008
-    output_dir: Path = typer.Option(
+    ),
+    output_dir: Path = typer.Option(  # noqa: B008
         Path("data/signals"), "--output", "-o", help="Output directory for signal CSV"
-    ),  # noqa: B008
-    threshold: int = typer.Option(
+    ),
+    threshold: int = typer.Option(  # noqa: B008
         60, "--threshold", "-t", help="Minimum signal score",
         callback=_validate_range(min_val=0, max_val=100),
-    ),  # noqa: B008
-    min_volume: float = typer.Option(
+    ),
+    min_volume: float = typer.Option(  # noqa: B008
         50_000, "--min-volume", help="Minimum average daily volume",
         callback=_validate_range(min_val=0),
-    ),  # noqa: B008
+    ),
 ):
     """Generate trading signals for the current universe.
 
@@ -814,7 +814,7 @@ def generate_signals(
 
 @app.command()
 def execute_signals(
-    signal_csv: Path = typer.Argument(..., help="Path to signal CSV file from generate-signals"),
+    signal_csv: Path = typer.Argument(..., help="Path to signal CSV file from generate-signals"),  # noqa: B008
     max_capital: float = typer.Option(
         300.0, "--max-capital", help="Maximum capital to deploy ($)",
         callback=_validate_range(min_val=0),
@@ -863,8 +863,8 @@ def execute_signals(
         os.environ.setdefault("ALPACA_BASE_URL", "https://api.alpaca.markets")
 
     try:
-        from pipeline.execution.runner import RunnerConfig, TradingRunner
         from pipeline.execution.alpaca_broker import AlpacaBroker
+        from pipeline.execution.runner import RunnerConfig, TradingRunner
 
         broker = AlpacaBroker.from_env()
         config = RunnerConfig(
@@ -932,11 +932,11 @@ def execute_signals(
     except ImportError as e:
         console.print(f"[red]Missing dependency: {e}[/red]")
         console.print("[yellow]Install with: pip install alpaca-py[/yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as e:
         console.print(f"[red]Execution failed: {e}[/red]")
         logger.exception("Signal execution failed")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -999,17 +999,17 @@ def trading_status(
     except ImportError as e:
         console.print(f"[red]Missing dependency: {e}[/red]")
         console.print("[yellow]Install with: pip install alpaca-py[/yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as e:
         console.print(f"[red]Failed to fetch status: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
 def monitor_prices(
-    symbols: list[str] | None = typer.Option(
+    symbols: list[str] | None = typer.Option(  # noqa: B008
         None, "--symbol", "-s", help="Symbols to monitor"
-    ),  # noqa: B008
+    ),
     mode: str = typer.Option("websocket", "--mode", "-m", help="Feed mode: websocket or polling"),
     interval: int = typer.Option(
         5, "--interval", "-i", help="Display refresh interval (seconds)",
@@ -1115,7 +1115,7 @@ def monitor_prices(
     except Exception as e:
         console.print(f"[red]Monitor failed: {e}[/red]")
         logger.exception("Price monitor failed")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -1214,7 +1214,7 @@ def monitor_positions(
     except Exception as e:
         console.print(f"[red]Position monitor failed: {e}[/red]")
         logger.exception("Position monitor failed")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -1518,10 +1518,7 @@ def daily_predictions(
                 if f.suffix.lower() in {".csv", ".parquet", ".pq"}:
                     ticker = f.stem.upper()
                     if ticker in universe:
-                        if f.suffix.lower() == ".csv":
-                            df = pd.read_csv(f)
-                        else:
-                            df = pd.read_parquet(f)
+                        df = pd.read_csv(f) if f.suffix.lower() == ".csv" else pd.read_parquet(f)
                         if "date" in df.columns:
                             df["date"] = pd.to_datetime(df["date"])
                             df = df.set_index("date").sort_index()
