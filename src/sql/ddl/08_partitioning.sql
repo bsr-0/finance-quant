@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS cur_macro_observations_part (
     period_start DATE,
     period_end DATE NOT NULL,
     value NUMERIC,
-    revision_id INTEGER,
+    revision_id VARCHAR(20),
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
     time_quality VARCHAR(20) DEFAULT 'assumed',

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS cur_macro_observations (
     period_start DATE,
     period_end DATE NOT NULL,
     value NUMERIC,
-    revision_id INTEGER, -- NULL for initial release
+    revision_id VARCHAR(20), -- date string or 'initial'
     event_time TIMESTAMPTZ NOT NULL,
     available_time TIMESTAMPTZ NOT NULL,
     time_quality VARCHAR(20) DEFAULT 'assumed' CHECK (time_quality IN ('assumed', 'confirmed', 'inferred')),
