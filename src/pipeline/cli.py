@@ -1474,13 +1474,10 @@ def daily_predictions(
 
     signals_dir.mkdir(parents=True, exist_ok=True)
 
-    # Determine signal date
-    if date:
-        signal_date = pd.Timestamp(date)
-    else:
-        signal_date = pd.Timestamp.now().normalize()
+    # Signal date is resolved after loading price data so we can fall back
+    # to the latest available trading day when no explicit date is given.
+    explicit_date = pd.Timestamp(date) if date else None
 
-    console.print(f"  Signal date: {signal_date.date()}")
     console.print(f"  Universe: {len(universe)} ETFs")
 
     # Load price data from database
@@ -1536,6 +1533,16 @@ def daily_predictions(
         raise typer.Exit(1)
 
     console.print(f"  Loaded {len(price_data)} tickers with price data")
+
+    # Resolve signal date: use explicit date if given, otherwise the latest
+    # trading day present in the price data (today's bar may not exist yet).
+    if explicit_date is not None:
+        signal_date = explicit_date
+    else:
+        latest_dates = [df.index.max() for df in price_data.values() if not df.empty]
+        signal_date = max(latest_dates) if latest_dates else pd.Timestamp.now().normalize()
+
+    console.print(f"  Signal date: {signal_date.date()}")
 
     # Compute indicators and generate signals
     indicator_data: dict[str, pd.DataFrame] = {}
