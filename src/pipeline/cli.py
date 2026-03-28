@@ -1507,7 +1507,7 @@ def daily_predictions(
 
     # Load config
     config_path = Path("config.yaml")
-    config = _yaml.safe_load(config_path.read_text()) if config_path.exists() else {}
+    config = (_yaml.safe_load(config_path.read_text()) or {}) if config_path.exists() else {}
     dp_config = config.get("daily_predictions", {})
     universe = dp_config.get("universe", ["SPY", "QQQ", "IWM"])
     signals_dir = Path(dp_config.get("signals_dir", "data/signals"))

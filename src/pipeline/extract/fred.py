@@ -118,9 +118,7 @@ class FredExtractor:
                 failed.append(code)
 
         if failed:
-            logger.warning(
-                f"Failed to extract {len(failed)}/{len(codes)} series: {failed}"
-            )
+            logger.warning(f"Failed to extract {len(failed)}/{len(codes)} series: {failed}")
         return saved_files
 
 

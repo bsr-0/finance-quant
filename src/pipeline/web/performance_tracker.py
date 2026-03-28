@@ -149,7 +149,7 @@ class PerformanceTracker:
 
                 high = bar.get("high", bar.get("close", 0))
                 low = bar.get("low", bar.get("close", 0))
-                close = bar["close"]
+                close = bar.get("close", 0)
 
                 stop_hit = low <= stop_price
                 target_hit = high >= target_price
