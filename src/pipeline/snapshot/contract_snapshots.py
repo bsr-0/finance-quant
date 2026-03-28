@@ -269,7 +269,7 @@ class ContractSnapshotBuilder:
             ORDER BY s.provider_series_code, o.period_end DESC
         """
         results = self.db.run_query(query, {"asof_ts": asof_ts})
-        panel: dict[str, float] = {}
+        panel: dict[str, float | None] = {}
         staleness_days: float | None = None
         for row in results:
             panel[row["series_code"]] = float(row["value"]) if row["value"] is not None else None
