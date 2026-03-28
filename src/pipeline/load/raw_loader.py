@@ -3,12 +3,18 @@
 import json
 import logging
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 import pandas as pd
 from sqlalchemy import text
 
 from pipeline.db import get_db_manager
+from pipeline.infrastructure.corruption import (
+    CorruptionHandler,
+    read_parquet_safe,
+    validate_required_fields,
+)
 from pipeline.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -20,6 +26,7 @@ class RawLoader:
     def __init__(self):
         self.db = get_db_manager()
         self._batch_size = get_settings().infrastructure.batch_size
+        self._corruption_handler: CorruptionHandler | None = None
 
     def _batch_insert(self, conn, insert_sql, records: list[dict]) -> int:
         if not records:
@@ -31,10 +38,41 @@ class RawLoader:
             total += len(batch)
         return total
 
+    def _read_parquet_or_quarantine(
+        self, file_path: Path, handler: CorruptionHandler
+    ) -> pd.DataFrame | None:
+        """Read a parquet file, quarantining it if corrupt."""
+        df, error = read_parquet_safe(file_path)
+        if error is not None:
+            handler.record_corrupt_file(file_path, error)
+            return None
+        if df is None or df.empty:
+            logger.warning(f"Empty file: {file_path}")
+            return None
+        return df
+
+    def _filter_valid_records(
+        self,
+        records: list[dict[str, Any]],
+        required_fields: list[str],
+        handler: CorruptionHandler,
+        file_path: Path | None = None,
+    ) -> list[dict[str, Any]]:
+        """Filter out records with missing required fields, quarantining bad ones."""
+        valid = []
+        for i, record in enumerate(records):
+            err = validate_required_fields(record, required_fields)
+            if err is not None:
+                handler.record_corrupt_record(file_path, i, err, record)
+            else:
+                valid.append(record)
+        return valid
+
     def load_fred_observations(
         self,
         file_path: Path,
         run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
     ) -> int:
         """Load FRED observations from parquet file.
 
@@ -44,10 +82,10 @@ class RawLoader:
         ``extracted_at`` timestamp.
         """
         logger.info(f"Loading FRED data from {file_path}")
+        handler = corruption_handler or CorruptionHandler("fred")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
-            logger.warning(f"Empty file: {file_path}")
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         df["run_id"] = run_id
@@ -84,6 +122,10 @@ class RawLoader:
                 }
             )
 
+        records = self._filter_valid_records(
+            records, ["series_code", "date"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -92,13 +134,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} FRED observations")
         return rows_loaded
 
-    def load_gdelt_events(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_gdelt_events(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load GDELT events from parquet file."""
         logger.info(f"Loading GDELT data from {file_path}")
+        handler = corruption_handler or CorruptionHandler("gdelt")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
-            logger.warning(f"Empty file: {file_path}")
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -126,6 +173,10 @@ class RawLoader:
                 }
             )
 
+        records = self._filter_valid_records(
+            records, ["event_id", "event_date"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -134,12 +185,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} GDELT events")
         return rows_loaded
 
-    def load_polymarket_markets(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_polymarket_markets(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load Polymarket market metadata from parquet file."""
         logger.info(f"Loading Polymarket markets from {file_path}")
+        handler = corruption_handler or CorruptionHandler("polymarket")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -167,6 +224,10 @@ class RawLoader:
                 }
             )
 
+        records = self._filter_valid_records(
+            records, ["market_id"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -175,12 +236,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} Polymarket markets")
         return rows_loaded
 
-    def load_polymarket_prices(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_polymarket_prices(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load Polymarket price data from parquet file."""
         logger.info(f"Loading Polymarket prices from {file_path}")
+        handler = corruption_handler or CorruptionHandler("polymarket")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -211,6 +278,10 @@ class RawLoader:
                 }
             )
 
+        records = self._filter_valid_records(
+            records, ["market_id", "ts"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -219,12 +290,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} Polymarket prices")
         return rows_loaded
 
-    def load_polymarket_trades(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_polymarket_trades(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load Polymarket trades from parquet file."""
         logger.info(f"Loading Polymarket trades from {file_path}")
+        handler = corruption_handler or CorruptionHandler("polymarket")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -261,6 +338,10 @@ class RawLoader:
                 }
             )
 
+        records = self._filter_valid_records(
+            records, ["market_id", "trade_id"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -269,12 +350,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} Polymarket trades")
         return rows_loaded
 
-    def load_polymarket_orderbooks(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_polymarket_orderbooks(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load Polymarket orderbook snapshots from parquet file."""
         logger.info(f"Loading Polymarket orderbooks from {file_path}")
+        handler = corruption_handler or CorruptionHandler("polymarket")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -314,6 +401,10 @@ class RawLoader:
                 }
             )
 
+        records = self._filter_valid_records(
+            records, ["market_id", "ts"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -326,6 +417,7 @@ class RawLoader:
         self,
         file_path: Path,
         run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
     ) -> int:
         """Load OHLCV price data from parquet file.
 
@@ -333,9 +425,10 @@ class RawLoader:
         curated transform can populate ``cur_corporate_actions``.
         """
         logger.info(f"Loading OHLCV data from {file_path}")
+        handler = corruption_handler or CorruptionHandler("prices")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -381,6 +474,10 @@ class RawLoader:
                 }
             )
 
+        records = self._filter_valid_records(
+            records, ["ticker", "date"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -389,12 +486,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} OHLCV records")
         return rows_loaded
 
-    def load_factor_returns(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_factor_returns(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load factor returns from parquet file."""
         logger.info(f"Loading factor data from {file_path}")
+        handler = corruption_handler or CorruptionHandler("factors")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -436,6 +539,10 @@ class RawLoader:
                 }
             )
 
+        records = self._filter_valid_records(
+            records, ["date"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -444,12 +551,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} factor rows")
         return rows_loaded
 
-    def load_sec_fundamentals(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_sec_fundamentals(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load SEC fundamentals from parquet file."""
         logger.info(f"Loading SEC fundamentals from {file_path}")
+        handler = corruption_handler or CorruptionHandler("sec_fundamentals")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -480,6 +593,10 @@ class RawLoader:
                 "raw_data", "extracted_at", "run_id",
             ]})
 
+        records = self._filter_valid_records(
+            records, ["ticker", "metric_name", "accession_number"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -488,12 +605,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} SEC fundamentals records")
         return rows_loaded
 
-    def load_sec_insider_trades(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_sec_insider_trades(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load SEC insider trades from parquet file."""
         logger.info(f"Loading SEC insider trades from {file_path}")
+        handler = corruption_handler or CorruptionHandler("sec_insider")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -525,6 +648,10 @@ class RawLoader:
                 "raw_data", "extracted_at", "run_id",
             ]})
 
+        records = self._filter_valid_records(
+            records, ["ticker", "accession_number", "insider_cik"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -533,12 +660,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} SEC insider trades")
         return rows_loaded
 
-    def load_sec_13f_holdings(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_sec_13f_holdings(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load SEC 13F holdings from parquet file."""
         logger.info(f"Loading SEC 13F holdings from {file_path}")
+        handler = corruption_handler or CorruptionHandler("sec_13f")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -572,6 +705,10 @@ class RawLoader:
                 "raw_data", "extracted_at", "run_id",
             ]})
 
+        records = self._filter_valid_records(
+            records, ["filer_cik", "accession_number", "cusip"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -580,12 +717,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} SEC 13F holdings")
         return rows_loaded
 
-    def load_options_chain(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_options_chain(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load options chain data from parquet file."""
         logger.info(f"Loading options data from {file_path}")
+        handler = corruption_handler or CorruptionHandler("options")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -617,6 +760,10 @@ class RawLoader:
                 "raw_data", "extracted_at", "run_id",
             ]})
 
+        records = self._filter_valid_records(
+            records, ["ticker", "quote_date", "expiration", "strike"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -625,12 +772,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} options contracts")
         return rows_loaded
 
-    def load_earnings_calendar(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_earnings_calendar(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load earnings calendar from parquet file."""
         logger.info(f"Loading earnings data from {file_path}")
+        handler = corruption_handler or CorruptionHandler("earnings")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -663,6 +816,10 @@ class RawLoader:
                 "raw_data", "extracted_at", "run_id",
             ]})
 
+        records = self._filter_valid_records(
+            records, ["ticker", "report_date"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -671,12 +828,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} earnings records")
         return rows_loaded
 
-    def load_reddit_posts(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_reddit_posts(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load Reddit sentiment posts from parquet file."""
         logger.info(f"Loading Reddit posts from {file_path}")
+        handler = corruption_handler or CorruptionHandler("reddit_sentiment")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -717,6 +880,10 @@ class RawLoader:
                 "run_id": row.get("run_id"),
             })
 
+        records = self._filter_valid_records(
+            records, ["post_id"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -725,12 +892,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} Reddit posts")
         return rows_loaded
 
-    def load_short_interest(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_short_interest(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load short interest data from parquet file."""
         logger.info(f"Loading short interest from {file_path}")
+        handler = corruption_handler or CorruptionHandler("short_interest")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -757,6 +930,10 @@ class RawLoader:
                 "raw_data", "extracted_at", "run_id",
             ]})
 
+        records = self._filter_valid_records(
+            records, ["ticker", "settlement_date"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -765,12 +942,18 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} short interest records")
         return rows_loaded
 
-    def load_etf_flows(self, file_path: Path, run_id: UUID | None = None) -> int:
+    def load_etf_flows(
+        self,
+        file_path: Path,
+        run_id: UUID | None = None,
+        corruption_handler: CorruptionHandler | None = None,
+    ) -> int:
         """Load ETF flows data from parquet file."""
         logger.info(f"Loading ETF flows from {file_path}")
+        handler = corruption_handler or CorruptionHandler("etf_flows")
 
-        df = pd.read_parquet(file_path)
-        if df.empty:
+        df = self._read_parquet_or_quarantine(file_path, handler)
+        if df is None:
             return 0
 
         insert_sql = text("""
@@ -796,6 +979,10 @@ class RawLoader:
                 "raw_data", "extracted_at", "run_id",
             ]})
 
+        records = self._filter_valid_records(
+            records, ["ticker", "date"], handler, file_path
+        )
+
         rows_loaded = 0
         with self.db.engine.connect() as conn:
             rows_loaded += self._batch_insert(conn, insert_sql, records)
@@ -805,52 +992,68 @@ class RawLoader:
         return rows_loaded
 
     def load_all_raw_files(self, raw_dir: Path, source: str, run_id: UUID | None = None) -> int:
-        """Load all raw files for a source."""
+        """Load all raw files for a source.
+
+        Uses a shared CorruptionHandler across all files for the source,
+        then flushes a single quarantine log at the end.
+        """
         source_dir = raw_dir / source
         if not source_dir.exists():
             logger.warning(f"Source directory not found: {source_dir}")
             return 0
 
+        handler = CorruptionHandler(source)
         total_rows = 0
         parquet_files = list(source_dir.rglob("*.parquet"))
 
         for file_path in parquet_files:
             try:
                 if source == "fred":
-                    total_rows += self.load_fred_observations(file_path, run_id)
+                    total_rows += self.load_fred_observations(file_path, run_id, handler)
                 elif source == "gdelt":
-                    total_rows += self.load_gdelt_events(file_path, run_id)
+                    total_rows += self.load_gdelt_events(file_path, run_id, handler)
                 elif source == "polymarket":
                     if "markets" in str(file_path):
-                        total_rows += self.load_polymarket_markets(file_path, run_id)
+                        total_rows += self.load_polymarket_markets(file_path, run_id, handler)
                     elif "prices" in str(file_path):
-                        total_rows += self.load_polymarket_prices(file_path, run_id)
+                        total_rows += self.load_polymarket_prices(file_path, run_id, handler)
                     elif "trades" in str(file_path):
-                        total_rows += self.load_polymarket_trades(file_path, run_id)
+                        total_rows += self.load_polymarket_trades(file_path, run_id, handler)
                     elif "orderbooks" in str(file_path):
-                        total_rows += self.load_polymarket_orderbooks(file_path, run_id)
+                        total_rows += self.load_polymarket_orderbooks(file_path, run_id, handler)
                 elif source == "prices":
-                    total_rows += self.load_prices_ohlcv(file_path, run_id)
+                    total_rows += self.load_prices_ohlcv(file_path, run_id, handler)
                 elif source == "factors":
-                    total_rows += self.load_factor_returns(file_path, run_id)
+                    total_rows += self.load_factor_returns(file_path, run_id, handler)
                 elif source == "sec_fundamentals":
-                    total_rows += self.load_sec_fundamentals(file_path, run_id)
+                    total_rows += self.load_sec_fundamentals(file_path, run_id, handler)
                 elif source == "sec_insider":
-                    total_rows += self.load_sec_insider_trades(file_path, run_id)
+                    total_rows += self.load_sec_insider_trades(file_path, run_id, handler)
                 elif source == "sec_13f":
-                    total_rows += self.load_sec_13f_holdings(file_path, run_id)
+                    total_rows += self.load_sec_13f_holdings(file_path, run_id, handler)
                 elif source == "options":
-                    total_rows += self.load_options_chain(file_path, run_id)
+                    total_rows += self.load_options_chain(file_path, run_id, handler)
                 elif source == "earnings":
-                    total_rows += self.load_earnings_calendar(file_path, run_id)
+                    total_rows += self.load_earnings_calendar(file_path, run_id, handler)
                 elif source == "reddit_sentiment":
-                    total_rows += self.load_reddit_posts(file_path, run_id)
+                    total_rows += self.load_reddit_posts(file_path, run_id, handler)
                 elif source == "short_interest":
-                    total_rows += self.load_short_interest(file_path, run_id)
+                    total_rows += self.load_short_interest(file_path, run_id, handler)
                 elif source == "etf_flows":
-                    total_rows += self.load_etf_flows(file_path, run_id)
+                    total_rows += self.load_etf_flows(file_path, run_id, handler)
             except Exception as e:
+                handler.record_corrupt_file(file_path, e)
                 logger.error(f"Error loading {file_path}: {e}")
                 continue
+
+        if handler.has_events:
+            handler.flush()
+            summary = handler.summary()
+            logger.warning(
+                "Data corruption detected in %s: %d corrupt files, %d corrupt records",
+                source,
+                summary["corrupt_files"],
+                summary["corrupt_records"],
+            )
 
         return total_rows
