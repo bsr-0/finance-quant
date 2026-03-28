@@ -79,7 +79,6 @@ class FredSettings(BaseSettings):
             "M2SL",
             # Commodities
             "DCOILWTICO",
-            "GOLDAMGBD228NLBM",
             # Dollar index
             "DTWEXBGS",
             # Financial conditions
