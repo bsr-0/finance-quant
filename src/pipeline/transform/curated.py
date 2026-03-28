@@ -29,6 +29,19 @@ class CuratedTransformer:
         self.run_id = run_id
         self._lineage = LineageTracker() if self.settings.infrastructure.lineage_enabled else None
 
+    @staticmethod
+    def _resolve_rowcount(result, conn, target_table: str) -> int:
+        """Return the number of affected rows, querying the table if the driver returns -1."""
+        rows = result.rowcount
+        if rows >= 0:
+            return rows
+        # DuckDB returns -1 for INSERT...SELECT; fall back to a COUNT query.
+        from pipeline.db import _validate_identifier
+        count_result = conn.execute(
+            text(f"SELECT COUNT(*) AS n FROM {_validate_identifier(target_table)}")
+        )
+        return count_result.scalar() or 0
+
     def _record_lineage(
         self, source_table: str, target_table: str, transformation_name: str
     ) -> None:
@@ -211,7 +224,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_macro_observations")
 
         logger.info(f"Transformed {rows} macro observations")
         self._record_lineage(
@@ -303,7 +316,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_world_events")
 
         logger.info(f"Transformed {rows} world events")
         self._record_lineage("raw_gdelt_events", "cur_world_events", "transform_world_events")
@@ -355,7 +368,7 @@ class CuratedTransformer:
                 {"source_id": source_id},
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "dim_contract")
 
         logger.info(f"Transformed {rows} contracts")
         self._record_lineage("raw_polymarket_markets", "dim_contract", "transform_contracts")
@@ -417,7 +430,7 @@ class CuratedTransformer:
                     updated_at = NOW()
             """))
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_contract_state_daily")
 
         logger.info(f"Transformed {rows} contract state rows")
         self._record_lineage(
@@ -477,7 +490,7 @@ class CuratedTransformer:
                     data_quality_flag = EXCLUDED.data_quality_flag
             """))
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_contract_resolution")
 
         logger.info(f"Transformed {rows} contract resolutions")
         self._record_lineage(
@@ -529,7 +542,7 @@ class CuratedTransformer:
                 {"latency_minutes": latency_minutes},
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_contract_prices")
 
         logger.info(f"Transformed {rows} contract prices")
         self._record_lineage(
@@ -573,7 +586,7 @@ class CuratedTransformer:
                 {"latency_minutes": latency_minutes},
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_contract_trades")
 
         logger.info(f"Transformed {rows} contract trades")
         self._record_lineage(
@@ -619,7 +632,7 @@ class CuratedTransformer:
                     ingested_at = EXCLUDED.ingested_at
             """))
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_contract_orderbook_snapshots")
 
         logger.info(f"Transformed {rows} orderbook snapshots")
         self._record_lineage(
@@ -792,7 +805,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            splits = result.rowcount
+            splits = self._resolve_rowcount(result, conn, "cur_corporate_actions")
             if splits:
                 logger.info(f"Inserted {splits} split actions")
 
@@ -826,7 +839,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            divs = result.rowcount
+            divs = self._resolve_rowcount(result, conn, "cur_corporate_actions")
             if divs:
                 logger.info(f"Inserted {divs} dividend actions")
 
@@ -879,7 +892,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_prices_ohlcv_daily")
 
         logger.info(f"Transformed {rows} OHLCV records")
 
@@ -1027,7 +1040,7 @@ class CuratedTransformer:
                     updated_at = NOW()
             """))
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_prices_adjusted_daily")
 
         logger.info(f"Transformed {rows} adjusted OHLCV records")
         self._record_lineage(
@@ -1075,7 +1088,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "snap_universe_membership")
 
         logger.info(f"Transformed {rows} universe membership records")
         self._record_lineage(
