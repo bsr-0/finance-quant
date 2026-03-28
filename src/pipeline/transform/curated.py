@@ -1178,6 +1178,71 @@ class CuratedTransformer:
         logger.info("transform_etf_flows not yet implemented; skipping")
         return 0
 
+    def transform_cftc_cot(self) -> int:
+        """Transform raw CFTC COT data into curated table.
+
+        Computes net positioning and percentage-of-open-interest metrics.
+        ``available_time`` is set to Friday 19:30 UTC (3:30 PM ET) of the
+        report week, reflecting the CFTC's publication schedule.
+        """
+        logger.info("Transforming CFTC COT data...")
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                    INSERT INTO cur_cftc_cot
+                    (commodity_code, report_date,
+                     commercial_net, noncommercial_net, nonreportable_net,
+                     open_interest, commercial_pct_oi, noncommercial_pct_oi,
+                     event_time, available_time, time_quality,
+                     ingested_at, data_quality_flag)
+                    SELECT
+                        r.commodity_code,
+                        r.report_date,
+                        r.commercial_long - r.commercial_short AS commercial_net,
+                        r.noncommercial_long - r.noncommercial_short AS noncommercial_net,
+                        r.nonreportable_long - r.nonreportable_short AS nonreportable_net,
+                        r.open_interest,
+                        CASE WHEN r.open_interest > 0
+                             THEN (r.commercial_long - r.commercial_short)::NUMERIC
+                                  / r.open_interest
+                             ELSE NULL
+                        END AS commercial_pct_oi,
+                        CASE WHEN r.open_interest > 0
+                             THEN (r.noncommercial_long - r.noncommercial_short)::NUMERIC
+                                  / r.open_interest
+                             ELSE NULL
+                        END AS noncommercial_pct_oi,
+                        r.report_date::TIMESTAMPTZ AS event_time,
+                        (r.report_date + INTERVAL '3 days'
+                         + INTERVAL '19 hours 30 minutes')::TIMESTAMPTZ AS available_time,
+                        'confirmed' AS time_quality,
+                        NOW() AS ingested_at,
+                        CASE
+                            WHEN r.open_interest IS NULL OR r.open_interest <= 0
+                                THEN 'invalid_open_interest'
+                            WHEN r.commercial_long IS NULL OR r.commercial_short IS NULL
+                                THEN 'missing_positions'
+                            ELSE NULL
+                        END AS data_quality_flag
+                    FROM raw_cftc_cot r
+                    ON CONFLICT (commodity_code, report_date) DO UPDATE SET
+                        commercial_net = EXCLUDED.commercial_net,
+                        noncommercial_net = EXCLUDED.noncommercial_net,
+                        nonreportable_net = EXCLUDED.nonreportable_net,
+                        open_interest = EXCLUDED.open_interest,
+                        commercial_pct_oi = EXCLUDED.commercial_pct_oi,
+                        noncommercial_pct_oi = EXCLUDED.noncommercial_pct_oi,
+                        available_time = EXCLUDED.available_time,
+                        ingested_at = EXCLUDED.ingested_at,
+                        data_quality_flag = EXCLUDED.data_quality_flag
+                """))
+            conn.commit()
+            rows = self._resolve_rowcount(result, conn, "cur_cftc_cot")
+
+        logger.info(f"Transformed {rows} CFTC COT records")
+        self._record_lineage("raw_cftc_cot", "cur_cftc_cot", "transform_cftc_cot")
+        return rows
+
     # ------------------------------------------------------------------
 
     def transform_all(self) -> dict:
@@ -1204,6 +1269,7 @@ class CuratedTransformer:
             "earnings",
             "short_interest",
             "etf_flows",
+            "cftc_cot",
         ):
             method = getattr(self, f"transform_{name}", None)
             if method is not None:
