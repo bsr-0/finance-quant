@@ -1,0 +1,85 @@
+name: Backfill Predictions
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Start date (YYYY-MM-DD)"
+        required: true
+        default: "2025-06-01"
+      end_date:
+        description: "End date (YYYY-MM-DD, default: yesterday)"
+        required: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    env:
+      FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[web]"
+
+      - name: Initialize database
+        run: make db-init
+
+      - name: Extract prices (full history for backfill)
+        run: |
+          END_DATE=$(date +%Y-%m-%d)
+          START_DATE=${{ inputs.start_date }}
+          # Fetch extra lookback before start_date for indicator warm-up
+          EXTRACT_START=$(date -d "$START_DATE -120 days" +%Y-%m-%d)
+          python -m pipeline.cli extract prices --start "$EXTRACT_START" --end "$END_DATE"
+          python -m pipeline.cli load-raw prices
+
+      - name: Extract FRED macro data
+        if: ${{ env.FRED_API_KEY != '' }}
+        run: |
+          END_DATE=$(date +%Y-%m-%d)
+          EXTRACT_START=$(date -d "${{ inputs.start_date }} -120 days" +%Y-%m-%d)
+          python -m pipeline.cli extract fred --start "$EXTRACT_START" --end "$END_DATE"
+          python -m pipeline.cli load-raw fred
+
+      - name: Transform to curated layer
+        run: python -m pipeline.cli transform-curated
+
+      - name: Run backfill
+        run: |
+          END_DATE=${{ inputs.end_date || '""' }}
+          if [ -z "$END_DATE" ] || [ "$END_DATE" = '""' ]; then
+            END_DATE=$(date -d "yesterday" +%Y-%m-%d)
+          fi
+          python -m pipeline.cli backfill-predictions \
+            --start "${{ inputs.start_date }}" \
+            --end "$END_DATE"
+
+      - name: Commit backfilled data and site
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f data/prediction_history.json data/signals/ site/
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: backfill predictions ${{ inputs.start_date }} → $(date +%Y-%m-%d) [skip ci]"
+            git push
+          fi
+
+  deploy:
+    needs: backfill
+    uses: ./.github/workflows/deploy-pages.yml
