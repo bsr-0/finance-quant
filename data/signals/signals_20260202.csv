@@ -1,0 +1,2 @@
+date,ticker,direction,score,trend_pts,pullback_pts,volume_pts,volatility_pts,entry_price,stop_price,target_1,target_2,atr,atr_pct,regime,confidence,strategy_id
+2026-02-02,GLD,LONG,60,40,5,5,10,427.13,401.5657,461.2157,478.2586,17.0429,3.99,BULL,LOW,QSG-MICRO-SWING-001

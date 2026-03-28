@@ -1,0 +1,2 @@
+date,ticker,direction,score,trend_pts,pullback_pts,volume_pts,volatility_pts,entry_price,stop_price,target_1,target_2,atr,atr_pct,regime,confidence,strategy_id
+2026-03-12,XLRE,LONG,90,40,30,10,10,42.14,41.2041,43.3879,44.0118,0.6239,1.48,BULL,HIGH,QSG-MICRO-SWING-001

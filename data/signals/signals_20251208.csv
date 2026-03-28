@@ -1,0 +1,2 @@
+date,ticker,direction,score,trend_pts,pullback_pts,volume_pts,volatility_pts,entry_price,stop_price,target_1,target_2,atr,atr_pct,regime,confidence,strategy_id
+2025-12-08,XLV,LONG,65,40,5,10,10,150.789,147.7761,154.8061,156.8147,2.0086,1.33,BULL,LOW,QSG-MICRO-SWING-001

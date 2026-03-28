@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Performance - Daily Stock Predictions</title>
+    <title>XLP - Daily Stock Predictions</title>
     <style>
         :root {
             --bg: #0d1117;
@@ -336,7 +336,7 @@
                 <a href="index.html" >Dashboard</a>
                 <a href="pipeline.html" >Pipeline</a>
                 <a href="history.html" >History</a>
-                <a href="performance.html" class="active">Performance</a>
+                <a href="performance.html" >Performance</a>
             </div>
         </div>
     </nav>
@@ -344,97 +344,149 @@
     <main class="container">
         
 <div class="page-header">
-    <h1>Performance Track Record</h1>
-    <div class="subtitle">Aggregate and monthly signal performance</div>
+    <h1>XLP</h1>
+    <div class="subtitle">Signal history and performance</div>
 </div>
 
 <div class="stats-row">
     <div class="stat-card">
-        <div class="stat-value">29</div>
+        <div class="stat-value">5</div>
         <div class="stat-label">Total Signals</div>
     </div>
     <div class="stat-card">
-        <div class="stat-value" style="color: var(--green);">11</div>
-        <div class="stat-label">Hit Target</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value" style="color: var(--red);">17</div>
-        <div class="stat-label">Stopped Out</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">1</div>
-        <div class="stat-label">Expired</div>
-    </div>
-</div>
-
-<div class="stats-row">
-    <div class="stat-card">
-        <div class="stat-value">37.9%</div>
+        <div class="stat-value">0.0%</div>
         <div class="stat-label">Win Rate</div>
     </div>
     <div class="stat-card">
-        <div class="stat-value pnl-positive">+3.38%</div>
-        <div class="stat-label">Avg Win</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value pnl-negative">-2.37%</div>
-        <div class="stat-label">Avg Loss</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value pnl-positive">+0.01%</div>
+        <div class="stat-value pnl-negative">
+            -2.33%
+        </div>
         <div class="stat-label">Avg P&L</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">75.0</div>
+        <div class="stat-label">Avg Score</div>
     </div>
 </div>
 
 
-<h2 style="margin: 32px 0 16px; font-size: 1.1rem;">Monthly Breakdown</h2>
 <table>
     <thead>
         <tr>
-            <th>Month</th>
-            <th class="num">Signals</th>
-            <th class="num">Wins</th>
-            <th class="num">Win Rate</th>
-            <th class="num">Total P&L</th>
+            <th>Signal Date</th>
+            <th class="num">Score</th>
+            <th>Confidence</th>
+            <th class="num">Entry</th>
+            <th class="num">Stop</th>
+            <th class="num">Target</th>
+            <th>Outcome</th>
+            <th class="num">P&L %</th>
+            <th class="num">Days Held</th>
+            <th class="hide-mobile">Regime</th>
         </tr>
     </thead>
     <tbody>
         
         <tr>
-            <td><strong>2026-03</strong></td>
-            <td class="num">14</td>
-            <td class="num">1</td>
-            <td class="num">7.1%</td>
-            <td class="num pnl-negative">-29.31%</td>
+            <td>2026-03-16</td>
+            <td class="num score-medium">75</td>
+            <td>MEDIUM</td>
+            <td class="num">$84.98</td>
+            <td class="num">$83.06</td>
+            <td class="num">$87.55</td>
+            <td><span class="outcome-loss">Stopped Out</span></td>
+            <td class="num pnl-negative">
+                -2.26%
+            </td>
+            <td class="num">2</td>
+            <td class="hide-mobile">
+                <span class="regime regime-bull">
+                    BULL
+                </span>
+            </td>
         </tr>
         
         <tr>
-            <td><strong>2026-02</strong></td>
-            <td class="num">6</td>
-            <td class="num">3</td>
-            <td class="num">50.0%</td>
-            <td class="num pnl-positive">+13.20%</td>
-        </tr>
-        
-        <tr>
-            <td><strong>2026-01</strong></td>
+            <td>2026-03-13</td>
+            <td class="num score-high">85</td>
+            <td>HIGH</td>
+            <td class="num">$84.74</td>
+            <td class="num">$82.78</td>
+            <td class="num">$87.35</td>
+            <td><span class="outcome-loss">Stopped Out</span></td>
+            <td class="num pnl-negative">
+                -2.31%
+            </td>
             <td class="num">5</td>
-            <td class="num">3</td>
-            <td class="num">60.0%</td>
-            <td class="num pnl-positive">+6.00%</td>
+            <td class="hide-mobile">
+                <span class="regime regime-bull">
+                    BULL
+                </span>
+            </td>
         </tr>
         
         <tr>
-            <td><strong>2025-12</strong></td>
-            <td class="num">4</td>
-            <td class="num">4</td>
-            <td class="num">100.0%</td>
-            <td class="num pnl-positive">+10.40%</td>
+            <td>2026-03-11</td>
+            <td class="num score-medium">75</td>
+            <td>MEDIUM</td>
+            <td class="num">$84.59</td>
+            <td class="num">$82.62</td>
+            <td class="num">$87.22</td>
+            <td><span class="outcome-loss">Stopped Out</span></td>
+            <td class="num pnl-negative">
+                -2.33%
+            </td>
+            <td class="num">7</td>
+            <td class="hide-mobile">
+                <span class="regime regime-bull">
+                    BULL
+                </span>
+            </td>
+        </tr>
+        
+        <tr>
+            <td>2026-03-06</td>
+            <td class="num score-medium">60</td>
+            <td>LOW</td>
+            <td class="num">$85.78</td>
+            <td class="num">$83.75</td>
+            <td class="num">$88.48</td>
+            <td><span class="outcome-loss">Stopped Out</span></td>
+            <td class="num pnl-negative">
+                -2.36%
+            </td>
+            <td class="num">6</td>
+            <td class="hide-mobile">
+                <span class="regime regime-bull">
+                    BULL
+                </span>
+            </td>
+        </tr>
+        
+        <tr>
+            <td>2026-03-05</td>
+            <td class="num score-high">80</td>
+            <td>HIGH</td>
+            <td class="num">$85.41</td>
+            <td class="num">$83.37</td>
+            <td class="num">$88.13</td>
+            <td><span class="outcome-loss">Stopped Out</span></td>
+            <td class="num pnl-negative">
+                -2.39%
+            </td>
+            <td class="num">13</td>
+            <td class="hide-mobile">
+                <span class="regime regime-bull">
+                    BULL
+                </span>
+            </td>
         </tr>
         
     </tbody>
 </table>
 
+
+<p style="margin-top: 16px;"><a href="index.html">&larr; Back to dashboard</a></p>
 
     </main>
 

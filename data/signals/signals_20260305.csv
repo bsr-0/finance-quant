@@ -1,0 +1,3 @@
+date,ticker,direction,score,trend_pts,pullback_pts,volume_pts,volatility_pts,entry_price,stop_price,target_1,target_2,atr,atr_pct,regime,confidence,strategy_id
+2026-03-05,XLP,LONG,80,40,30,0,10,85.41,83.3689,88.1314,89.4921,1.3607,1.59,BULL,HIGH,QSG-MICRO-SWING-001
+2026-03-05,XLB,LONG,80,40,30,0,10,50.83,49.2968,52.8743,53.8964,1.0221,2.01,BULL,HIGH,QSG-MICRO-SWING-001
