@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 from pipeline.execution.broker import BaseBroker, Position
@@ -55,7 +55,7 @@ class Discrepancy:
     system_value: float
     broker_value: float
     message: str
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def __str__(self) -> str:
         return (
@@ -156,7 +156,7 @@ class PositionReconciler:
         broker_positions = {p.symbol: p for p in broker_positions_list}
 
         discrepancies: list[Discrepancy] = []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         all_symbols = set(system_positions.keys()) | set(broker_positions.keys())
 

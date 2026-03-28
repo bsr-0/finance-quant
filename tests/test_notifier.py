@@ -5,7 +5,6 @@ from __future__ import annotations
 import threading
 from unittest.mock import MagicMock, patch
 
-
 from pipeline.infrastructure.notifier import (
     AlertSeverity,
     ConsoleConfig,
@@ -17,7 +16,6 @@ from pipeline.infrastructure.notifier import (
     reset_notifier,
     set_notifier,
 )
-
 
 # ---------------------------------------------------------------------------
 # Notifier core
@@ -85,7 +83,9 @@ class TestNotifier:
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        with patch("pipeline.infrastructure.notifier.httpx.post", return_value=mock_resp) as mock_post:
+        with patch(
+            "pipeline.infrastructure.notifier.httpx.post", return_value=mock_resp,
+        ) as mock_post:
             n.send(AlertSeverity.WARNING, "Test Alert", "Details here", {"key": "val"})
 
         mock_post.assert_called_once()
@@ -207,7 +207,7 @@ class TestRiskNotifications:
         mgr.initialize(1000.0)
 
         # Trigger RED: equity drops to 800 (20% drawdown)
-        state = mgr.get_risk_state(
+        mgr.get_risk_state(
             current_equity=800.0,
             open_positions=1,
             total_risk_pct=0.01,
@@ -226,7 +226,7 @@ class TestRiskNotifications:
         mgr = SwingRiskManager(max_daily_loss_pct=0.02)
         mgr.initialize(1000.0)
 
-        state = mgr.get_risk_state(
+        mgr.get_risk_state(
             current_equity=1000.0,
             open_positions=0,
             total_risk_pct=0.0,
@@ -259,7 +259,7 @@ class TestEdgeDecayNotifications:
             monitor.record_trade(-10.0, False)
             monitor.record_daily_return(-0.01, 950.0)
 
-        metrics = monitor.evaluate()
+        monitor.evaluate()
 
         orange_alerts = [
             h for h in self.mock_notifier.history
@@ -281,7 +281,7 @@ class TestEdgeDecayNotifications:
         for _ in range(4):
             monitor.evaluate()
 
-        red_alerts = [
+        [
             h for h in self.mock_notifier.history
             if h["severity"] == "CRITICAL" and "RED" in h["title"]
         ]
@@ -305,6 +305,7 @@ class TestReconcilerNotifications:
 
     def test_critical_discrepancy_sends_notification(self):
         from unittest.mock import MagicMock
+
         from pipeline.execution.reconciler import PositionReconciler
 
         mock_broker = MagicMock()

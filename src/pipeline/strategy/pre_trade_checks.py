@@ -135,7 +135,8 @@ def run_pre_trade_checks(
             ))
         elif not risk_state.can_open_new:
             checks.append(CheckDetail(
-                "risk_state", False, "Risk state blocks new entries (cooldown or consecutive losses)",
+                "risk_state", False,
+                "Risk state blocks new entries (cooldown or consecutive losses)",
             ))
         else:
             checks.append(CheckDetail("risk_state", True))

@@ -35,7 +35,7 @@ def _generate_synthetic_universe(
     In production, this would be replaced by a database query or
     API call to a market data provider.
     """
-    rng = np.random.RandomState(seed)
+    np.random.RandomState(seed)
     tickers = [
         "AAPL", "MSFT", "GOOGL", "AMZN", "META",
         "NVDA", "TSLA", "JPM", "V", "UNH",
@@ -93,7 +93,8 @@ def run_example() -> str:
     print("\nGenerating synthetic universe data...")
     price_data = _generate_synthetic_universe(n_stocks=15, n_days=400)
     print(f"  Tickers: {list(price_data.keys())}")
-    print(f"  Date range: {list(price_data.values())[0].index[0]} to {list(price_data.values())[0].index[-1]}")
+    first_series = list(price_data.values())[0]
+    print(f"  Date range: {first_series.index[0]} to {first_series.index[-1]}")
 
     # 3. Build universe from price data
     # Use relaxed filters for synthetic data (no real ADV/market cap metadata)

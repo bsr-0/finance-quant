@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
@@ -72,7 +72,7 @@ class OptionsDataExtractor:
 
         for chain in options:
             expiration_ts = chain.get("expirationDate", 0)
-            expiration = datetime.fromtimestamp(expiration_ts, tz=timezone.utc).date()
+            expiration = datetime.fromtimestamp(expiration_ts, tz=UTC).date()
 
             for opt_type, key in [("call", "calls"), ("put", "puts")]:
                 for contract in chain.get(key, []):
@@ -132,7 +132,7 @@ class OptionsDataExtractor:
                     continue
 
                 df = pd.DataFrame(all_rows)
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
                 file_path = output_dir / f"{ticker}_{today}.parquet"

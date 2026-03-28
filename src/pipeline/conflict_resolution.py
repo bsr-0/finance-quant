@@ -21,8 +21,8 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -30,7 +30,7 @@ from uuid import uuid4
 logger = logging.getLogger(__name__)
 
 
-class ConflictCategory(str, Enum):
+class ConflictCategory(StrEnum):
     """Categories of inter-agent conflict (Section 22.1)."""
 
     FACTUAL = "factual"
@@ -39,7 +39,7 @@ class ConflictCategory(str, Enum):
     RESOURCE = "resource"
 
 
-class ConflictStatus(str, Enum):
+class ConflictStatus(StrEnum):
     """Resolution status of a conflict."""
 
     OPEN = "open"
@@ -61,7 +61,7 @@ class EvidenceSubmission:
     experiment_ids: list[str] = field(default_factory=list)
     code_references: list[str] = field(default_factory=list)
     timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
     def to_dict(self) -> dict[str, Any]:
@@ -78,7 +78,7 @@ class Dissent:
     reasoning: str = ""
     insufficiently_weighted_evidence: str = ""
     timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
     reviewed: bool = False
     review_notes: str = ""
@@ -106,7 +106,7 @@ class ConflictRecord:
     resolved_by: str = ""
     dissents: list[dict[str, Any]] = field(default_factory=list)
     created_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
     resolved_at: str = ""
 
@@ -272,7 +272,7 @@ class ConflictResolver:
             conflict.status = ConflictStatus.RESOLVED
             conflict.resolution = f"Audit arbitration (binding): {result}"
             conflict.resolved_by = "audit_agent"
-            conflict.resolved_at = datetime.now(timezone.utc).isoformat()
+            conflict.resolved_at = datetime.now(UTC).isoformat()
             logger.info(
                 "Conflict %s resolved by audit arbitration: %s",
                 conflict_id,
@@ -300,7 +300,7 @@ class ConflictResolver:
         conflict.status = ConflictStatus.RESOLVED
         conflict.resolution = f"Orchestrator decision: {decision}. Justification: {justification}"
         conflict.resolved_by = "research_orchestrator"
-        conflict.resolved_at = datetime.now(timezone.utc).isoformat()
+        conflict.resolved_at = datetime.now(UTC).isoformat()
         self._save()
         logger.info("Conflict %s resolved by orchestrator: %s", conflict_id, decision)
         return conflict
@@ -331,7 +331,7 @@ class ConflictResolver:
         conflict.status = ConflictStatus.RESOLVED
         conflict.resolution = f"Human decision by {decided_by}: {decision}"
         conflict.resolved_by = decided_by
-        conflict.resolved_at = datetime.now(timezone.utc).isoformat()
+        conflict.resolved_at = datetime.now(UTC).isoformat()
         self._save()
         logger.info(
             "Conflict %s resolved by human %s: %s",
@@ -364,7 +364,7 @@ class ConflictResolver:
         conflict.status = ConflictStatus.RESOLVED
         conflict.resolution = f"AUDIT VETO: {reason}. Fix required before resubmission."
         conflict.resolved_by = "audit_agent"
-        conflict.resolved_at = datetime.now(timezone.utc).isoformat()
+        conflict.resolved_at = datetime.now(UTC).isoformat()
         self._save()
         logger.warning("Audit Agent VETOED conflict %s: %s", conflict_id, reason)
         return conflict

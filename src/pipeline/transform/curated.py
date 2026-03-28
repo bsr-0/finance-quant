@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pandas as pd
@@ -28,6 +28,19 @@ class CuratedTransformer:
         self.settings = get_settings()
         self.run_id = run_id
         self._lineage = LineageTracker() if self.settings.infrastructure.lineage_enabled else None
+
+    @staticmethod
+    def _resolve_rowcount(result, conn, target_table: str) -> int:
+        """Return the number of affected rows, querying the table if the driver returns -1."""
+        rows = result.rowcount
+        if rows >= 0:
+            return rows
+        # DuckDB returns -1 for INSERT...SELECT; fall back to a COUNT query.
+        from pipeline.db import _validate_identifier
+        count_result = conn.execute(
+            text(f"SELECT COUNT(*) AS n FROM {_validate_identifier(target_table)}")
+        )
+        return count_result.scalar() or 0
 
     def _record_lineage(
         self, source_table: str, target_table: str, transformation_name: str
@@ -179,7 +192,8 @@ class CuratedTransformer:
                     COALESCE(r.realtime_start::text, 'initial')       AS revision_id,
                     r.observation_date::timestamptz                    AS event_time,
                     COALESCE(
-                        (r.realtime_start::date + CAST(:release_time AS TIME)) AT TIME ZONE :release_tz
+                        (r.realtime_start::date + CAST(:release_time AS TIME))
+                            AT TIME ZONE :release_tz
                             + (CAST(:release_jitter AS INTEGER) * INTERVAL '1' MINUTE),
                         r.extracted_at
                     )                                                 AS available_time,
@@ -211,7 +225,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_macro_observations")
 
         logger.info(f"Transformed {rows} macro observations")
         self._record_lineage(
@@ -243,7 +257,10 @@ class CuratedTransformer:
                         ) AS event_time,
                         CASE
                             WHEN :available_source = 'DATEADDED' THEN COALESCE(
-                                (strptime(NULLIF(r.raw_data::json->>'DATEADDED', ''), '%Y%m%d%H%M%S') AT TIME ZONE 'UTC'),
+                                (strptime(
+                                    NULLIF(r.raw_data::json->>'DATEADDED', ''),
+                                    '%Y%m%d%H%M%S'
+                                ) AT TIME ZONE 'UTC'),
                                 r.extracted_at
                             )
                             ELSE r.extracted_at
@@ -263,7 +280,9 @@ class CuratedTransformer:
                         json_array(r.raw_data::json->>'EventBaseCode') AS themes,
                         (r.raw_data::json->>'AvgTone')::numeric       AS tone_score,
                         CASE
-                            WHEN :available_source = 'DATEADDED' AND r.raw_data::json->>'DATEADDED' IS NOT NULL THEN 'confirmed'
+                            WHEN :available_source = 'DATEADDED'
+                                AND r.raw_data::json->>'DATEADDED' IS NOT NULL
+                                THEN 'confirmed'
                             ELSE 'assumed'
                         END                                           AS time_quality
                     FROM raw_gdelt_events r
@@ -303,7 +322,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_world_events")
 
         logger.info(f"Transformed {rows} world events")
         self._record_lineage("raw_gdelt_events", "cur_world_events", "transform_world_events")
@@ -355,7 +374,7 @@ class CuratedTransformer:
                 {"source_id": source_id},
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "dim_contract")
 
         logger.info(f"Transformed {rows} contracts")
         self._record_lineage("raw_polymarket_markets", "dim_contract", "transform_contracts")
@@ -396,7 +415,8 @@ class CuratedTransformer:
                     d.contract_id,
                     d.day::date AS date,
                     CASE
-                        WHEN d.resolution_time IS NOT NULL AND d.day::date >= d.resolution_time::date
+                        WHEN d.resolution_time IS NOT NULL
+                            AND d.day::date >= d.resolution_time::date
                         THEN 'resolved'
                         ELSE d.status
                     END AS status,
@@ -417,7 +437,7 @@ class CuratedTransformer:
                     updated_at = NOW()
             """))
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_contract_state_daily")
 
         logger.info(f"Transformed {rows} contract state rows")
         self._record_lineage(
@@ -477,7 +497,7 @@ class CuratedTransformer:
                     data_quality_flag = EXCLUDED.data_quality_flag
             """))
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_contract_resolution")
 
         logger.info(f"Transformed {rows} contract resolutions")
         self._record_lineage(
@@ -508,13 +528,19 @@ class CuratedTransformer:
                         ELSE r.price
                     END                        AS price_normalized,
                     r.ts                       AS event_time,
-                    r.ts + (CAST(:latency_minutes AS INTEGER) * INTERVAL '1' MINUTE) AS available_time,
+                    r.ts + (CAST(:latency_minutes AS INTEGER)
+                        * INTERVAL '1' MINUTE) AS available_time,
                     'inferred'                 AS time_quality,
                     NOW()                      AS ingested_at,
                     CASE
-                        WHEN r.price IS NULL OR r.price <= 0 THEN 'invalid_price'
-                        WHEN (CASE WHEN r.price > 1 THEN r.price / 100.0 ELSE r.price END) > 1 THEN 'price_out_of_range'
-                        WHEN (CASE WHEN r.price > 1 THEN r.price / 100.0 ELSE r.price END) < 0 THEN 'price_out_of_range'
+                        WHEN r.price IS NULL OR r.price <= 0
+                            THEN 'invalid_price'
+                        WHEN (CASE WHEN r.price > 1
+                            THEN r.price / 100.0 ELSE r.price END) > 1
+                            THEN 'price_out_of_range'
+                        WHEN (CASE WHEN r.price > 1
+                            THEN r.price / 100.0 ELSE r.price END) < 0
+                            THEN 'price_out_of_range'
                         ELSE NULL
                     END                        AS data_quality_flag
                 FROM raw_polymarket_prices r
@@ -529,7 +555,7 @@ class CuratedTransformer:
                 {"latency_minutes": latency_minutes},
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_contract_prices")
 
         logger.info(f"Transformed {rows} contract prices")
         self._record_lineage(
@@ -558,7 +584,8 @@ class CuratedTransformer:
                     r.size,
                     r.side,
                     r.ts           AS event_time,
-                    r.ts + (CAST(:latency_minutes AS INTEGER) * INTERVAL '1' MINUTE) AS available_time,
+                    r.ts + (CAST(:latency_minutes AS INTEGER)
+                        * INTERVAL '1' MINUTE) AS available_time,
                     'inferred'     AS time_quality,
                     NOW()          AS ingested_at,
                     CASE
@@ -573,7 +600,7 @@ class CuratedTransformer:
                 {"latency_minutes": latency_minutes},
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_contract_trades")
 
         logger.info(f"Transformed {rows} contract trades")
         self._record_lineage(
@@ -619,7 +646,7 @@ class CuratedTransformer:
                     ingested_at = EXCLUDED.ingested_at
             """))
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_contract_orderbook_snapshots")
 
         logger.info(f"Transformed {rows} orderbook snapshots")
         self._record_lineage(
@@ -662,7 +689,7 @@ class CuratedTransformer:
             df["event_time"] = dates.dt.tz_localize("UTC")
             df["available_time"] = available_time
             df["time_quality"] = "inferred"
-            df["ingested_at"] = datetime.now(timezone.utc)
+            df["ingested_at"] = datetime.now(UTC)
             df["data_quality_flag"] = None
 
             insert_sql = text("""
@@ -792,7 +819,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            splits = result.rowcount
+            splits = self._resolve_rowcount(result, conn, "cur_corporate_actions")
             if splits:
                 logger.info(f"Inserted {splits} split actions")
 
@@ -826,7 +853,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            divs = result.rowcount
+            divs = self._resolve_rowcount(result, conn, "cur_corporate_actions")
             if divs:
                 logger.info(f"Inserted {divs} dividend actions")
 
@@ -852,8 +879,13 @@ class CuratedTransformer:
                     'inferred'                             AS time_quality,
                     NOW()                                  AS ingested_at,
                     CASE
-                        WHEN r.open < 0 OR r.high < 0 OR r.low < 0 OR r.close < 0 THEN 'negative_price'
-                        WHEN r.low > r.high OR r.open > r.high OR r.open < r.low OR r.close > r.high OR r.close < r.low THEN 'ohlc_error'
+                        WHEN r.open < 0 OR r.high < 0
+                            OR r.low < 0 OR r.close < 0
+                            THEN 'negative_price'
+                        WHEN r.low > r.high OR r.open > r.high
+                            OR r.open < r.low OR r.close > r.high
+                            OR r.close < r.low
+                            THEN 'ohlc_error'
                         WHEN r.volume < 0 THEN 'negative_volume'
                         ELSE NULL
                     END                                    AS data_quality_flag
@@ -879,7 +911,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_prices_ohlcv_daily")
 
         logger.info(f"Transformed {rows} OHLCV records")
 
@@ -963,7 +995,9 @@ class CuratedTransformer:
                 factors AS (
                     SELECT
                         pb.*,
-                        LAG(pb.close) OVER (PARTITION BY pb.symbol_id ORDER BY pb.date) AS prev_close
+                        LAG(pb.close) OVER (
+                            PARTITION BY pb.symbol_id ORDER BY pb.date
+                        ) AS prev_close
                     FROM price_base pb
                 ),
                 returns AS (
@@ -985,28 +1019,46 @@ class CuratedTransformer:
                         EXP(
                             SUM(
                                 LN(
-                                    CASE WHEN r.total_return_factor <= 0 THEN 1 ELSE r.total_return_factor END
+                                    CASE WHEN r.total_return_factor <= 0
+                                        THEN 1
+                                        ELSE r.total_return_factor
+                                    END
                                 )
                             ) OVER (PARTITION BY r.symbol_id ORDER BY r.date)
                         ) AS total_return_index,
                         EXP(
-                            SUM(LN(r.split_ratio_safe)) OVER (PARTITION BY r.symbol_id ORDER BY r.date)
+                            SUM(LN(r.split_ratio_safe)) OVER (
+                                PARTITION BY r.symbol_id ORDER BY r.date
+                            )
                         ) AS split_cum_factor,
-                        FIRST_VALUE(r.close) OVER (PARTITION BY r.symbol_id ORDER BY r.date) AS base_close
+                        FIRST_VALUE(r.close) OVER (
+                            PARTITION BY r.symbol_id ORDER BY r.date
+                        ) AS base_close
                     FROM returns r
                 )
                 INSERT INTO cur_prices_adjusted_daily
                     (symbol_id, date, adj_open, adj_high, adj_low, adj_close, adj_volume,
-                     adj_factor, event_time, available_time, time_quality, ingested_at, data_quality_flag)
+                     adj_factor, event_time, available_time,
+                     time_quality, ingested_at, data_quality_flag)
                 SELECT
                     symbol_id,
                     date,
-                    CASE WHEN close = 0 THEN NULL ELSE open * (base_close * total_return_index / close) END AS adj_open,
-                    CASE WHEN close = 0 THEN NULL ELSE high * (base_close * total_return_index / close) END AS adj_high,
-                    CASE WHEN close = 0 THEN NULL ELSE low * (base_close * total_return_index / close) END AS adj_low,
-                    CASE WHEN close = 0 THEN NULL ELSE (base_close * total_return_index) END AS adj_close,
+                    CASE WHEN close = 0 THEN NULL
+                        ELSE open * (base_close * total_return_index / close)
+                    END AS adj_open,
+                    CASE WHEN close = 0 THEN NULL
+                        ELSE high * (base_close * total_return_index / close)
+                    END AS adj_high,
+                    CASE WHEN close = 0 THEN NULL
+                        ELSE low * (base_close * total_return_index / close)
+                    END AS adj_low,
+                    CASE WHEN close = 0 THEN NULL
+                        ELSE (base_close * total_return_index)
+                    END AS adj_close,
                     volume * split_cum_factor AS adj_volume,
-                    CASE WHEN close = 0 THEN NULL ELSE (base_close * total_return_index / close) END AS adj_factor,
+                    CASE WHEN close = 0 THEN NULL
+                        ELSE (base_close * total_return_index / close)
+                    END AS adj_factor,
                     event_time,
                     available_time,
                     time_quality,
@@ -1027,7 +1079,7 @@ class CuratedTransformer:
                     updated_at = NOW()
             """))
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "cur_prices_adjusted_daily")
 
         logger.info(f"Transformed {rows} adjusted OHLCV records")
         self._record_lineage(
@@ -1075,7 +1127,7 @@ class CuratedTransformer:
                 },
             )
             conn.commit()
-            rows = result.rowcount
+            rows = self._resolve_rowcount(result, conn, "snap_universe_membership")
 
         logger.info(f"Transformed {rows} universe membership records")
         self._record_lineage(

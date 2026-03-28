@@ -233,9 +233,9 @@ def regression_stats(x: pd.DataFrame, y: pd.Series, hac: bool = True) -> dict:
     r2 = 1 - (resid @ resid) / ss_tot if ss_tot > 0 else np.nan
 
     columns = ["intercept"] + list(x.columns)
-    betas = dict(zip(columns, beta))
-    t_dict = dict(zip(columns, t_stats))
-    p_dict = dict(zip(columns, p_vals))
+    betas = dict(zip(columns, beta, strict=False))
+    t_dict = dict(zip(columns, t_stats, strict=False))
+    p_dict = dict(zip(columns, p_vals, strict=False))
 
     return {
         "betas": betas,

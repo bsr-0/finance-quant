@@ -88,10 +88,7 @@ def format_signals(
             continue
 
         # Get latest available row
-        if date in df.index:
-            row = df.loc[date]
-        else:
-            row = df.iloc[-1]
+        row = df.loc[date] if date in df.index else df.iloc[-1]
 
         close = float(row["close"])
         atr = float(row.get("atr_14", 0))

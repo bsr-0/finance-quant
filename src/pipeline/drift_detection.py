@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 import numpy as np
@@ -24,13 +24,13 @@ from scipy import stats as sp_stats
 logger = logging.getLogger(__name__)
 
 
-class DriftAxis(str, Enum):
+class DriftAxis(StrEnum):
     CONCEPT = "concept_drift"
     DATA = "data_drift"
     LABEL = "label_drift"
 
 
-class DriftSeverity(str, Enum):
+class DriftSeverity(StrEnum):
     NONE = "none"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -47,7 +47,7 @@ class DriftResult:
     threshold: float
     details: dict[str, Any] = field(default_factory=dict)
     timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
     @property
@@ -61,7 +61,7 @@ class DriftReport:
 
     results: list[DriftResult] = field(default_factory=list)
     timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
     @property

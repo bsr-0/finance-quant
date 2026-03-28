@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import numpy as np
@@ -22,7 +22,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-class CalibrationMethod(str, Enum):
+class CalibrationMethod(StrEnum):
     """Supported calibration methods."""
 
     PLATT = "platt"
@@ -59,7 +59,7 @@ class Calibrator:
         self._fitted = False
         self._model: Any = None
 
-    def fit(self, y_true: pd.Series, y_prob: pd.Series) -> "Calibrator":
+    def fit(self, y_true: pd.Series, y_prob: pd.Series) -> Calibrator:
         """Fit calibrator on held-out validation data."""
         if self.method == CalibrationMethod.NONE:
             self._fitted = True

@@ -15,7 +15,7 @@ Pre-populated for four domains per V7 Sections 24.1–24.4:
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -88,7 +88,10 @@ def financial_risk_register() -> list[RiskEntry]:
             category="execution",
             description="Execution latency causing fill price divergence from signal price",
             severity="medium",
-            mitigation="Latency estimation via historical/latency.py; conservative fill assumptions",
+            mitigation=(
+                "Latency estimation via historical/latency.py;"
+                " conservative fill assumptions"
+            ),
         ),
         RiskEntry(
             risk_id="FIN-R06",
@@ -258,7 +261,10 @@ def sports_betting_data_quirks() -> list[QuirkEntry]:
         QuirkEntry(
             quirk_id="SPT-Q03",
             data_source="Player statistics",
-            description="Rest days, travel, back-to-back effects are material but easy to miscalculate",
+            description=(
+                "Rest days, travel, back-to-back effects"
+                " are material but easy to miscalculate"
+            ),
             impact="Ignoring rest/travel features misses significant signal",
             handling="Calculate rest days from schedule; track travel distance and time zones",
         ),
@@ -317,7 +323,10 @@ def elections_risk_register() -> list[RiskEntry]:
         RiskEntry(
             risk_id="ELC-R01",
             category="data",
-            description="Polling data has known biases (mode effects, likely voter screens, herding)",
+            description=(
+                "Polling data has known biases"
+                " (mode effects, likely voter screens, herding)"
+            ),
             severity="high",
             mitigation="Weight polls by historical accuracy; model house effects explicitly",
         ),
@@ -440,7 +449,10 @@ def fantasy_risk_register() -> list[RiskEntry]:
             category="model",
             description="Optimizing for projection accuracy instead of contest-specific scoring",
             severity="high",
-            mitigation="Optimize for contest objective (cash floor vs GPP ceiling); not raw accuracy",
+            mitigation=(
+                "Optimize for contest objective"
+                " (cash floor vs GPP ceiling); not raw accuracy"
+            ),
         ),
         RiskEntry(
             risk_id="FAN-R03",
@@ -488,13 +500,19 @@ def fantasy_data_quirks() -> list[QuirkEntry]:
             data_source="Ownership percentages",
             description="Not always publicly available; varies significantly by contest size",
             impact="Ownership models trained on large-field data may not transfer to small fields",
-            handling="Segment ownership models by contest size; use projected ownership when actual unavailable",
+            handling=(
+                "Segment ownership models by contest size;"
+                " use projected ownership when actual unavailable"
+            ),
         ),
         QuirkEntry(
             quirk_id="FAN-Q04",
             data_source="Late-swap rules",
             description="Some platforms allow roster changes after games start",
-            impact="Creates information asymmetry; late-swap strategies differ from lock strategies",
+            impact=(
+                "Creates information asymmetry;"
+                " late-swap strategies differ from lock strategies"
+            ),
             handling="Model late-swap separately; track which contests allow late swap",
         ),
         QuirkEntry(
@@ -583,7 +601,7 @@ def generate_domain_risk_register(domain: str = "finance") -> dict[str, Any]:
         "entries": [asdict(e) for e in entries],
         "total_risks": len(entries),
         "high_severity": len([e for e in entries if e.severity == "high"]),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -597,7 +615,7 @@ def generate_domain_data_quirks(domain: str = "finance") -> dict[str, Any]:
         "domain": domain,
         "entries": [asdict(e) for e in entries],
         "total_quirks": len(entries),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -612,5 +630,5 @@ def generate_regulatory_checklist(domain: str = "finance") -> dict[str, Any]:
         "entries": [asdict(e) for e in entries],
         "total_requirements": len(entries),
         "compliant": len([e for e in entries if e.status == "compliant"]),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }

@@ -29,10 +29,10 @@ import logging
 import smtplib
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.message import EmailMessage
 from enum import IntEnum
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -142,7 +142,7 @@ class Notifier:
         if not self.enabled:
             return
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         event = {
             "timestamp": now.isoformat(),
             "severity": _SEVERITY_LABEL[severity],
@@ -284,7 +284,7 @@ class Notifier:
 # Singleton / global access
 # ---------------------------------------------------------------------------
 
-_notifier: Optional[Notifier] = None
+_notifier: Notifier | None = None
 _notifier_lock = threading.Lock()
 
 

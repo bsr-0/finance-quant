@@ -76,7 +76,7 @@ def factor_correlation_gate(
     # Apply Holm-Bonferroni correction for multiple comparisons
     if raw_pvals:
         adjusted_pvals = holm_bonferroni(raw_pvals)
-        for name, adj_p in zip(factor_names, adjusted_pvals):
+        for name, adj_p in zip(factor_names, adjusted_pvals, strict=False):
             r_val = corr[name]
             if np.isfinite(r_val) and abs(r_val) >= threshold and adj_p < alpha:
                 passed = False

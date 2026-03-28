@@ -112,7 +112,9 @@ class ExitEngine:
 
         if unrealized_atr >= self.trailing_activation_atr and not position.trailing_activated:
             position.trailing_activated = True
-            position.trailing_stop = position.highest_price - current_atr * self.trailing_atr_multiple
+            position.trailing_stop = (
+                position.highest_price - current_atr * self.trailing_atr_multiple
+            )
             logger.debug(
                 "%s: trailing stop activated at $%.2f",
                 position.symbol, position.trailing_stop,

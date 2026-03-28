@@ -18,7 +18,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Experiment Registry (Section 3)
 # ---------------------------------------------------------------------------
@@ -115,7 +114,7 @@ class TestExperimentRegistry:
     def test_search_termination(self, tmp_path):
         reg = self._make_registry(tmp_path)
         # Create 15 experiments with no improvement
-        for i in range(15):
+        for _i in range(15):
             r = reg.create_experiment(problem_id="stale", model_family="lr")
             reg.complete_experiment(r.experiment_id, primary_metric_value=1.0)
         assert reg.check_search_termination("stale", n_recent=10)
@@ -516,7 +515,7 @@ class TestAgentCoordinator:
         from pipeline.agent_coordinator import AgentRole
         coord = self._make_coordinator(tmp_path)
         t1 = coord.assign_task(role=AgentRole.DATA_AGENT, description="t1")
-        t2 = coord.assign_task(
+        coord.assign_task(
             role=AgentRole.FEATURE_AGENT,
             description="t2",
             depends_on=[t1.task_id],
@@ -625,7 +624,7 @@ class TestConflictResolution:
         )
         updated = resolver.get_conflict(conflict.conflict_id)
         assert updated.status == ConflictStatus.RESOLVED
-        assert "audit_agent" == updated.resolved_by
+        assert updated.resolved_by == "audit_agent"
 
     def test_audit_arbitration_resolves_safety(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory, ConflictStatus
@@ -657,7 +656,7 @@ class TestConflictResolution:
         )
         updated = resolver.get_conflict(conflict.conflict_id)
         assert updated.status == ConflictStatus.RESOLVED
-        assert "research_orchestrator" == updated.resolved_by
+        assert updated.resolved_by == "research_orchestrator"
 
     def test_orchestrator_cannot_override_safety(self, tmp_path):
         from pipeline.conflict_resolution import ConflictCategory
@@ -813,7 +812,9 @@ class TestReportGenerators:
         from pipeline.report_generators import generate_constraints_register
         report = generate_constraints_register(
             problem_id="sp500",
-            constraints=[{"name": "max_leverage", "type": "risk", "value": "1.0", "source": "config"}],
+            constraints=[
+                {"name": "max_leverage", "type": "risk", "value": "1.0", "source": "config"},
+            ],
         )
         assert report["total"] == 1
 
@@ -827,7 +828,10 @@ class TestReportGenerators:
     def test_feature_catalog(self):
         from pipeline.report_generators import generate_feature_catalog
         report = generate_feature_catalog(
-            features=[{"name": "rsi_14", "family": "momentum"}, {"name": "sma_20", "family": "trend"}],
+            features=[
+                {"name": "rsi_14", "family": "momentum"},
+                {"name": "sma_20", "family": "trend"},
+            ],
         )
         assert report["total_features"] == 2
         assert "momentum" in report["families"]
@@ -916,8 +920,16 @@ class TestReportGenerators:
     def test_reproducibility_report(self):
         from pipeline.report_generators import generate_reproducibility_report
         experiments = [
-            {"reproducibility_hash": "abc123", "dataset_version": "v1", "hyperparameters": {"lr": 0.1}},
-            {"reproducibility_hash": "def456", "dataset_version": "v1", "hyperparameters": {"lr": 0.2}},
+            {
+                "reproducibility_hash": "abc123",
+                "dataset_version": "v1",
+                "hyperparameters": {"lr": 0.1},
+            },
+            {
+                "reproducibility_hash": "def456",
+                "dataset_version": "v1",
+                "hyperparameters": {"lr": 0.2},
+            },
         ]
         report = generate_reproducibility_report(experiments)
         assert report["total_experiments"] == 2

@@ -5,11 +5,22 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pipeline.market_making.spread import SpreadCalculator, SpreadConfig
+from pipeline.market_making.adverse import (
+    AdverseConfig,
+    AdverseSelectionDetector,
+    FillRecord,
+)
+from pipeline.market_making.engine import MarketMakingConfig, MarketMakingEngine
+from pipeline.market_making.hedging import HedgeConfig, HedgeManager
 from pipeline.market_making.inventory import (
     InventoryConfig,
     InventoryLevel,
     InventoryManager,
+)
+from pipeline.market_making.microstructure import (
+    BookLevel,
+    MicrostructureAnalyzer,
+    OrderBookSnapshot,
 )
 from pipeline.market_making.quoting import (
     EventType,
@@ -17,19 +28,7 @@ from pipeline.market_making.quoting import (
     QuoteConfig,
     QuoteEngine,
 )
-from pipeline.market_making.adverse import (
-    AdverseConfig,
-    AdverseSelectionDetector,
-    FillRecord,
-)
-from pipeline.market_making.hedging import HedgeConfig, HedgeManager
-from pipeline.market_making.microstructure import (
-    BookLevel,
-    MicrostructureAnalyzer,
-    OrderBookSnapshot,
-)
-from pipeline.market_making.engine import MarketMakingConfig, MarketMakingEngine
-
+from pipeline.market_making.spread import SpreadCalculator, SpreadConfig
 
 # ---------------------------------------------------------------------------
 # Spread Calculator Tests
@@ -289,7 +288,7 @@ class TestAdverseSelectionDetector:
         detector = AdverseSelectionDetector(cfg)
 
         # Record fills where price always moves against us
-        for i in range(20):
+        for _i in range(20):
             fill = self._make_fill("AAPL", "buy", 150.0, 150.0)
             detector.record_fill(fill)
             # Price drops after our buy → adverse
@@ -302,7 +301,7 @@ class TestAdverseSelectionDetector:
         cfg = AdverseConfig(min_fills_for_signal=10, horizons=[1])
         detector = AdverseSelectionDetector(cfg)
 
-        for i in range(20):
+        for _i in range(20):
             fill = self._make_fill("AAPL", "buy", 150.0, 150.0)
             detector.record_fill(fill)
             detector.record_post_fill_price("AAPL", 151.0)
@@ -438,7 +437,7 @@ class TestMarketMakingEngine:
         engine = MarketMakingEngine()
         engine.start_session(nav=1_000_000)
 
-        hedges = engine.on_fill("AAPL", "buy", 100, 150.0, 1_000_000_000)
+        engine.on_fill("AAPL", "buy", 100, 150.0, 1_000_000_000)
         inv = engine.inventory_mgr.get_or_create("AAPL")
         assert inv.position == 100
 
@@ -459,7 +458,7 @@ class TestMarketMakingEngine:
             timestamp_ns=2_000_000_000,
             bid=149.0, ask=151.0,
         )
-        result = engine.on_event(event)
+        engine.on_event(event)
         assert engine._state.is_shutdown
 
     def test_end_of_day_report(self):

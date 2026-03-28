@@ -2,8 +2,8 @@ name: Daily Stock Predictions
 
 on:
   schedule:
-    # Run weekdays at 21:30 UTC (5:30 PM ET, after US market close)
-    - cron: "30 21 * * 1-5"
+    # Run weekdays at 22:30 UTC (5:30 PM EST / 6:30 PM EDT, after US market close year-round)
+    - cron: "30 22 * * 1-5"
   workflow_dispatch: # Allow manual triggers
 
 permissions:
@@ -54,8 +54,8 @@ jobs:
       - name: Validate price data coverage
         run: |
           python -c "
-          from pipeline.database import get_db
-          db = get_db()
+          from pipeline.db import get_db_manager
+          db = get_db_manager()
           rows = db.run_query('SELECT ticker FROM dim_symbol ORDER BY ticker')
           tickers_in_db = {r[\"ticker\"] for r in rows}
 

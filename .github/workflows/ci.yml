@@ -80,4 +80,4 @@ jobs:
           pip install -e .
 
       - name: Audit dependencies for known vulnerabilities
-        run: pip-audit
+        run: pip-audit --ignore-vuln CVE-2026-4539  # pygments 2.19.2 — no fix released yet

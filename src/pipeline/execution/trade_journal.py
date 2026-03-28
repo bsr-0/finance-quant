@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import csv
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -68,7 +68,7 @@ class TradeJournal:
         self._dir.mkdir(parents=True, exist_ok=True)
 
     def _journal_path(self, date: datetime | None = None) -> Path:
-        dt = date or datetime.now(timezone.utc)
+        dt = date or datetime.now(UTC)
         return self._dir / f"journal_{dt.strftime('%Y%m%d')}.csv"
 
     def _append_row(self, row: dict[str, Any]) -> None:
@@ -95,7 +95,7 @@ class TradeJournal:
     ) -> None:
         """Record an order submission event."""
         self._append_row({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event_type": "ORDER_SUBMITTED",
             "symbol": order.symbol,
             "side": order.side.value,
@@ -120,7 +120,7 @@ class TradeJournal:
     def record_fill(self, order: Order, notes: str = "") -> None:
         """Record an order fill event."""
         self._append_row({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event_type": "ORDER_FILLED",
             "symbol": order.symbol,
             "side": order.side.value,
@@ -145,11 +145,15 @@ class TradeJournal:
     def record_rejection(self, order: Order, reason: str = "", notes: str = "") -> None:
         """Record an order rejection event."""
         self._append_row({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event_type": "ORDER_REJECTED",
             "symbol": order.symbol,
             "side": order.side.value if hasattr(order.side, "value") else str(order.side),
-            "order_type": order.order_type.value if hasattr(order.order_type, "value") else str(order.order_type),
+            "order_type": (
+                order.order_type.value
+                if hasattr(order.order_type, "value")
+                else str(order.order_type)
+            ),
             "qty": order.qty,
             "limit_price": order.limit_price or "",
             "stop_price": order.stop_price or "",
@@ -178,7 +182,7 @@ class TradeJournal:
     ) -> None:
         """Record a position exit event."""
         self._append_row({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event_type": "POSITION_EXIT",
             "symbol": symbol,
             "side": "sell",
@@ -208,7 +212,7 @@ class TradeJournal:
     ) -> None:
         """Record a capital guard rejection."""
         self._append_row({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event_type": "GUARD_REJECTED",
             "symbol": symbol,
             "side": "buy",
@@ -236,7 +240,7 @@ class TradeJournal:
         journal file exists for the date.
         """
         if date_str is None:
-            date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+            date_str = datetime.now(UTC).strftime("%Y%m%d")
         date_str = date_str.replace("-", "")
         path = self._dir / f"journal_{date_str}.csv"
         if not path.exists():

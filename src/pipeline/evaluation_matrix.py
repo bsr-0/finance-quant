@@ -14,7 +14,7 @@ Required metric classes:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -176,7 +176,7 @@ class EvaluationMatrix:
             "report_type": "evaluation_matrix",
             "candidates": [e.to_dict() for e in self._entries],
             "total_candidates": len(self._entries),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
     def get_best(self, metric_path: str = "decision_utility.sharpe") -> str | None:
@@ -193,8 +193,5 @@ class EvaluationMatrix:
             values.append(d.get(metric, float("-inf")))
 
         # For risk metrics like max_drawdown (negative), we want less negative
-        if category == "risk":
-            best_idx = int(np.argmax(values))
-        else:
-            best_idx = int(np.argmax(values))
+        best_idx = int(np.argmax(values)) if category == "risk" else int(np.argmax(values))
         return self._entries[best_idx].candidate_id

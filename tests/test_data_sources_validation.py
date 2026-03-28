@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Corporate actions adjustment tests
 # ---------------------------------------------------------------------------
@@ -287,11 +286,11 @@ class TestWalkForwardRunner:
         return data
 
     def test_walk_forward_basic(self):
+        from pipeline.strategy.strategy_definition import cross_sectional_momentum_strategy
         from pipeline.strategy.walk_forward_runner import (
             WalkForwardConfig,
             run_walk_forward_validation,
         )
-        from pipeline.strategy.strategy_definition import cross_sectional_momentum_strategy
 
         strategy = cross_sectional_momentum_strategy()
         price_data = self._make_price_data(n_days=600, n_tickers=10)
@@ -311,11 +310,11 @@ class TestWalkForwardRunner:
         assert len(result.folds) == result.n_folds
 
     def test_walk_forward_summary(self):
+        from pipeline.strategy.strategy_definition import cross_sectional_momentum_strategy
         from pipeline.strategy.walk_forward_runner import (
             WalkForwardConfig,
             run_walk_forward_validation,
         )
-        from pipeline.strategy.strategy_definition import cross_sectional_momentum_strategy
 
         strategy = cross_sectional_momentum_strategy()
         price_data = self._make_price_data(n_days=600, n_tickers=10)
@@ -331,11 +330,11 @@ class TestWalkForwardRunner:
         assert summary.iloc[-1]["fold"] == "MEAN"
 
     def test_walk_forward_insufficient_data(self):
+        from pipeline.strategy.strategy_definition import cross_sectional_momentum_strategy
         from pipeline.strategy.walk_forward_runner import (
             WalkForwardConfig,
             run_walk_forward_validation,
         )
-        from pipeline.strategy.strategy_definition import cross_sectional_momentum_strategy
 
         strategy = cross_sectional_momentum_strategy()
         # Only 100 days — not enough for walk-forward

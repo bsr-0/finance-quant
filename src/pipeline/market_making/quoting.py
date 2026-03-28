@@ -31,8 +31,8 @@ from enum import Enum
 
 import numpy as np
 
+from pipeline.market_making.inventory import InventoryConfig, InventoryLevel, InventoryManager
 from pipeline.market_making.spread import SpreadCalculator, SpreadConfig
-from pipeline.market_making.inventory import InventoryManager, InventoryConfig, InventoryLevel
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +214,8 @@ class QuoteEngine:
         # Check for large trade → pull quotes
         if len(sizes) >= 10:
             avg_size = float(np.mean(sizes[-50:]))
-            if avg_size > 0 and abs(event.quantity) > self.config.pull_on_large_trade_mult * avg_size:
+            large_trade = self.config.pull_on_large_trade_mult * avg_size
+            if avg_size > 0 and abs(event.quantity) > large_trade:
                 pull_duration_ns = int(self.config.min_quote_life_ms * 1_000_000 * 2)
                 self._pulled_until[sym] = event.timestamp_ns + pull_duration_ns
                 logger.info(

@@ -21,13 +21,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pipeline.execution.broker import (
     BaseBroker,
     BrokerError,
 )
-from pipeline.execution.capital_guard import CapitalGuardConfig, CapitalGuard
+from pipeline.execution.capital_guard import CapitalGuard, CapitalGuardConfig
 from pipeline.execution.realtime_feed import RealtimePriceFeed
 from pipeline.infrastructure.notifier import AlertSeverity, notify
 from pipeline.strategy.exits import ExitEngine, ExitReason, PositionState
@@ -183,7 +183,7 @@ class PositionMonitor:
         if not self._initialized:
             self.initialize()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = MonitorResult(
             timestamp=now,
             positions_checked=0,
@@ -273,7 +273,8 @@ class PositionMonitor:
                 else None
             )
 
-            if rt_quote and self.realtime_feed is not None and not self.realtime_feed.is_stale(symbol):
+            if (rt_quote and self.realtime_feed is not None
+                    and not self.realtime_feed.is_stale(symbol)):
                 current_close = rt_quote.price
                 current_high = rt_quote.high if rt_quote.high > 0 else rt_quote.price
                 logger.debug(

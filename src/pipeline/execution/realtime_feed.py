@@ -27,13 +27,15 @@ Usage::
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 
@@ -53,7 +55,7 @@ class PriceQuote:
     high: float = 0.0
     low: float = 0.0
     volume: int = 0
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     source: str = ""
 
     @property
@@ -70,7 +72,7 @@ class PriceQuote:
 
     @property
     def age_seconds(self) -> float:
-        return (datetime.now(timezone.utc) - self.timestamp).total_seconds()
+        return (datetime.now(UTC) - self.timestamp).total_seconds()
 
 
 # ---------------------------------------------------------------------------
@@ -188,10 +190,8 @@ class RealtimePriceFeed:
         self._stop_event.set()
 
         if self._ws is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._ws.close()
-            except Exception:
-                pass
 
         if self._thread is not None:
             self._thread.join(timeout=5.0)
@@ -397,7 +397,7 @@ class RealtimePriceFeed:
     def _parse_alpaca_timestamp(ts_str: str) -> datetime:
         """Parse an Alpaca RFC-3339 timestamp."""
         if not ts_str:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
         try:
             # Alpaca uses RFC-3339 like "2024-01-15T14:30:00.123456789Z"
             # Trim nanoseconds to microseconds for Python
@@ -409,7 +409,7 @@ class RealtimePriceFeed:
                 ts_str = ts_str[:-1] + "+00:00"
             return datetime.fromisoformat(ts_str)
         except (ValueError, TypeError):
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
 
     # ------------------------------------------------------------------
     # Polling backend

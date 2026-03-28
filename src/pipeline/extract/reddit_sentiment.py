@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
@@ -112,10 +112,7 @@ class RedditSentimentExtractor:
             tickers = self._extract_tickers(full_text, known_tickers)
 
             created = post.get("created_utc")
-            if created:
-                created_dt = datetime.fromtimestamp(created, tz=timezone.utc)
-            else:
-                created_dt = datetime.now(timezone.utc)
+            created_dt = datetime.fromtimestamp(created, tz=UTC) if created else datetime.now(UTC)
 
             rows.append({
                 "post_id": post.get("id", ""),
@@ -146,7 +143,7 @@ class RedditSentimentExtractor:
 
         # Build known tickers set from price universe
         settings = get_settings()
-        known_tickers = set(t.upper() for t in settings.prices.universe)
+        known_tickers = {t.upper() for t in settings.prices.universe}
 
         saved_files: list[Path] = []
         today = date.today()
@@ -164,7 +161,7 @@ class RedditSentimentExtractor:
                     continue
 
                 df = pd.DataFrame(rows)
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
                 file_path = output_dir / f"{subreddit}_{today}.parquet"

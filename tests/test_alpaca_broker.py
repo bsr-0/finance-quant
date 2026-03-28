@@ -19,7 +19,6 @@ from pipeline.execution.broker import (
 )
 from pipeline.execution.capital_guard import AccountSnapshot
 
-
 # ---------------------------------------------------------------------------
 # Helpers: mock Alpaca SDK objects
 # ---------------------------------------------------------------------------

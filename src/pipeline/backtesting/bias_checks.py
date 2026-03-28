@@ -78,12 +78,11 @@ def check_no_future_data(
         violations.append("Signal index is not sorted ascending")
 
     # Check that feature data doesn't extend beyond signal data
-    if not features.empty and not signals.empty:
-        if features.index[-1] > signals.index[-1]:
-            violations.append(
-                f"Features extend beyond signals: "
-                f"features end={features.index[-1]}, signals end={signals.index[-1]}"
-            )
+    if not features.empty and not signals.empty and features.index[-1] > signals.index[-1]:
+        violations.append(
+            f"Features extend beyond signals: "
+            f"features end={features.index[-1]}, signals end={signals.index[-1]}"
+        )
 
     passed = len(violations) == 0
     return passed, violations
@@ -132,10 +131,7 @@ def random_shuffle_test(
 
     # The original should significantly outperform shuffled
     # If it doesn't, the strategy may have look-ahead bias
-    if std_shuffled > 0:
-        z_score = (original_metric - mean_shuffled) / std_shuffled
-    else:
-        z_score = 0.0
+    z_score = (original_metric - mean_shuffled) / std_shuffled if std_shuffled > 0 else 0.0
 
     # Suspicious if shuffled performance is similar to original
     # (i.e. z-score is low, meaning the strategy doesn't depend on order)
@@ -189,7 +185,10 @@ def data_shift_test(
     shifted = shifted.dropna(subset=[target_col])
     shifted_metric = strategy_fn(shifted)
 
-    degradation = (original_metric - shifted_metric) / abs(original_metric) if original_metric != 0 else 0
+    if original_metric != 0:
+        degradation = (original_metric - shifted_metric) / abs(original_metric)
+    else:
+        degradation = 0
 
     # If shifting the target barely changes performance, the strategy
     # probably isn't using future data (or it's not using the target at all)

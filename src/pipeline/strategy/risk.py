@@ -126,7 +126,10 @@ class SwingRiskManager:
             daily_return: Today's return so far (for daily loss limit check).
         """
         self.update_equity(current_equity)
-        dd_pct = (current_equity - self._peak_equity) / self._peak_equity if self._peak_equity > 0 else 0
+        if self._peak_equity > 0:
+            dd_pct = (current_equity - self._peak_equity) / self._peak_equity
+        else:
+            dd_pct = 0
         dd_level = self.get_drawdown_level(current_equity)
 
         # Determine if new entries are allowed
@@ -150,7 +153,8 @@ class SwingRiskManager:
             notify(
                 AlertSeverity.WARNING,
                 "Daily Loss Limit Hit",
-                f"Loss of {abs(daily_return) * 100:.2f}% exceeds max {self.max_daily_loss_pct * 100:.1f}%. "
+                f"Loss of {abs(daily_return) * 100:.2f}% exceeds "
+                f"max {self.max_daily_loss_pct * 100:.1f}%. "
                 "New entries blocked.",
                 {"daily_return_pct": round(daily_return * 100, 2)},
             )

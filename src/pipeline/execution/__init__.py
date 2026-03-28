@@ -28,6 +28,8 @@ Public API::
 """
 
 # Broker interface & types
+# Alpaca implementation
+from pipeline.execution.alpaca_broker import AlpacaBroker
 from pipeline.execution.broker import (
     BaseBroker,
     BrokerError,
@@ -38,9 +40,6 @@ from pipeline.execution.broker import (
     Position,
 )
 
-# Alpaca implementation
-from pipeline.execution.alpaca_broker import AlpacaBroker
-
 # Capital guard
 from pipeline.execution.capital_guard import (
     AccountSnapshot,
@@ -48,18 +47,15 @@ from pipeline.execution.capital_guard import (
     CapitalGuardConfig,
 )
 
-# Signal executor
-from pipeline.execution.signal_executor import (
-    ExecutionResult,
-    ParsedSignal,
-    SignalExecutor,
+# Factory functions
+from pipeline.execution.factory import (
+    create_broker,
+    create_paper_runner,
+    create_signal_executor,
+    create_trade_journal,
+    create_trading_runner,
 )
-
-# Reconciler
-from pipeline.execution.reconciler import (
-    PositionReconciler,
-    ReconciliationResult,
-)
+from pipeline.execution.paper_runner import PaperTradingRunner
 
 # Position monitor
 from pipeline.execution.position_monitor import (
@@ -73,21 +69,24 @@ from pipeline.execution.realtime_feed import (
     RealtimePriceFeed,
 )
 
+# Reconciler
+from pipeline.execution.reconciler import (
+    PositionReconciler,
+    ReconciliationResult,
+)
+
 # Runners
 from pipeline.execution.runner import TradingRunner
-from pipeline.execution.paper_runner import PaperTradingRunner
+
+# Signal executor
+from pipeline.execution.signal_executor import (
+    ExecutionResult,
+    ParsedSignal,
+    SignalExecutor,
+)
 
 # Trade journal
 from pipeline.execution.trade_journal import TradeJournal
-
-# Factory functions
-from pipeline.execution.factory import (
-    create_broker,
-    create_paper_runner,
-    create_signal_executor,
-    create_trade_journal,
-    create_trading_runner,
-)
 
 __all__ = [
     # Broker

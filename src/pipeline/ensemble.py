@@ -14,6 +14,7 @@ Integrates with:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from collections.abc import Callable
@@ -24,7 +25,7 @@ import numpy as np
 import pandas as pd
 
 from pipeline.backtesting.walk_forward import ValidationResult, walk_forward_validate
-from pipeline.calibration import CalibrationMethod, CalibratedModelWrapper
+from pipeline.calibration import CalibratedModelWrapper, CalibrationMethod
 from pipeline.compute_budget import ComputeBudget
 from pipeline.experiment_registry import ExperimentRegistry
 from pipeline.model_search import ModelSpec
@@ -129,7 +130,7 @@ class EnsembleBuilder:
 
         component_fns = [
             (c.train_fn, c.predict_fn, w)
-            for c, w in zip(components, weights)
+            for c, w in zip(components, weights, strict=False)
             if c.train_fn is not None and c.predict_fn is not None
         ]
 
@@ -138,7 +139,7 @@ class EnsembleBuilder:
 
         def predict_fn(models: list[Any], test_df: pd.DataFrame) -> pd.Series:
             predictions = []
-            for (_, pfn, w), model in zip(component_fns, models):
+            for (_, pfn, w), model in zip(component_fns, models, strict=False):
                 pred = pfn(model, test_df)
                 predictions.append(pred * w)
 
@@ -257,11 +258,11 @@ class EnsembleBuilder:
             # Generate level-0 predictions on training data
             # (for meta-learner training)
             meta_features = []
-            for (_, pfn), model in zip(component_fns, level0_models):
+            for (_, pfn), model in zip(component_fns, level0_models, strict=False):
                 pred = pfn(model, train_df)
                 meta_features.append(pred.values)
 
-            meta_X = np.column_stack(meta_features)
+            meta_x = np.column_stack(meta_features)
             meta_y = train_df[target_col].values
 
             # Train level-1 meta-learner
@@ -274,7 +275,7 @@ class EnsembleBuilder:
 
                 meta_model = LinearRegression()
 
-            meta_model.fit(meta_X, meta_y)
+            meta_model.fit(meta_x, meta_y)
 
             return {
                 "level0_models": level0_models,
@@ -286,12 +287,12 @@ class EnsembleBuilder:
             meta_model = model_bundle["meta_model"]
 
             meta_features = []
-            for (_, pfn), model in zip(component_fns, level0_models):
+            for (_, pfn), model in zip(component_fns, level0_models, strict=False):
                 pred = pfn(model, test_df)
                 meta_features.append(pred.values)
 
-            meta_X = np.column_stack(meta_features)
-            preds = meta_model.predict(meta_X)
+            meta_x = np.column_stack(meta_features)
+            preds = meta_model.predict(meta_x)
             return pd.Series(preds, index=test_df.index, name="stacked_prediction")
 
         return train_fn, predict_fn
@@ -471,10 +472,8 @@ class EnsembleBuilder:
             except Exception as e:
                 elapsed = time.time() - start_time
                 if self.budget:
-                    try:
+                    with contextlib.suppress(Exception):
                         tracker.__exit__(type(e), e, None)
-                    except Exception:
-                        pass
                 self.registry.fail_experiment(record.experiment_id, str(e))
                 logger.warning("Ensemble [%s] failed: %s", method, e)
 

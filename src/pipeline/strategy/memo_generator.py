@@ -217,15 +217,22 @@ universe = builder.build(instruments)
             parts.append(f"\n**Description:** {sig_def.description}\n")
 
             parts.append("#### Raw Indicators\n")
-            for indicator, config in sig_def.indicators:
+            for _indicator, config in sig_def.indicators:
                 norm_label = config.normalization.value
-                direction = "higher = stronger signal" if config.higher_is_better else "lower = stronger signal"
+                direction = (
+                    "higher = stronger signal"
+                    if config.higher_is_better
+                    else "lower = stronger signal"
+                )
                 parts.append(f"**{config.name}** (weight: {config.weight}, {direction})")
                 if config.description:
                     parts.append(f"\n{config.description}")
                 if config.formula:
                     parts.append(f"\n```\n{config.formula}\n```")
-                parts.append(f"\nNormalization: {norm_label}, lookback: {config.lookback_window} days\n")
+                parts.append(
+                    f"\nNormalization: {norm_label},"
+                    f" lookback: {config.lookback_window} days\n"
+                )
 
             parts.append("#### Composite Signal\n")
             parts.append("The composite signal is the weighted average of normalized indicators:\n")
@@ -274,7 +281,8 @@ The first failing condition short-circuits evaluation.
 On ENTRY SIGNAL = TRUE:
   1. Compute position size (Section 6)
   2. Execute at next available close price
-  3. Apply signal lag of {self.strategy.backtest_config.signal_lag_days} day(s) to avoid look-ahead bias
+  3. Apply signal lag of {self.strategy.backtest_config.signal_lag_days} day(s) \
+to avoid look-ahead bias
   4. Record: entry_date, entry_price, signal_value, stop_loss, target
 ```
 
@@ -381,10 +389,13 @@ POSITION SIZING:
 
 ### 6.3 Conviction Scaling
 
-Signal strength modulates position size within [{sc.conviction_scale_min:.1f}x, {sc.conviction_scale_max:.1f}x]:
+Signal strength modulates position size \
+within [{sc.conviction_scale_min:.1f}x, {sc.conviction_scale_max:.1f}x]:
 
 ```
-conviction = {sc.conviction_scale_min} + ({sc.conviction_scale_max} - {sc.conviction_scale_min}) * (|signal| / max|signal|)
+conviction = {sc.conviction_scale_min} + \
+({sc.conviction_scale_max} - {sc.conviction_scale_min}) \
+* (|signal| / max|signal|)
 ```
 
 ### 6.4 Mathematical Formulation
@@ -569,14 +580,26 @@ vs. {primary.name} ({primary.ticker}):
         if self.result and self.result.decay_monitor:
             dm = self.result.decay_monitor
             m = dm.evaluate()
+            wr_ok = m.rolling_win_rate >= wr_floor or np.isnan(
+                m.rolling_win_rate
+            )
+            pf_ok = m.rolling_profit_factor >= pf_floor or np.isnan(
+                m.rolling_profit_factor
+            )
+            sh_ok = m.rolling_sharpe >= sharpe_floor or np.isnan(
+                m.rolling_sharpe
+            )
+            wr_status = "OK" if wr_ok else "BREACH"
+            pf_status = "OK" if pf_ok else "BREACH"
+            sh_status = "OK" if sh_ok else "BREACH"
             decay_status = f"""
 ### 10.4 Current Decay Status
 
 | Metric | Value | Floor | Status |
 |---|---|---|---|
-| Win Rate | {m.rolling_win_rate:.2f} | {wr_floor} | {'OK' if m.rolling_win_rate >= wr_floor or np.isnan(m.rolling_win_rate) else 'BREACH'} |
-| Profit Factor | {m.rolling_profit_factor:.2f} | {pf_floor} | {'OK' if m.rolling_profit_factor >= pf_floor or np.isnan(m.rolling_profit_factor) else 'BREACH'} |
-| Rolling Sharpe | {m.rolling_sharpe:.2f} | {sharpe_floor} | {'OK' if m.rolling_sharpe >= sharpe_floor or np.isnan(m.rolling_sharpe) else 'BREACH'} |
+| Win Rate | {m.rolling_win_rate:.2f} | {wr_floor} | {wr_status} |
+| Profit Factor | {m.rolling_profit_factor:.2f} | {pf_floor} | {pf_status} |
+| Rolling Sharpe | {m.rolling_sharpe:.2f} | {sharpe_floor} | {sh_status} |
 | Alert Level | {m.alert_level.name} | — | — |
 | Metrics Breached | {m.breached_count} | — | — |
 """

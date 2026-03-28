@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
@@ -109,7 +109,7 @@ class EarningsExtractor:
             else:
                 period = str(period_val) if period_val else None
 
-            quarter_raw = quarter.get("raw") if isinstance(quarter, dict) else quarter
+            quarter.get("raw") if isinstance(quarter, dict) else quarter
             quarter_fmt = quarter.get("fmt") if isinstance(quarter, dict) else None
 
             report_date = None
@@ -183,7 +183,7 @@ class EarningsExtractor:
                     time.sleep(0.5)
                     continue
 
-                df["extracted_at"] = datetime.now(timezone.utc)
+                df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
                 file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"

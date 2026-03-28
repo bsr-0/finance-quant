@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +46,7 @@ def generate_problem_summary(
         "entity": entity,
         "action_layer": action_layer,
         "constraints": constraints or [],
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -72,7 +72,7 @@ def generate_objective_verification(
         "predictive_metric_value": predictive_metric_value,
         "alignment_notes": alignment_notes,
         "verified": decision_metric_value is not None,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -89,7 +89,7 @@ def generate_constraints_register(
         "problem_id": problem_id,
         "constraints": constraints,
         "total": len(constraints),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -110,7 +110,7 @@ def generate_availability_matrix(
         "report_type": "availability_matrix",
         "sources": sources,
         "total_sources": len(sources),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -125,7 +125,7 @@ def generate_dataset_expansion_report(
         "current_sources": current_sources,
         "candidate_sources": candidate_sources or [],
         "rejected_sources": rejected_sources or [],
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -147,7 +147,7 @@ def generate_feature_catalog(
         "features": features,
         "total_features": len(features),
         "families": list({f.get("family", "unknown") for f in features}),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -165,7 +165,7 @@ def generate_feature_importance_report(
         "importances": dict(sorted_imp),
         "top_10": dict(sorted_imp[:10]),
         "total_features": len(importances),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -186,7 +186,7 @@ def generate_feature_stability_report(
         "stable_features": stable,
         "unstable_features": unstable,
         "pct_stable": len(stable) / max(len(stability_scores), 1),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -194,7 +194,7 @@ def generate_feature_stability_report(
 class FeatureRetirementEntry:
     feature_name: str
     reason: str
-    retired_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    retired_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     replacement: str = ""
 
 
@@ -254,7 +254,7 @@ def generate_meta_learning_report(
         return {
             "report_type": "meta_learning_report",
             "insights": [],
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
     by_family: dict[str, list[float]] = {}
@@ -293,7 +293,7 @@ def generate_meta_learning_report(
         "insights": sorted(insights, key=lambda x: x["best_metric"], reverse=True),
         "best_by_problem": best_by_problem,
         "total_experiments_analysed": len(experiments),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -359,7 +359,7 @@ def generate_probability_diagnostics(
         },
         "reliability_curve": reliability,
         "n_samples": n,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -411,7 +411,7 @@ def generate_threshold_sweep(
         "report_type": "threshold_sweep_report",
         "thresholds_evaluated": len(results),
         "results": results,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -457,7 +457,7 @@ def generate_abstention_report(
         "report_type": "abstention_policy_report",
         "levels_evaluated": len(results),
         "results": results,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -487,7 +487,7 @@ def generate_simulation_assumptions(
         "rebalance_frequency": rebalance_frequency,
         "data_latency_hours": data_latency_hours,
         "additional": additional or {},
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -495,12 +495,12 @@ def generate_risk_path_report(
     returns: pd.Series,
 ) -> dict[str, Any]:
     """<risk_path_report> — Section 10 required output."""
-    from pipeline.eval.metrics import max_drawdown, drawdown_recovery_time, sharpe_sortino
+    from pipeline.eval.metrics import drawdown_recovery_time, max_drawdown, sharpe_sortino
 
     returns = returns.dropna()
     equity = (1 + returns).cumprod()
     peak = equity.cummax()
-    dd_series = (equity - peak) / peak.replace(0, np.nan)
+    (equity - peak) / peak.replace(0, np.nan)
 
     sharpe, sortino = sharpe_sortino(returns)
 
@@ -529,7 +529,7 @@ def generate_risk_path_report(
         "max_losing_streak": max(streaks) if streaks else 0,
         "mean_losing_streak": float(np.mean(streaks)) if streaks else 0.0,
         "total_trading_days": len(returns),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -547,8 +547,8 @@ def generate_robustness_report(
     bootstrap_n: int = 500,
 ) -> dict[str, Any]:
     """<robustness_report> — Section 11 required output."""
-    from pipeline.eval.robustness import bootstrap_ci, deflated_sharpe_ratio
     from pipeline.eval.metrics import sharpe_sortino
+    from pipeline.eval.robustness import bootstrap_ci, deflated_sharpe_ratio
 
     sharpe_fn = lambda s: sharpe_sortino(s)[0]  # noqa: E731
     ci_lower, ci_upper = bootstrap_ci(returns, sharpe_fn, n_boot=bootstrap_n)
@@ -562,7 +562,7 @@ def generate_robustness_report(
         "bootstrap_ci_upper": ci_upper,
         "bootstrap_n": bootstrap_n,
         "n_observations": n_obs,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -571,7 +571,7 @@ def generate_reproducibility_report(
 ) -> dict[str, Any]:
     """<reproducibility_report> — Section 11 required output."""
     hashes = [e.get("reproducibility_hash", "") for e in experiments]
-    unique_hashes = set(h for h in hashes if h)
+    unique_hashes = {h for h in hashes if h}
     duplicates = len(hashes) - len(unique_hashes) if unique_hashes else 0
 
     configs_captured = sum(
@@ -585,7 +585,7 @@ def generate_reproducibility_report(
         "duplicate_configs": duplicates,
         "configs_fully_captured": configs_captured,
         "pct_captured": round(configs_captured / max(len(experiments), 1), 4),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -609,7 +609,7 @@ def generate_architecture_review(
         "total_modules": len(modules),
         "issues": issues or [],
         "total_issues": len(issues) if issues else 0,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -625,7 +625,7 @@ def generate_refactoring_plan(
         "report_type": "refactoring_plan",
         "items": sorted(items, key=lambda x: x.get("priority", 99)),
         "total_items": len(items),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -665,7 +665,7 @@ def generate_model_search_report(
         "total_compute_seconds": total_compute,
         "results": results,
         "meta_learning_insights": meta_learning_insights,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -701,7 +701,7 @@ def generate_ensemble_report(
         "primary_metric": primary_metric,
         "primary_metric_value": primary_metric_value,
         "raw_vs_calibrated_comparison": comparison,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -760,7 +760,7 @@ def generate_final_system_report(
         "deliverables_total": len(required_deliverables),
         "deliverables_missing": [d for d in required_deliverables if d not in sections],
         "sections": sections,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -809,5 +809,5 @@ def generate_operating_summary(
         ),
         "validation_standard": validation_standard,
         "decision_policy": decision_policy,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }

@@ -8,15 +8,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from pipeline.strategy.signals import SignalScore, compute_indicators
-from pipeline.strategy.signal_output import format_signals, write_signal_csv
+from pipeline.strategy.engine import StrategyConfig, SwingStrategyEngine
 from pipeline.strategy.pre_trade_checks import (
     filter_signals,
     run_pre_trade_checks,
 )
 from pipeline.strategy.risk import DrawdownLevel, RiskState, SwingRiskManager
-from pipeline.strategy.engine import SwingStrategyEngine, StrategyConfig
-
+from pipeline.strategy.signal_output import format_signals, write_signal_csv
+from pipeline.strategy.signals import SignalScore, compute_indicators
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -122,7 +121,7 @@ class TestFormatSignals:
             date=date,
         )
         if not result.empty:
-            conf_map = dict(zip(result["ticker"], result["confidence"]))
+            conf_map = dict(zip(result["ticker"], result["confidence"], strict=False))
             assert conf_map.get("A") == "HIGH"
             assert conf_map.get("B") == "MEDIUM"
             assert conf_map.get("C") == "LOW"
@@ -274,7 +273,10 @@ class TestPreTradeChecks:
             cash=10,  # Not enough
         )
         assert not result.passed
-        assert any("cash" in r.lower() or "insufficient" in r.lower() for r in result.failure_reasons)
+        assert any(
+            "cash" in r.lower() or "insufficient" in r.lower()
+            for r in result.failure_reasons
+        )
 
     def test_empty_price_data_fails(self):
         signal = _make_signal_score("TEST", 75, True)

@@ -19,8 +19,8 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -28,7 +28,7 @@ from uuid import uuid4
 logger = logging.getLogger(__name__)
 
 
-class AgentRole(str, Enum):
+class AgentRole(StrEnum):
     """Agent roles per Section 2."""
 
     RESEARCH_ORCHESTRATOR = "research_orchestrator"
@@ -40,7 +40,7 @@ class AgentRole(str, Enum):
     AUDIT_AGENT = "audit_agent"
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     """Status of an agent task."""
 
     PENDING = "pending"
@@ -75,7 +75,7 @@ class AgentTask:
     priority: int = 0  # lower = higher priority
     status: TaskStatus = TaskStatus.PENDING
     depends_on: list[str] = field(default_factory=list)
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     completed_at: str = ""
     result: dict[str, Any] = field(default_factory=dict)
     notes: str = ""
@@ -103,7 +103,7 @@ class ResearchRoadmap:
     phases: list[str] = field(default_factory=list)
     current_phase: str = ""
     failure_register: list[str] = field(default_factory=list)
-    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -321,7 +321,7 @@ class AgentCoordinator:
         if current_idx >= len(phases) - 1:
             raise ValueError("Already at the final phase")
         self._roadmap.current_phase = phases[current_idx + 1]
-        self._roadmap.updated_at = datetime.now(timezone.utc).isoformat()
+        self._roadmap.updated_at = datetime.now(UTC).isoformat()
         self._save()
         logger.info("Advanced to phase: %s", self._roadmap.current_phase)
         return self._roadmap.current_phase
@@ -331,7 +331,7 @@ class AgentCoordinator:
         if self._roadmap is None:
             raise ValueError("No roadmap configured")
         self._roadmap.failure_register.append(description)
-        self._roadmap.updated_at = datetime.now(timezone.utc).isoformat()
+        self._roadmap.updated_at = datetime.now(UTC).isoformat()
         self._save()
         logger.warning("Failure registered: %s", description)
 
@@ -377,7 +377,7 @@ class AgentCoordinator:
         """Mark a task as completed with results."""
         task = self._tasks[task_id]
         task.status = TaskStatus.COMPLETED
-        task.completed_at = datetime.now(timezone.utc).isoformat()
+        task.completed_at = datetime.now(UTC).isoformat()
         task.result = result or {}
         task.notes = notes
         self._save()

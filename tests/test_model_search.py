@@ -21,9 +21,9 @@ def _make_synthetic_data(n: int = 600, n_features: int = 5, seed: int = 42) -> p
     dates = pd.bdate_range("2020-01-01", periods=n)
     features = {f"feat_{i}": rng.randn(n) for i in range(n_features)}
     # Target with weak signal
-    X = np.column_stack(list(features.values()))
+    x_matrix = np.column_stack(list(features.values()))
     beta = rng.randn(n_features) * 0.1
-    target = X @ beta + rng.randn(n) * 0.5
+    target = x_matrix @ beta + rng.randn(n) * 0.5
     features["target"] = target
     return pd.DataFrame(features, index=dates)
 
