@@ -455,6 +455,17 @@ class FactorSettings(BaseSettings):
     exchange_timezone: str = "America/New_York"
 
 
+class AutoResearchSettings(BaseSettings):
+    """AutoResearch / LLM agent settings."""
+
+    model_config = SettingsConfigDict(env_prefix="ANTHROPIC_")
+
+    api_key: str | None = None
+    model: str = "claude-sonnet-4-20250514"
+    max_experiments: int = 100
+    config_dir: str = "data/autoresearch"
+
+
 class EvaluationSettings(BaseSettings):
     """Evaluation settings."""
 
@@ -587,6 +598,9 @@ class PipelineSettings(BaseSettings):
     # Model search & ensemble
     model_search: ModelSearchSettings = Field(default_factory=ModelSearchSettings)
     ensemble: EnsembleSettings = Field(default_factory=EnsembleSettings)
+
+    # AutoResearch / LLM agent
+    autoresearch: AutoResearchSettings = Field(default_factory=AutoResearchSettings)
 
     # Pipeline behavior
     default_start_date: str = "2020-01-01"
