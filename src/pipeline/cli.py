@@ -1792,6 +1792,87 @@ def backfill_predictions(
     console.print(f"  Avg P&L: {stats['avg_pnl_pct']}%")
 
 
+@app.command()
+def auto_research(
+    dataset: Path = typer.Option(
+        ..., help="Path to feature CSV/Parquet with DatetimeIndex and target column"
+    ),
+    target_col: str = typer.Option("fwd_return_1d", help="Target column name"),
+    max_experiments: int = typer.Option(0, help="Max experiments (0 = use config default)"),
+    model: str = typer.Option("", help="LLM model override (default from config)"),
+) -> None:
+    """Run autonomous ML research loop (AutoResearch pattern).
+
+    The LLM agent proposes model/feature changes, the immutable evaluator
+    scores them via walk-forward validation, and improvements are kept.
+    """
+    settings = get_settings()
+    ar = settings.autoresearch
+
+    if not ar.api_key:
+        console.print("[red]Error: ANTHROPIC_API_KEY not set.[/red]")
+        console.print("Set it in .env or export ANTHROPIC_API_KEY=sk-ant-...")
+        raise typer.Exit(code=1)
+
+    # Load dataset
+    console.print(f"Loading dataset from [cyan]{dataset}[/cyan]")
+    if dataset.suffix == ".parquet":
+        df = pd.read_parquet(dataset)
+    else:
+        df = pd.read_csv(dataset, index_col=0, parse_dates=True)
+
+    if target_col not in df.columns:
+        console.print(f"[red]Target column '{target_col}' not found in dataset.[/red]")
+        console.print(f"Available columns: {list(df.columns[:20])}")
+        raise typer.Exit(code=1)
+
+    console.print(f"Dataset: {len(df)} rows, {len(df.columns)} columns")
+    console.print(f"Target: [cyan]{target_col}[/cyan]")
+
+    from pipeline.autoresearch.runner import AutoResearchRunner
+
+    runner = AutoResearchRunner(
+        df=df,
+        api_key=ar.api_key,
+        model=model or ar.model,
+        max_experiments=max_experiments or ar.max_experiments,
+    )
+
+    console.print(f"\n[bold]Starting AutoResearch loop[/bold]")
+    console.print(f"  Model: {model or ar.model}")
+    console.print(f"  Max experiments: {max_experiments or ar.max_experiments}")
+    console.print(f"  Best metric so far: {runner.best_metric:.6f}")
+    console.print()
+
+    results = runner.run()
+
+    # Summary table
+    table = Table(title="AutoResearch Results")
+    table.add_column("#", style="dim")
+    table.add_column("Status")
+    table.add_column("Metric", justify="right")
+    table.add_column("Time", justify="right")
+    table.add_column("Hypothesis")
+
+    for r in results:
+        style = "green" if r.status == "keep" else ("red" if r.status == "error" else "dim")
+        table.add_row(
+            str(r.experiment_number),
+            f"[{style}]{r.status}[/{style}]",
+            f"{r.primary_metric:.4f}",
+            f"{r.elapsed_seconds:.1f}s",
+            r.hypothesis[:60],
+        )
+
+    console.print(table)
+
+    keeps = [r for r in results if r.status == "keep"]
+    console.print(
+        f"\n[bold green]{len(keeps)}/{len(results)} improvements[/bold green], "
+        f"best metric: {runner.best_metric:.6f}"
+    )
+
+
 def main():
     """Entry point for CLI."""
     app()

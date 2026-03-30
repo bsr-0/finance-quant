@@ -461,6 +461,9 @@ class AutoResearchSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="ANTHROPIC_")
 
     api_key: str | None = None
+    model: str = "claude-sonnet-4-20250514"
+    max_experiments: int = 100
+    config_dir: str = "data/autoresearch"
 
 
 class EvaluationSettings(BaseSettings):
