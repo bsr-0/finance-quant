@@ -1793,6 +1793,62 @@ def backfill_predictions(
 
 
 @app.command()
+def build_autoresearch_dataset(
+    symbol: str = typer.Option("SPY", help="Ticker symbol"),
+    start: str = typer.Option("2020-01-01", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option("2024-12-31", help="End date (YYYY-MM-DD)"),
+    output_dir: Path = typer.Option(
+        Path("data/autoresearch"), help="Output directory for the parquet file"
+    ),
+    no_snapshots: bool = typer.Option(False, help="Skip snapshot features"),
+    no_macro: bool = typer.Option(False, help="Skip macro features"),
+) -> None:
+    """Build a feature matrix for AutoResearch from pipeline data.
+
+    Chains: prices → technicals → snapshots → macro → seasonal → target → parquet.
+    Output can be passed directly to ``mdw auto-research --dataset <path>``.
+    """
+    from pipeline.autoresearch.build_dataset import build_autoresearch_dataset as _build
+
+    console.print(f"Building AutoResearch dataset for [cyan]{symbol}[/cyan]")
+    console.print(f"  Date range: {start} to {end}")
+
+    try:
+        output_path = _build(
+            symbol=symbol,
+            start_date=start,
+            end_date=end,
+            output_dir=output_dir,
+            include_snapshots=not no_snapshots,
+            include_macro=not no_macro,
+        )
+    except ValueError as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1)
+
+    # Show summary
+    df = pd.read_parquet(output_path)
+    feature_cols = [c for c in df.columns if c != "fwd_return_1d"]
+
+    table = Table(title="Dataset Summary")
+    table.add_column("Metric", style="bold")
+    table.add_column("Value")
+    table.add_row("Output", str(output_path))
+    table.add_row("Rows", str(len(df)))
+    table.add_row("Features", str(len(feature_cols)))
+    table.add_row("Date range", f"{df.index.min().date()} to {df.index.max().date()}")
+    table.add_row("Target mean", f"{df['fwd_return_1d'].mean():.6f}")
+    table.add_row("Target std", f"{df['fwd_return_1d'].std():.6f}")
+    table.add_row("Missing rate (avg)", f"{df[feature_cols].isnull().mean().mean():.1%}")
+    console.print(table)
+
+    console.print(
+        f"\n[green]Ready![/green] Run: "
+        f"[bold]mdw auto-research --dataset {output_path}[/bold]"
+    )
+
+
+@app.command()
 def auto_research(
     dataset: Path = typer.Option(
         ..., help="Path to feature CSV/Parquet with DatetimeIndex and target column"
