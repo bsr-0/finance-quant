@@ -1,4 +1,4 @@
-.PHONY: help setup install install-dev db-init db-reset test test-dq lint format clean extract-all transform snapshots inventory full-pipeline daily-predictions build-site
+.PHONY: help setup install install-dev db-init db-reset test test-dq lint format clean extract-all transform snapshots inventory full-pipeline daily-predictions build-site extract-fred extract-gdelt extract-prices extract-polymarket extract-sec-fundamentals extract-sec-insider extract-sec-13f extract-options extract-earnings extract-reddit extract-short-interest extract-etf-flows extract-cftc extract-factors
 
 # Default target
 help:
@@ -94,11 +94,61 @@ extract-polymarket:
 	python -m pipeline.cli extract polymarket --start 2024-01-01 --end 2024-12-31
 	python -m pipeline.cli load-raw polymarket
 
+extract-sec-fundamentals:
+	python -m pipeline.cli extract sec-fundamentals --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli load-raw sec_fundamentals
+
+extract-sec-insider:
+	python -m pipeline.cli extract sec-insider --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli load-raw sec_insider
+
+extract-sec-13f:
+	python -m pipeline.cli extract sec-13f --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli load-raw sec_13f
+
+extract-options:
+	python -m pipeline.cli extract options --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli load-raw options
+
+extract-earnings:
+	python -m pipeline.cli extract earnings --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli load-raw earnings
+
+extract-reddit:
+	python -m pipeline.cli extract reddit-sentiment --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli load-raw reddit_sentiment
+
+extract-short-interest:
+	python -m pipeline.cli extract short-interest --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli load-raw short_interest
+
+extract-etf-flows:
+	python -m pipeline.cli extract etf-flows --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli load-raw etf_flows
+
+extract-cftc:
+	python -m pipeline.cli extract cftc-cot --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli load-raw cftc_cot
+
+extract-factors:
+	python -m pipeline.cli extract factors --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli load-raw factors
+
 # Prices are required; other sources are best-effort (may lack API keys in CI)
 extract-all: extract-prices
 	-$(MAKE) extract-fred
 	-$(MAKE) extract-gdelt
 	-$(MAKE) extract-polymarket
+	-$(MAKE) extract-sec-fundamentals
+	-$(MAKE) extract-sec-insider
+	-$(MAKE) extract-sec-13f
+	-$(MAKE) extract-options
+	-$(MAKE) extract-earnings
+	-$(MAKE) extract-reddit
+	-$(MAKE) extract-short-interest
+	-$(MAKE) extract-etf-flows
+	-$(MAKE) extract-cftc
+	-$(MAKE) extract-factors
 	@echo "✓ Extraction complete (prices required; other sources best-effort)"
 
 transform: db-init
