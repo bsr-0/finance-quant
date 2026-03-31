@@ -1289,7 +1289,7 @@ class CuratedTransformer:
         delay_minutes = max(base_delay, latency_delay)
 
         # Build a temporary CUSIP→symbol_id lookup from settings
-        cusip_map = self.settings.sec.cusip_mapping  # ticker → cusip
+        cusip_map = self.settings.sec_edgar.cusip_mapping  # ticker → cusip
         # We need cusip → ticker (reversed)
         cusip_to_ticker = {v: k for k, v in cusip_map.items()}
 
