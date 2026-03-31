@@ -10,6 +10,7 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -17,7 +18,7 @@ from pipeline.settings import get_settings
 logger = logging.getLogger(__name__)
 
 
-class FredExtractor:
+class FredExtractor(HttpClientMixin):
     """Extract economic data from FRED API."""
 
     def __init__(self, api_key: str | None = None):
@@ -28,9 +29,6 @@ class FredExtractor:
         self.client = httpx.Client(timeout=30.0)
         self._circuit = get_circuit_breaker("fred", failure_threshold=5, recovery_timeout=60.0)
         self._metrics = PipelineMetrics("fred_extractor")
-
-    def __del__(self):
-        self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _make_request(self, endpoint: str, params: dict) -> dict:

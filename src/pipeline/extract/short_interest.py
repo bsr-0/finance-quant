@@ -11,6 +11,7 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -18,7 +19,7 @@ from pipeline.settings import get_settings
 logger = logging.getLogger(__name__)
 
 
-class ShortInterestExtractor:
+class ShortInterestExtractor(HttpClientMixin):
     """Extract short interest data.
 
     FINRA publishes short interest data twice monthly (mid-month and end-of-month
@@ -37,9 +38,6 @@ class ShortInterestExtractor:
             "short_interest", failure_threshold=5, recovery_timeout=60.0
         )
         self._metrics = PipelineMetrics("short_interest_extractor")
-
-    def __del__(self) -> None:
-        self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _fetch_short_interest(self, ticker: str) -> list[dict]:

@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -108,7 +109,7 @@ def _parse_split_ratio(raw: str | float) -> float:
 # ---------------------------------------------------------------------------
 
 
-class YahooFinanceExtractor:
+class YahooFinanceExtractor(HttpClientMixin):
     """Extract price data from Yahoo Finance."""
 
     def __init__(self):
@@ -120,9 +121,6 @@ class YahooFinanceExtractor:
             "yahoo_finance", failure_threshold=5, recovery_timeout=60.0
         )
         self._metrics = PipelineMetrics("prices_extractor")
-
-    def __del__(self):
-        self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def get_ticker_data(
@@ -258,7 +256,7 @@ class YahooFinanceExtractor:
 # ---------------------------------------------------------------------------
 
 
-class AlpacaPriceExtractor:
+class AlpacaPriceExtractor(HttpClientMixin):
     """Extract historical price data from Alpaca Markets data API."""
 
     BASE_URL = "https://data.alpaca.markets/v2"
@@ -285,10 +283,6 @@ class AlpacaPriceExtractor:
             "alpaca_data", failure_threshold=5, recovery_timeout=60.0
         )
         self._metrics = PipelineMetrics("alpaca_prices_extractor")
-
-    def __del__(self):
-        if hasattr(self, "client"):
-            self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def get_ticker_data(
@@ -410,7 +404,7 @@ class AlpacaPriceExtractor:
 # ---------------------------------------------------------------------------
 
 
-class PolygonPriceExtractor:
+class PolygonPriceExtractor(HttpClientMixin):
     """Extract historical price data from Polygon.io."""
 
     BASE_URL = "https://api.polygon.io/v2"
@@ -428,10 +422,6 @@ class PolygonPriceExtractor:
             "polygon_data", failure_threshold=5, recovery_timeout=60.0
         )
         self._metrics = PipelineMetrics("polygon_prices_extractor")
-
-    def __del__(self):
-        if hasattr(self, "client"):
-            self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def get_ticker_data(

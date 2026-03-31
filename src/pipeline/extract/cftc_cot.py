@@ -12,6 +12,7 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -34,7 +35,7 @@ _COL_MAP = {
 }
 
 
-class CftcCotExtractor:
+class CftcCotExtractor(HttpClientMixin):
     """Extract CFTC Commitments of Traders data.
 
     The CFTC publishes weekly COT reports every Friday at 3:30 PM ET
@@ -54,9 +55,6 @@ class CftcCotExtractor:
         )
         self._circuit = get_circuit_breaker("cftc_cot", failure_threshold=5, recovery_timeout=60.0)
         self._metrics = PipelineMetrics("cftc_cot_extractor")
-
-    def __del__(self) -> None:
-        self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _fetch_cot_year(self, year: int) -> pd.DataFrame:

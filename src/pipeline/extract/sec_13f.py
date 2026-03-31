@@ -13,6 +13,7 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 
@@ -38,7 +39,7 @@ DEFAULT_FILERS: list[dict] = [
 _NS = {"ns": "http://www.sec.gov/edgar/document/thirteenf/informationtable"}
 
 
-class Sec13FExtractor:
+class Sec13FExtractor(HttpClientMixin):
     """Extract institutional holdings from SEC 13F filings."""
 
     def __init__(self) -> None:
@@ -50,9 +51,6 @@ class Sec13FExtractor:
             "sec_edgar_13f", failure_threshold=5, recovery_timeout=60.0
         )
         self._metrics = PipelineMetrics("sec_13f_extractor")
-
-    def __del__(self) -> None:
-        self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _fetch_submissions(self, cik: int) -> dict:

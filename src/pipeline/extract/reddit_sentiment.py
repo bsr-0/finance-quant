@@ -12,6 +12,7 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -30,7 +31,7 @@ DEFAULT_SUBREDDITS = [
 _TICKER_RE = re.compile(r"\$([A-Z]{1,5})\b|(?<!\w)([A-Z]{2,5})(?!\w)")
 
 
-class RedditSentimentExtractor:
+class RedditSentimentExtractor(HttpClientMixin):
     """Extract posts from financial subreddits for sentiment analysis."""
 
     def __init__(self) -> None:
@@ -42,9 +43,6 @@ class RedditSentimentExtractor:
         )
         self._circuit = get_circuit_breaker("reddit", failure_threshold=5, recovery_timeout=60.0)
         self._metrics = PipelineMetrics("reddit_sentiment_extractor")
-
-    def __del__(self) -> None:
-        self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _fetch_subreddit_posts(
