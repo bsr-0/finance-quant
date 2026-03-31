@@ -1156,7 +1156,8 @@ class CuratedTransformer:
         delay_minutes = max(base_delay, latency_delay)
 
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 WITH ranked AS (
                     SELECT
                         r.ticker,
@@ -1202,13 +1203,16 @@ class CuratedTransformer:
                     available_time = EXCLUDED.available_time,
                     ingested_at = EXCLUDED.ingested_at,
                     data_quality_flag = EXCLUDED.data_quality_flag
-            """), {"delay": delay_minutes})
+            """),
+                {"delay": delay_minutes},
+            )
             conn.commit()
             rows = self._resolve_rowcount(result, conn, "cur_fundamentals_quarterly")
 
         logger.info(f"Transformed {rows} fundamental metrics")
         self._record_lineage(
-            "raw_sec_fundamentals", "cur_fundamentals_quarterly",
+            "raw_sec_fundamentals",
+            "cur_fundamentals_quarterly",
             "transform_fundamentals",
         )
         return rows
@@ -1225,7 +1229,8 @@ class CuratedTransformer:
         delay_minutes = max(base_delay, latency_delay)
 
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 INSERT INTO cur_insider_trades
                 (symbol_id, insider_name, insider_title,
                  transaction_date, transaction_type,
@@ -1266,13 +1271,16 @@ class CuratedTransformer:
                     available_time = EXCLUDED.available_time,
                     ingested_at = EXCLUDED.ingested_at,
                     data_quality_flag = EXCLUDED.data_quality_flag
-            """), {"delay": delay_minutes})
+            """),
+                {"delay": delay_minutes},
+            )
             conn.commit()
             rows = self._resolve_rowcount(result, conn, "cur_insider_trades")
 
         logger.info(f"Transformed {rows} insider trades")
         self._record_lineage(
-            "raw_sec_insider_trades", "cur_insider_trades",
+            "raw_sec_insider_trades",
+            "cur_insider_trades",
             "transform_insider_trades",
         )
         return rows
@@ -1299,18 +1307,21 @@ class CuratedTransformer:
 
         with self.db.engine.connect() as conn:
             # Create a temp table with the CUSIP→ticker mapping
-            conn.execute(text(
-                "CREATE TEMPORARY TABLE IF NOT EXISTS _tmp_cusip_map "
-                "(cusip VARCHAR(9) PRIMARY KEY, ticker VARCHAR(20))"
-            ))
+            conn.execute(
+                text(
+                    "CREATE TEMPORARY TABLE IF NOT EXISTS _tmp_cusip_map "
+                    "(cusip VARCHAR(9) PRIMARY KEY, ticker VARCHAR(20))"
+                )
+            )
             conn.execute(text("DELETE FROM _tmp_cusip_map"))
             for cusip, ticker in cusip_to_ticker.items():
-                conn.execute(text(
-                    "INSERT INTO _tmp_cusip_map (cusip, ticker) "
-                    "VALUES (:cusip, :ticker)"
-                ), {"cusip": cusip, "ticker": ticker})
+                conn.execute(
+                    text("INSERT INTO _tmp_cusip_map (cusip, ticker) " "VALUES (:cusip, :ticker)"),
+                    {"cusip": cusip, "ticker": ticker},
+                )
 
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 WITH portfolio_totals AS (
                     SELECT
                         filer_cik,
@@ -1362,13 +1373,16 @@ class CuratedTransformer:
                     available_time = EXCLUDED.available_time,
                     ingested_at = EXCLUDED.ingested_at,
                     data_quality_flag = EXCLUDED.data_quality_flag
-            """), {"delay": delay_minutes})
+            """),
+                {"delay": delay_minutes},
+            )
             conn.commit()
             rows = self._resolve_rowcount(result, conn, "cur_institutional_holdings")
 
         logger.info(f"Transformed {rows} institutional holdings")
         self._record_lineage(
-            "raw_sec_13f_holdings", "cur_institutional_holdings",
+            "raw_sec_13f_holdings",
+            "cur_institutional_holdings",
             "transform_institutional_holdings",
         )
         return rows
@@ -1395,7 +1409,8 @@ class CuratedTransformer:
 
         with self.db.engine.connect() as conn:
             # Read raw options + close prices for ATM identification
-            df = pd.read_sql(text("""
+            df = pd.read_sql(
+                text("""
                 SELECT
                     r.ticker,
                     r.quote_date,
@@ -1409,7 +1424,9 @@ class CuratedTransformer:
                 FROM raw_options_chain r
                 WHERE r.implied_volatility IS NOT NULL
                   AND r.implied_volatility > 0
-            """), conn)
+            """),
+                conn,
+            )
 
         if df.empty:
             logger.info("No options data to transform")
@@ -1419,11 +1436,14 @@ class CuratedTransformer:
 
         # Get latest close prices for ATM strike identification
         with self.db.engine.connect() as conn:
-            prices_df = pd.read_sql(text("""
+            prices_df = pd.read_sql(
+                text("""
                 SELECT s.ticker, p.date, p.close
                 FROM cur_prices_ohlcv_daily p
                 JOIN dim_symbol s ON p.symbol_id = s.symbol_id
-            """), conn)
+            """),
+                conn,
+            )
 
         # Merge close prices to identify ATM
         df = df.merge(
@@ -1442,14 +1462,8 @@ class CuratedTransformer:
             total_call_oi = int(calls["open_interest"].sum()) if not calls.empty else 0
             total_put_oi = int(puts["open_interest"].sum()) if not puts.empty else 0
 
-            pc_vol_ratio = (
-                total_put_vol / total_call_vol
-                if total_call_vol > 0 else None
-            )
-            pc_oi_ratio = (
-                total_put_oi / total_call_oi
-                if total_call_oi > 0 else None
-            )
+            pc_vol_ratio = total_put_vol / total_call_vol if total_call_vol > 0 else None
+            pc_oi_ratio = total_put_oi / total_call_oi if total_call_oi > 0 else None
 
             # IV by DTE bucket (mean IV of options within range)
             def _iv_bucket(lo: int, hi: int, _grp: pd.DataFrame = grp) -> float | None:
@@ -1490,39 +1504,41 @@ class CuratedTransformer:
                 otm_puts = grp[
                     (grp["option_type"] == "put")
                     & (grp["strike"] < close_px * 0.95)
-                    & (grp["dte"] >= 20) & (grp["dte"] <= 40)
+                    & (grp["dte"] >= 20)
+                    & (grp["dte"] <= 40)
                 ]
                 if not otm_puts.empty:
                     otm_put_iv = float(otm_puts["implied_volatility"].mean())
                     skew_25d = otm_put_iv - iv_atm_call
 
             iv_term_slope = (
-                (iv_90d - iv_30d) / 60.0
-                if iv_30d is not None and iv_90d is not None else None
+                (iv_90d - iv_30d) / 60.0 if iv_30d is not None and iv_90d is not None else None
             )
 
             dq_flag = None
             if len(grp) < 10:
                 dq_flag = "low_strike_coverage"
 
-            results.append({
-                "ticker": ticker,
-                "date": quote_date,
-                "iv_30d": iv_30d,
-                "iv_60d": iv_60d,
-                "iv_90d": iv_90d,
-                "iv_atm_call": iv_atm_call,
-                "iv_atm_put": iv_atm_put,
-                "put_call_volume_ratio": pc_vol_ratio,
-                "put_call_oi_ratio": pc_oi_ratio,
-                "total_call_volume": total_call_vol,
-                "total_put_volume": total_put_vol,
-                "total_call_oi": total_call_oi,
-                "total_put_oi": total_put_oi,
-                "skew_25d": skew_25d,
-                "iv_term_slope": iv_term_slope,
-                "data_quality_flag": dq_flag,
-            })
+            results.append(
+                {
+                    "ticker": ticker,
+                    "date": quote_date,
+                    "iv_30d": iv_30d,
+                    "iv_60d": iv_60d,
+                    "iv_90d": iv_90d,
+                    "iv_atm_call": iv_atm_call,
+                    "iv_atm_put": iv_atm_put,
+                    "put_call_volume_ratio": pc_vol_ratio,
+                    "put_call_oi_ratio": pc_oi_ratio,
+                    "total_call_volume": total_call_vol,
+                    "total_put_volume": total_put_vol,
+                    "total_call_oi": total_call_oi,
+                    "total_put_oi": total_put_oi,
+                    "skew_25d": skew_25d,
+                    "iv_term_slope": iv_term_slope,
+                    "data_quality_flag": dq_flag,
+                }
+            )
 
         if not results:
             logger.info("No options summaries computed")
@@ -1534,7 +1550,8 @@ class CuratedTransformer:
         rows = 0
         with self.db.engine.connect() as conn:
             for _, row in res_df.iterrows():
-                r = conn.execute(text("""
+                r = conn.execute(
+                    text("""
                     INSERT INTO cur_options_summary_daily
                     (symbol_id, date,
                      iv_30d, iv_60d, iv_90d, iv_atm_call, iv_atm_put,
@@ -1578,33 +1595,36 @@ class CuratedTransformer:
                         iv_term_slope = EXCLUDED.iv_term_slope,
                         ingested_at = EXCLUDED.ingested_at,
                         data_quality_flag = EXCLUDED.data_quality_flag
-                """), {
-                    "ticker": row["ticker"],
-                    "date": row["date"],
-                    "iv_30d": row.get("iv_30d"),
-                    "iv_60d": row.get("iv_60d"),
-                    "iv_90d": row.get("iv_90d"),
-                    "iv_atm_call": row.get("iv_atm_call"),
-                    "iv_atm_put": row.get("iv_atm_put"),
-                    "pc_vol": row.get("put_call_volume_ratio"),
-                    "pc_oi": row.get("put_call_oi_ratio"),
-                    "call_vol": row.get("total_call_volume"),
-                    "put_vol": row.get("total_put_volume"),
-                    "call_oi": row.get("total_call_oi"),
-                    "put_oi": row.get("total_put_oi"),
-                    "skew": row.get("skew_25d"),
-                    "term_slope": row.get("iv_term_slope"),
-                    "close_time": close_time,
-                    "tz": exchange_tz,
-                    "delay": delay_minutes,
-                    "dq_flag": row.get("data_quality_flag"),
-                })
-                rows += (r.rowcount if r.rowcount > 0 else 0)
+                """),
+                    {
+                        "ticker": row["ticker"],
+                        "date": row["date"],
+                        "iv_30d": row.get("iv_30d"),
+                        "iv_60d": row.get("iv_60d"),
+                        "iv_90d": row.get("iv_90d"),
+                        "iv_atm_call": row.get("iv_atm_call"),
+                        "iv_atm_put": row.get("iv_atm_put"),
+                        "pc_vol": row.get("put_call_volume_ratio"),
+                        "pc_oi": row.get("put_call_oi_ratio"),
+                        "call_vol": row.get("total_call_volume"),
+                        "put_vol": row.get("total_put_volume"),
+                        "call_oi": row.get("total_call_oi"),
+                        "put_oi": row.get("total_put_oi"),
+                        "skew": row.get("skew_25d"),
+                        "term_slope": row.get("iv_term_slope"),
+                        "close_time": close_time,
+                        "tz": exchange_tz,
+                        "delay": delay_minutes,
+                        "dq_flag": row.get("data_quality_flag"),
+                    },
+                )
+                rows += r.rowcount if r.rowcount > 0 else 0
             conn.commit()
 
         logger.info(f"Transformed {rows} options summary records")
         self._record_lineage(
-            "raw_options_chain", "cur_options_summary_daily",
+            "raw_options_chain",
+            "cur_options_summary_daily",
             "transform_options_summary",
         )
         return rows
@@ -1623,7 +1643,8 @@ class CuratedTransformer:
         delay_minutes = max(base_delay, latency_delay)
 
         with self.db.engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 INSERT INTO cur_earnings_events
                 (symbol_id, report_date, fiscal_quarter_end,
                  eps_estimate, eps_actual, eps_surprise, eps_surprise_pct,
@@ -1693,13 +1714,17 @@ class CuratedTransformer:
                     time_quality = EXCLUDED.time_quality,
                     ingested_at = EXCLUDED.ingested_at,
                     data_quality_flag = EXCLUDED.data_quality_flag
-            """), {"tz": exchange_tz, "close_time": close_time, "delay": delay_minutes})
+            """),
+                {"tz": exchange_tz, "close_time": close_time, "delay": delay_minutes},
+            )
             conn.commit()
             rows = self._resolve_rowcount(result, conn, "cur_earnings_events")
 
         logger.info(f"Transformed {rows} earnings events")
         self._record_lineage(
-            "raw_earnings_calendar", "cur_earnings_events", "transform_earnings",
+            "raw_earnings_calendar",
+            "cur_earnings_events",
+            "transform_earnings",
         )
         return rows
 
@@ -1775,7 +1800,8 @@ class CuratedTransformer:
 
         logger.info(f"Transformed {rows} short interest records")
         self._record_lineage(
-            "raw_short_interest", "cur_short_interest",
+            "raw_short_interest",
+            "cur_short_interest",
             "transform_short_interest",
         )
         return rows
@@ -1853,7 +1879,9 @@ class CuratedTransformer:
 
         logger.info(f"Transformed {rows} ETF flow records")
         self._record_lineage(
-            "raw_etf_flows", "cur_etf_flows_daily", "transform_etf_flows",
+            "raw_etf_flows",
+            "cur_etf_flows_daily",
+            "transform_etf_flows",
         )
         return rows
 
