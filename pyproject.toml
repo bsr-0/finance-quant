@@ -48,9 +48,6 @@ ml = [
     "lightgbm>=4.0.0",
     "xgboost>=2.0.0",
 ]
-autoresearch = [
-    "anthropic>=0.39.0",
-]
 postgresql = [
     "psycopg2-binary>=2.9.0",
 ]
