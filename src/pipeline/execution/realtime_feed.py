@@ -295,55 +295,57 @@ class RealtimePriceFeed:
         ws.connect(ws_url)
         self._ws = ws
 
-        # Authenticate
-        auth_msg = {
-            "action": "auth",
-            "key": self._api_key,
-            "secret": self._secret_key,
-        }
-        ws.send(json.dumps(auth_msg))
+        try:
+            # Authenticate
+            auth_msg = {
+                "action": "auth",
+                "key": self._api_key,
+                "secret": self._secret_key,
+            }
+            ws.send(json.dumps(auth_msg))
 
-        # Read auth response
-        response = json.loads(ws.recv())
-        if isinstance(response, list):
-            for msg in response:
-                if msg.get("T") == "error":
-                    raise RuntimeError(f"WebSocket auth failed: {msg}")
-        logger.debug("WebSocket auth response: %s", response)
+            # Read auth response
+            response = json.loads(ws.recv())
+            if isinstance(response, list):
+                for msg in response:
+                    if msg.get("T") == "error":
+                        raise RuntimeError(f"WebSocket auth failed: {msg}")
+            logger.debug("WebSocket auth response: %s", response)
 
-        # Subscribe to trades and quotes
-        sub_msg = {
-            "action": "subscribe",
-            "trades": self._symbols,
-            "quotes": self._symbols,
-        }
-        ws.send(json.dumps(sub_msg))
+            # Subscribe to trades and quotes
+            sub_msg = {
+                "action": "subscribe",
+                "trades": self._symbols,
+                "quotes": self._symbols,
+            }
+            ws.send(json.dumps(sub_msg))
 
-        sub_response = json.loads(ws.recv())
-        logger.debug("WebSocket subscription response: %s", sub_response)
-        self._connected.set()
-        logger.info("WebSocket connected and subscribed to %d symbols", len(self._symbols))
+            sub_response = json.loads(ws.recv())
+            logger.debug("WebSocket subscription response: %s", sub_response)
+            self._connected.set()
+            logger.info("WebSocket connected and subscribed to %d symbols", len(self._symbols))
 
-        # Stream loop
-        while self._running:
-            try:
-                raw = ws.recv()
-                if not raw:
+            # Stream loop
+            while self._running:
+                try:
+                    raw = ws.recv()
+                    if not raw:
+                        break
+                    messages = json.loads(raw)
+                    if not isinstance(messages, list):
+                        messages = [messages]
+
+                    for msg in messages:
+                        self._handle_ws_message(msg)
+                except websocket.WebSocketTimeoutException:
+                    continue
+                except websocket.WebSocketConnectionClosedException:
                     break
-                messages = json.loads(raw)
-                if not isinstance(messages, list):
-                    messages = [messages]
-
-                for msg in messages:
-                    self._handle_ws_message(msg)
-            except websocket.WebSocketTimeoutException:
-                continue
-            except websocket.WebSocketConnectionClosedException:
-                break
-
-        ws.close()
-        self._ws = None
-        self._connected.clear()
+        finally:
+            with contextlib.suppress(Exception):
+                ws.close()
+            self._ws = None
+            self._connected.clear()
 
     def _handle_ws_message(self, msg: dict[str, Any]) -> None:
         """Parse an Alpaca WebSocket message into a PriceQuote."""

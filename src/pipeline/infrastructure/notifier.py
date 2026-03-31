@@ -25,6 +25,7 @@ no dependencies on strategy/execution code.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import smtplib
 import threading
@@ -259,6 +260,7 @@ class Notifier:
             f"Timestamp: {ts.strftime('%Y-%m-%d %H:%M:%S UTC')}"
         )
 
+        server = None
         try:
             if self.email.use_tls:
                 server = smtplib.SMTP(
@@ -278,9 +280,12 @@ class Notifier:
                 server.login(self.email.smtp_user, self.email.smtp_password)
 
             server.send_message(msg)
-            server.quit()
         except Exception:
             logger.exception("Failed to send email notification")
+        finally:
+            if server is not None:
+                with contextlib.suppress(Exception):
+                    server.quit()
 
 
 # ---------------------------------------------------------------------------

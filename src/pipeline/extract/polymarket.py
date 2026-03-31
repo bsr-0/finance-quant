@@ -11,13 +11,14 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.historical.coverage import compute_polymarket_coverage, record_coverage_metrics
 from pipeline.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
 
-class PolymarketExtractor:
+class PolymarketExtractor(HttpClientMixin):
     """Extract data from Polymarket prediction market."""
 
     def __init__(self):
@@ -33,9 +34,6 @@ class PolymarketExtractor:
         self.trades_max_pages = settings.trades_max_pages
         self.client = httpx.Client(timeout=30.0)
         self._last_request_time: float | None = None
-
-    def __del__(self):
-        self.client.close()
 
     def _rate_limit(self):
         """Apply rate limiting between requests."""

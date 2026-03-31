@@ -11,6 +11,7 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 
@@ -47,7 +48,7 @@ DEFAULT_ETF_UNIVERSE = [
 ]
 
 
-class EtfFlowsExtractor:
+class EtfFlowsExtractor(HttpClientMixin):
     """Extract ETF fund flow estimates.
 
     Fund flows are estimated from changes in shares outstanding multiplied
@@ -64,9 +65,6 @@ class EtfFlowsExtractor:
         )
         self._circuit = get_circuit_breaker("etf_flows", failure_threshold=5, recovery_timeout=60.0)
         self._metrics = PipelineMetrics("etf_flows_extractor")
-
-    def __del__(self) -> None:
-        self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _fetch_etf_profile(self, ticker: str) -> dict | None:

@@ -10,6 +10,7 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -39,7 +40,7 @@ DEFAULT_METRICS: list[str] = [
 SEC_USER_AGENT = "MarketDataWarehouse/1.0 (research; contact@example.com)"
 
 
-class SecFundamentalsExtractor:
+class SecFundamentalsExtractor(HttpClientMixin):
     """Extract quarterly/annual financial data from SEC EDGAR XBRL API."""
 
     def __init__(self) -> None:
@@ -51,9 +52,6 @@ class SecFundamentalsExtractor:
         self._circuit = get_circuit_breaker("sec_edgar", failure_threshold=5, recovery_timeout=60.0)
         self._metrics = PipelineMetrics("sec_fundamentals_extractor")
         self._rate_limit_delay = 0.12  # SEC asks for <=10 req/s
-
-    def __del__(self) -> None:
-        self.client.close()
 
     # ------------------------------------------------------------------
     # Ticker → CIK mapping

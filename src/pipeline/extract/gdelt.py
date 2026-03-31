@@ -12,10 +12,12 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
+
 logger = logging.getLogger(__name__)
 
 
-class GDELTExtractor:
+class GDELTExtractor(HttpClientMixin):
     """Extract event data from GDELT."""
 
     # GDELT column names for the events table
@@ -83,9 +85,6 @@ class GDELTExtractor:
     def __init__(self):
         self.client = httpx.Client(timeout=60.0)
         self.base_url = "http://data.gdeltproject.org/events"
-
-    def __del__(self):
-        self.client.close()
 
     def _get_export_url(self, target_date: date) -> str:
         """Get the export file URL for a specific date."""

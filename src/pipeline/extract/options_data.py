@@ -11,6 +11,7 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -18,7 +19,7 @@ from pipeline.settings import get_settings
 logger = logging.getLogger(__name__)
 
 
-class OptionsDataExtractor:
+class OptionsDataExtractor(HttpClientMixin):
     """Extract options chain data from Yahoo Finance."""
 
     def __init__(self) -> None:
@@ -32,9 +33,6 @@ class OptionsDataExtractor:
             "yahoo_options", failure_threshold=5, recovery_timeout=60.0
         )
         self._metrics = PipelineMetrics("options_extractor")
-
-    def __del__(self) -> None:
-        self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _fetch_options_chain(self, ticker: str, expiration_ts: int | None = None) -> dict:

@@ -12,6 +12,7 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from pipeline.extract._base import HttpClientMixin
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -33,7 +34,7 @@ _TXN_CODES = {
 }
 
 
-class SecInsiderExtractor:
+class SecInsiderExtractor(HttpClientMixin):
     """Extract insider trading data from SEC EDGAR Form 4 filings."""
 
     def __init__(self) -> None:
@@ -45,9 +46,6 @@ class SecInsiderExtractor:
             "sec_edgar_insider", failure_threshold=5, recovery_timeout=60.0
         )
         self._metrics = PipelineMetrics("sec_insider_extractor")
-
-    def __del__(self) -> None:
-        self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _fetch_recent_filings(self, cik: int, form_type: str = "4", count: int = 40) -> list[dict]:

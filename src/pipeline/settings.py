@@ -9,9 +9,10 @@ from pydantic import Field
 from pydantic import validator as _v1_validator
 
 try:
-    from pydantic import field_validator
+    from pydantic import field_validator, model_validator
 except ImportError:  # pragma: no cover - pydantic v1 fallback
     field_validator = _v1_validator  # type: ignore[assignment]
+    from pydantic import root_validator as model_validator  # type: ignore[assignment]
 
 try:
     from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,8 +38,17 @@ class DatabaseSettings(BaseSettings):
     host: str = "localhost"
     port: int = 5432
     name: str = "market_data"
-    user: str = "postgres"
-    password: str = "postgres"
+    user: str = ""
+    password: str = ""
+
+    @model_validator(mode="after")
+    def _check_pg_credentials(self) -> DatabaseSettings:
+        if self.backend == "postgresql" and (not self.user or not self.password):
+            raise ValueError(
+                "DB_USER and DB_PASSWORD must be set when DB_BACKEND=postgresql. "
+                "Do not use default/empty credentials in production."
+            )
+        return self
 
     @property
     def connection_string(self) -> str:
