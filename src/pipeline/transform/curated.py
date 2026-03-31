@@ -1144,39 +1144,714 @@ class CuratedTransformer:
     # ------------------------------------------------------------------
 
     def transform_fundamentals(self) -> int:
-        """Transform fundamentals data (stub)."""
-        logger.info("transform_fundamentals not yet implemented; skipping")
-        return 0
+        """Transform raw SEC fundamentals into curated quarterly metrics.
+
+        Deduplicates by taking the latest filing per (ticker, metric,
+        fiscal_period_end), excluding amendments.  ``available_time`` is
+        derived from the SEC filing date plus a configurable delay.
+        """
+        logger.info("Transforming fundamentals...")
+        base_delay = 60.0  # SEC EDGAR default lag in minutes
+        latency_delay = self._latency_minutes("sec_edgar", base_delay)
+        delay_minutes = max(base_delay, latency_delay)
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                WITH ranked AS (
+                    SELECT
+                        r.ticker,
+                        r.fiscal_period_end,
+                        r.filing_date,
+                        r.metric_name,
+                        r.metric_value,
+                        r.units,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY r.ticker, r.metric_name, r.fiscal_period_end
+                            ORDER BY r.filing_date DESC, r.filing_sequence DESC NULLS LAST
+                        ) AS rn
+                    FROM raw_sec_fundamentals r
+                    WHERE COALESCE(r.is_amendment, false) = false
+                )
+                INSERT INTO cur_fundamentals_quarterly
+                (symbol_id, fiscal_period_end, filing_date,
+                 metric_name, metric_value, units,
+                 event_time, available_time, time_quality,
+                 ingested_at, data_quality_flag)
+                SELECT
+                    s.symbol_id,
+                    rk.fiscal_period_end,
+                    rk.filing_date,
+                    rk.metric_name,
+                    rk.metric_value,
+                    rk.units,
+                    rk.fiscal_period_end::TIMESTAMPTZ AS event_time,
+                    (rk.filing_date::TIMESTAMPTZ
+                     + INTERVAL '1 minute' * :delay) AS available_time,
+                    'confirmed' AS time_quality,
+                    NOW() AS ingested_at,
+                    CASE WHEN rk.metric_value IS NULL
+                         THEN 'missing_value' ELSE NULL
+                    END AS data_quality_flag
+                FROM ranked rk
+                JOIN dim_symbol s ON rk.ticker = s.ticker
+                WHERE rk.rn = 1
+                ON CONFLICT (symbol_id, fiscal_period_end, metric_name) DO UPDATE SET
+                    filing_date = EXCLUDED.filing_date,
+                    metric_value = EXCLUDED.metric_value,
+                    units = EXCLUDED.units,
+                    available_time = EXCLUDED.available_time,
+                    ingested_at = EXCLUDED.ingested_at,
+                    data_quality_flag = EXCLUDED.data_quality_flag
+            """), {"delay": delay_minutes})
+            conn.commit()
+            rows = self._resolve_rowcount(result, conn, "cur_fundamentals_quarterly")
+
+        logger.info(f"Transformed {rows} fundamental metrics")
+        self._record_lineage(
+            "raw_sec_fundamentals", "cur_fundamentals_quarterly",
+            "transform_fundamentals",
+        )
+        return rows
 
     def transform_insider_trades(self) -> int:
-        """Transform insider trades data (stub)."""
-        logger.info("transform_insider_trades not yet implemented; skipping")
-        return 0
+        """Transform raw SEC Form-4 insider trades into curated table.
+
+        Computes ``total_value`` (shares × price) and derives
+        ``available_time`` from the SEC filing date.
+        """
+        logger.info("Transforming insider trades...")
+        base_delay = 60.0
+        latency_delay = self._latency_minutes("sec_edgar", base_delay)
+        delay_minutes = max(base_delay, latency_delay)
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                INSERT INTO cur_insider_trades
+                (symbol_id, insider_name, insider_title,
+                 transaction_date, transaction_type,
+                 shares, price_per_share, total_value,
+                 shares_after, ownership_type,
+                 event_time, available_time, time_quality,
+                 ingested_at, data_quality_flag)
+                SELECT
+                    s.symbol_id,
+                    r.insider_name,
+                    r.insider_title,
+                    r.transaction_date,
+                    r.transaction_type,
+                    r.shares,
+                    r.price_per_share,
+                    r.shares * r.price_per_share AS total_value,
+                    r.shares_after,
+                    r.ownership_type,
+                    r.transaction_date::TIMESTAMPTZ AS event_time,
+                    (r.filing_date::TIMESTAMPTZ
+                     + INTERVAL '1 minute' * :delay) AS available_time,
+                    'confirmed' AS time_quality,
+                    NOW() AS ingested_at,
+                    CASE
+                        WHEN r.shares IS NULL THEN 'missing_shares'
+                        WHEN r.price_per_share IS NULL THEN 'missing_price'
+                        ELSE NULL
+                    END AS data_quality_flag
+                FROM raw_sec_insider_trades r
+                JOIN dim_symbol s ON r.ticker = s.ticker
+                ON CONFLICT (symbol_id, insider_name, transaction_date,
+                             transaction_type, shares) DO UPDATE SET
+                    insider_title = EXCLUDED.insider_title,
+                    price_per_share = EXCLUDED.price_per_share,
+                    total_value = EXCLUDED.total_value,
+                    shares_after = EXCLUDED.shares_after,
+                    ownership_type = EXCLUDED.ownership_type,
+                    available_time = EXCLUDED.available_time,
+                    ingested_at = EXCLUDED.ingested_at,
+                    data_quality_flag = EXCLUDED.data_quality_flag
+            """), {"delay": delay_minutes})
+            conn.commit()
+            rows = self._resolve_rowcount(result, conn, "cur_insider_trades")
+
+        logger.info(f"Transformed {rows} insider trades")
+        self._record_lineage(
+            "raw_sec_insider_trades", "cur_insider_trades",
+            "transform_insider_trades",
+        )
+        return rows
 
     def transform_institutional_holdings(self) -> int:
-        """Transform institutional holdings data (stub)."""
-        logger.info("transform_institutional_holdings not yet implemented; skipping")
-        return 0
+        """Transform raw SEC 13-F institutional holdings into curated table.
+
+        Maps CUSIPs to symbols via ``settings.sec.cusip_mapping`` and
+        computes ``pct_of_portfolio`` as the filer's market-value weight.
+        """
+        logger.info("Transforming institutional holdings...")
+        base_delay = 60.0
+        latency_delay = self._latency_minutes("sec_edgar", base_delay)
+        delay_minutes = max(base_delay, latency_delay)
+
+        # Build a temporary CUSIP→symbol_id lookup from settings
+        cusip_map = self.settings.sec.cusip_mapping  # ticker → cusip
+        # We need cusip → ticker (reversed)
+        cusip_to_ticker = {v: k for k, v in cusip_map.items()}
+
+        if not cusip_to_ticker:
+            logger.warning("No CUSIP mapping configured; skipping 13-F transform")
+            return 0
+
+        with self.db.engine.connect() as conn:
+            # Create a temp table with the CUSIP→ticker mapping
+            conn.execute(text(
+                "CREATE TEMPORARY TABLE IF NOT EXISTS _tmp_cusip_map "
+                "(cusip VARCHAR(9) PRIMARY KEY, ticker VARCHAR(20))"
+            ))
+            conn.execute(text("DELETE FROM _tmp_cusip_map"))
+            for cusip, ticker in cusip_to_ticker.items():
+                conn.execute(text(
+                    "INSERT INTO _tmp_cusip_map (cusip, ticker) "
+                    "VALUES (:cusip, :ticker)"
+                ), {"cusip": cusip, "ticker": ticker})
+
+            result = conn.execute(text("""
+                WITH portfolio_totals AS (
+                    SELECT
+                        filer_cik,
+                        report_date,
+                        SUM(market_value) AS total_mv
+                    FROM raw_sec_13f_holdings
+                    GROUP BY filer_cik, report_date
+                )
+                INSERT INTO cur_institutional_holdings
+                (symbol_id, filer_entity_id, filer_name, report_date,
+                 market_value, shares_held, shares_type, put_call,
+                 pct_of_portfolio,
+                 event_time, available_time, time_quality,
+                 ingested_at, data_quality_flag)
+                SELECT
+                    s.symbol_id,
+                    NULL AS filer_entity_id,
+                    r.filer_name,
+                    r.report_date,
+                    r.market_value,
+                    r.shares_held,
+                    r.shares_type,
+                    r.put_call,
+                    CASE WHEN pt.total_mv > 0
+                         THEN r.market_value::NUMERIC / pt.total_mv
+                         ELSE NULL
+                    END AS pct_of_portfolio,
+                    r.report_date::TIMESTAMPTZ AS event_time,
+                    (r.filing_date::TIMESTAMPTZ
+                     + INTERVAL '1 minute' * :delay) AS available_time,
+                    'confirmed' AS time_quality,
+                    NOW() AS ingested_at,
+                    CASE WHEN r.market_value IS NULL OR r.market_value <= 0
+                         THEN 'invalid_market_value'
+                         ELSE NULL
+                    END AS data_quality_flag
+                FROM raw_sec_13f_holdings r
+                JOIN _tmp_cusip_map cm ON r.cusip = cm.cusip
+                JOIN dim_symbol s ON cm.ticker = s.ticker
+                JOIN portfolio_totals pt
+                    ON r.filer_cik = pt.filer_cik
+                   AND r.report_date = pt.report_date
+                ON CONFLICT (symbol_id, filer_name, report_date) DO UPDATE SET
+                    market_value = EXCLUDED.market_value,
+                    shares_held = EXCLUDED.shares_held,
+                    shares_type = EXCLUDED.shares_type,
+                    put_call = EXCLUDED.put_call,
+                    pct_of_portfolio = EXCLUDED.pct_of_portfolio,
+                    available_time = EXCLUDED.available_time,
+                    ingested_at = EXCLUDED.ingested_at,
+                    data_quality_flag = EXCLUDED.data_quality_flag
+            """), {"delay": delay_minutes})
+            conn.commit()
+            rows = self._resolve_rowcount(result, conn, "cur_institutional_holdings")
+
+        logger.info(f"Transformed {rows} institutional holdings")
+        self._record_lineage(
+            "raw_sec_13f_holdings", "cur_institutional_holdings",
+            "transform_institutional_holdings",
+        )
+        return rows
 
     def transform_options_summary(self) -> int:
-        """Transform options summary data (stub)."""
-        logger.info("transform_options_summary not yet implemented; skipping")
-        return 0
+        """Transform raw options chains into daily summary metrics.
+
+        Aggregates per-strike rows into a single row per (symbol, date)
+        with IV term-structure, put/call ratios, and skew.  Uses pandas
+        for the bucketing logic since it requires non-trivial grouping
+        by days-to-expiry.
+        """
+        logger.info("Transforming options summary...")
+
+        if not self.db.table_exists("raw_options_chain"):
+            logger.info("raw_options_chain table does not exist; skipping")
+            return 0
+
+        close_time = self.settings.prices.market_close_time
+        exchange_tz = self.settings.prices.exchange_timezone
+        base_delay = self.settings.prices.vendor_delay_minutes
+        latency_delay = self._latency_minutes("options", base_delay)
+        delay_minutes = max(base_delay, latency_delay)
+
+        with self.db.engine.connect() as conn:
+            # Read raw options + close prices for ATM identification
+            df = pd.read_sql(text("""
+                SELECT
+                    r.ticker,
+                    r.quote_date,
+                    r.expiration,
+                    r.strike,
+                    r.option_type,
+                    r.implied_volatility,
+                    r.volume,
+                    r.open_interest,
+                    (r.expiration - r.quote_date) AS dte
+                FROM raw_options_chain r
+                WHERE r.implied_volatility IS NOT NULL
+                  AND r.implied_volatility > 0
+            """), conn)
+
+        if df.empty:
+            logger.info("No options data to transform")
+            return 0
+
+        df["dte"] = df["dte"].dt.days if hasattr(df["dte"], "dt") else df["dte"]
+
+        # Get latest close prices for ATM strike identification
+        with self.db.engine.connect() as conn:
+            prices_df = pd.read_sql(text("""
+                SELECT s.ticker, p.date, p.close
+                FROM cur_prices_ohlcv_daily p
+                JOIN dim_symbol s ON p.symbol_id = s.symbol_id
+            """), conn)
+
+        # Merge close prices to identify ATM
+        df = df.merge(
+            prices_df.rename(columns={"date": "quote_date"}),
+            on=["ticker", "quote_date"],
+            how="left",
+        )
+
+        results = []
+        for (ticker, quote_date), grp in df.groupby(["ticker", "quote_date"]):
+            calls = grp[grp["option_type"] == "call"]
+            puts = grp[grp["option_type"] == "put"]
+
+            total_call_vol = int(calls["volume"].sum()) if not calls.empty else 0
+            total_put_vol = int(puts["volume"].sum()) if not puts.empty else 0
+            total_call_oi = int(calls["open_interest"].sum()) if not calls.empty else 0
+            total_put_oi = int(puts["open_interest"].sum()) if not puts.empty else 0
+
+            pc_vol_ratio = (
+                total_put_vol / total_call_vol
+                if total_call_vol > 0 else None
+            )
+            pc_oi_ratio = (
+                total_put_oi / total_call_oi
+                if total_call_oi > 0 else None
+            )
+
+            # IV by DTE bucket (mean IV of options within range)
+            def _iv_bucket(lo: int, hi: int) -> float | None:
+                mask = (grp["dte"] >= lo) & (grp["dte"] <= hi)
+                bucket = grp.loc[mask, "implied_volatility"]
+                return float(bucket.mean()) if len(bucket) >= 2 else None
+
+            iv_30d = _iv_bucket(20, 40)
+            iv_60d = _iv_bucket(45, 75)
+            iv_90d = _iv_bucket(75, 105)
+
+            # ATM IV: strike closest to close price
+            close_px = grp["close"].iloc[0] if "close" in grp.columns and pd.notna(grp["close"].iloc[0]) else None
+            iv_atm_call = None
+            iv_atm_put = None
+            if close_px is not None and close_px > 0:
+                near_30 = grp[(grp["dte"] >= 20) & (grp["dte"] <= 40)].copy()
+                if not near_30.empty:
+                    near_30["strike_dist"] = (near_30["strike"] - close_px).abs()
+                    atm_calls = near_30[near_30["option_type"] == "call"]
+                    atm_puts = near_30[near_30["option_type"] == "put"]
+                    if not atm_calls.empty:
+                        iv_atm_call = float(
+                            atm_calls.loc[atm_calls["strike_dist"].idxmin(), "implied_volatility"]
+                        )
+                    if not atm_puts.empty:
+                        iv_atm_put = float(
+                            atm_puts.loc[atm_puts["strike_dist"].idxmin(), "implied_volatility"]
+                        )
+
+            # 25-delta skew: OTM put IV - ATM call IV (approximate)
+            skew_25d = None
+            if close_px is not None and close_px > 0 and iv_atm_call is not None:
+                otm_puts = grp[
+                    (grp["option_type"] == "put")
+                    & (grp["strike"] < close_px * 0.95)
+                    & (grp["dte"] >= 20) & (grp["dte"] <= 40)
+                ]
+                if not otm_puts.empty:
+                    otm_put_iv = float(otm_puts["implied_volatility"].mean())
+                    skew_25d = otm_put_iv - iv_atm_call
+
+            iv_term_slope = (
+                (iv_90d - iv_30d) / 60.0
+                if iv_30d is not None and iv_90d is not None else None
+            )
+
+            dq_flag = None
+            if len(grp) < 10:
+                dq_flag = "low_strike_coverage"
+
+            results.append({
+                "ticker": ticker,
+                "date": quote_date,
+                "iv_30d": iv_30d,
+                "iv_60d": iv_60d,
+                "iv_90d": iv_90d,
+                "iv_atm_call": iv_atm_call,
+                "iv_atm_put": iv_atm_put,
+                "put_call_volume_ratio": pc_vol_ratio,
+                "put_call_oi_ratio": pc_oi_ratio,
+                "total_call_volume": total_call_vol,
+                "total_put_volume": total_put_vol,
+                "total_call_oi": total_call_oi,
+                "total_put_oi": total_put_oi,
+                "skew_25d": skew_25d,
+                "iv_term_slope": iv_term_slope,
+                "data_quality_flag": dq_flag,
+            })
+
+        if not results:
+            logger.info("No options summaries computed")
+            return 0
+
+        res_df = pd.DataFrame(results)
+
+        # Insert via SQL with symbol_id resolution
+        rows = 0
+        with self.db.engine.connect() as conn:
+            for _, row in res_df.iterrows():
+                r = conn.execute(text("""
+                    INSERT INTO cur_options_summary_daily
+                    (symbol_id, date,
+                     iv_30d, iv_60d, iv_90d, iv_atm_call, iv_atm_put,
+                     put_call_volume_ratio, put_call_oi_ratio,
+                     total_call_volume, total_put_volume,
+                     total_call_oi, total_put_oi,
+                     skew_25d, iv_term_slope,
+                     event_time, available_time, time_quality,
+                     ingested_at, data_quality_flag)
+                    SELECT
+                        s.symbol_id,
+                        :date,
+                        :iv_30d, :iv_60d, :iv_90d,
+                        :iv_atm_call, :iv_atm_put,
+                        :pc_vol, :pc_oi,
+                        :call_vol, :put_vol, :call_oi, :put_oi,
+                        :skew, :term_slope,
+                        :date::TIMESTAMPTZ AS event_time,
+                        (:date::TEXT || ' ' || :close_time)::TIMESTAMPTZ
+                            AT TIME ZONE :tz AT TIME ZONE 'UTC'
+                            + INTERVAL '1 minute' * :delay
+                            AS available_time,
+                        'confirmed' AS time_quality,
+                        NOW() AS ingested_at,
+                        :dq_flag
+                    FROM dim_symbol s
+                    WHERE s.ticker = :ticker
+                    ON CONFLICT (symbol_id, date) DO UPDATE SET
+                        iv_30d = EXCLUDED.iv_30d,
+                        iv_60d = EXCLUDED.iv_60d,
+                        iv_90d = EXCLUDED.iv_90d,
+                        iv_atm_call = EXCLUDED.iv_atm_call,
+                        iv_atm_put = EXCLUDED.iv_atm_put,
+                        put_call_volume_ratio = EXCLUDED.put_call_volume_ratio,
+                        put_call_oi_ratio = EXCLUDED.put_call_oi_ratio,
+                        total_call_volume = EXCLUDED.total_call_volume,
+                        total_put_volume = EXCLUDED.total_put_volume,
+                        total_call_oi = EXCLUDED.total_call_oi,
+                        total_put_oi = EXCLUDED.total_put_oi,
+                        skew_25d = EXCLUDED.skew_25d,
+                        iv_term_slope = EXCLUDED.iv_term_slope,
+                        ingested_at = EXCLUDED.ingested_at,
+                        data_quality_flag = EXCLUDED.data_quality_flag
+                """), {
+                    "ticker": row["ticker"],
+                    "date": row["date"],
+                    "iv_30d": row.get("iv_30d"),
+                    "iv_60d": row.get("iv_60d"),
+                    "iv_90d": row.get("iv_90d"),
+                    "iv_atm_call": row.get("iv_atm_call"),
+                    "iv_atm_put": row.get("iv_atm_put"),
+                    "pc_vol": row.get("put_call_volume_ratio"),
+                    "pc_oi": row.get("put_call_oi_ratio"),
+                    "call_vol": row.get("total_call_volume"),
+                    "put_vol": row.get("total_put_volume"),
+                    "call_oi": row.get("total_call_oi"),
+                    "put_oi": row.get("total_put_oi"),
+                    "skew": row.get("skew_25d"),
+                    "term_slope": row.get("iv_term_slope"),
+                    "close_time": close_time,
+                    "tz": exchange_tz,
+                    "delay": delay_minutes,
+                    "dq_flag": row.get("data_quality_flag"),
+                })
+                rows += (r.rowcount if r.rowcount > 0 else 0)
+            conn.commit()
+
+        logger.info(f"Transformed {rows} options summary records")
+        self._record_lineage(
+            "raw_options_chain", "cur_options_summary_daily",
+            "transform_options_summary",
+        )
+        return rows
 
     def transform_earnings(self) -> int:
-        """Transform earnings data (stub)."""
-        logger.info("transform_earnings not yet implemented; skipping")
-        return 0
+        """Transform raw earnings calendar into curated earnings events.
+
+        Computes EPS/revenue surprise metrics and sets ``available_time``
+        based on whether the report was before-market-open or after-close.
+        """
+        logger.info("Transforming earnings events...")
+        close_time = self.settings.prices.market_close_time
+        exchange_tz = self.settings.prices.exchange_timezone
+        base_delay = self.settings.prices.vendor_delay_minutes
+        latency_delay = self._latency_minutes("earnings", base_delay)
+        delay_minutes = max(base_delay, latency_delay)
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                INSERT INTO cur_earnings_events
+                (symbol_id, report_date, fiscal_quarter_end,
+                 eps_estimate, eps_actual, eps_surprise, eps_surprise_pct,
+                 revenue_estimate, revenue_actual,
+                 revenue_surprise, revenue_surprise_pct,
+                 report_time,
+                 event_time, available_time, time_quality,
+                 ingested_at, data_quality_flag)
+                SELECT
+                    s.symbol_id,
+                    r.report_date,
+                    r.fiscal_quarter_end,
+                    r.eps_estimate,
+                    r.eps_actual,
+                    r.eps_actual - r.eps_estimate AS eps_surprise,
+                    CASE WHEN r.eps_estimate IS NOT NULL
+                              AND ABS(r.eps_estimate) > 0
+                         THEN (r.eps_actual - r.eps_estimate)
+                              / ABS(r.eps_estimate)
+                         ELSE NULL
+                    END AS eps_surprise_pct,
+                    r.revenue_estimate,
+                    r.revenue_actual,
+                    r.revenue_actual - r.revenue_estimate AS revenue_surprise,
+                    CASE WHEN r.revenue_estimate IS NOT NULL
+                              AND ABS(r.revenue_estimate) > 0
+                         THEN (r.revenue_actual - r.revenue_estimate)
+                              / ABS(r.revenue_estimate)
+                         ELSE NULL
+                    END AS revenue_surprise_pct,
+                    r.report_time,
+                    r.report_date::TIMESTAMPTZ AS event_time,
+                    CASE
+                        WHEN LOWER(r.report_time) = 'bmo'
+                            THEN (r.report_date::TEXT || ' 09:30:00')::TIMESTAMPTZ
+                                 AT TIME ZONE :tz AT TIME ZONE 'UTC'
+                        WHEN LOWER(r.report_time) = 'amc'
+                            THEN (r.report_date::TEXT || ' ' || :close_time)::TIMESTAMPTZ
+                                 AT TIME ZONE :tz AT TIME ZONE 'UTC'
+                        ELSE (r.report_date::TEXT || ' ' || :close_time)::TIMESTAMPTZ
+                             AT TIME ZONE :tz AT TIME ZONE 'UTC'
+                             + INTERVAL '1 minute' * :delay
+                    END AS available_time,
+                    CASE WHEN r.report_time IS NOT NULL
+                         THEN 'confirmed' ELSE 'assumed'
+                    END AS time_quality,
+                    NOW() AS ingested_at,
+                    CASE
+                        WHEN r.eps_actual IS NULL THEN 'pending'
+                        WHEN r.eps_estimate IS NULL THEN 'no_estimate'
+                        ELSE NULL
+                    END AS data_quality_flag
+                FROM raw_earnings_calendar r
+                JOIN dim_symbol s ON r.ticker = s.ticker
+                ON CONFLICT (symbol_id, report_date) DO UPDATE SET
+                    fiscal_quarter_end = EXCLUDED.fiscal_quarter_end,
+                    eps_estimate = EXCLUDED.eps_estimate,
+                    eps_actual = EXCLUDED.eps_actual,
+                    eps_surprise = EXCLUDED.eps_surprise,
+                    eps_surprise_pct = EXCLUDED.eps_surprise_pct,
+                    revenue_estimate = EXCLUDED.revenue_estimate,
+                    revenue_actual = EXCLUDED.revenue_actual,
+                    revenue_surprise = EXCLUDED.revenue_surprise,
+                    revenue_surprise_pct = EXCLUDED.revenue_surprise_pct,
+                    report_time = EXCLUDED.report_time,
+                    available_time = EXCLUDED.available_time,
+                    time_quality = EXCLUDED.time_quality,
+                    ingested_at = EXCLUDED.ingested_at,
+                    data_quality_flag = EXCLUDED.data_quality_flag
+            """), {"tz": exchange_tz, "close_time": close_time, "delay": delay_minutes})
+            conn.commit()
+            rows = self._resolve_rowcount(result, conn, "cur_earnings_events")
+
+        logger.info(f"Transformed {rows} earnings events")
+        self._record_lineage(
+            "raw_earnings_calendar", "cur_earnings_events", "transform_earnings",
+        )
+        return rows
 
     def transform_short_interest(self) -> int:
-        """Transform short interest data (stub)."""
-        logger.info("transform_short_interest not yet implemented; skipping")
-        return 0
+        """Transform raw short interest into curated table.
+
+        Computes change-over-change metrics using ``LAG`` and sets
+        ``available_time`` to settlement date + 14 days (FINRA
+        publication delay approximation).
+        """
+        logger.info("Transforming short interest...")
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                WITH base AS (
+                    SELECT
+                        s.symbol_id,
+                        r.settlement_date,
+                        r.short_interest,
+                        r.avg_daily_volume,
+                        r.days_to_cover,
+                        LAG(r.short_interest) OVER (
+                            PARTITION BY s.symbol_id
+                            ORDER BY r.settlement_date
+                        ) AS prev_short_interest
+                    FROM raw_short_interest r
+                    JOIN dim_symbol s ON r.ticker = s.ticker
+                )
+                INSERT INTO cur_short_interest
+                (symbol_id, settlement_date,
+                 short_interest, avg_daily_volume, days_to_cover,
+                 short_pct_float,
+                 short_interest_change, short_interest_change_pct,
+                 event_time, available_time, time_quality,
+                 ingested_at, data_quality_flag)
+                SELECT
+                    b.symbol_id,
+                    b.settlement_date,
+                    b.short_interest,
+                    b.avg_daily_volume,
+                    b.days_to_cover,
+                    NULL AS short_pct_float,
+                    b.short_interest - b.prev_short_interest
+                        AS short_interest_change,
+                    CASE WHEN b.prev_short_interest IS NOT NULL
+                              AND b.prev_short_interest > 0
+                         THEN (b.short_interest - b.prev_short_interest)::NUMERIC
+                              / b.prev_short_interest
+                         ELSE NULL
+                    END AS short_interest_change_pct,
+                    b.settlement_date::TIMESTAMPTZ AS event_time,
+                    (b.settlement_date + INTERVAL '14 days')::TIMESTAMPTZ
+                        AS available_time,
+                    'assumed' AS time_quality,
+                    NOW() AS ingested_at,
+                    CASE WHEN b.short_interest < 0
+                         THEN 'negative_short_interest'
+                         ELSE NULL
+                    END AS data_quality_flag
+                FROM base b
+                ON CONFLICT (symbol_id, settlement_date) DO UPDATE SET
+                    short_interest = EXCLUDED.short_interest,
+                    avg_daily_volume = EXCLUDED.avg_daily_volume,
+                    days_to_cover = EXCLUDED.days_to_cover,
+                    short_interest_change = EXCLUDED.short_interest_change,
+                    short_interest_change_pct = EXCLUDED.short_interest_change_pct,
+                    available_time = EXCLUDED.available_time,
+                    ingested_at = EXCLUDED.ingested_at,
+                    data_quality_flag = EXCLUDED.data_quality_flag
+            """))
+            conn.commit()
+            rows = self._resolve_rowcount(result, conn, "cur_short_interest")
+
+        logger.info(f"Transformed {rows} short interest records")
+        self._record_lineage(
+            "raw_short_interest", "cur_short_interest",
+            "transform_short_interest",
+        )
+        return rows
 
     def transform_etf_flows(self) -> int:
-        """Transform ETF flows data (stub)."""
-        logger.info("transform_etf_flows not yet implemented; skipping")
-        return 0
+        """Transform raw ETF fund-flow data into curated daily flows.
+
+        Computes ``flow_pct_aum`` and rolling 5-day / 20-day flow sums.
+        ``available_time`` is set to T+1 (next calendar day).
+        """
+        logger.info("Transforming ETF flows...")
+
+        with self.db.engine.connect() as conn:
+            result = conn.execute(text("""
+                WITH base AS (
+                    SELECT
+                        s.symbol_id,
+                        r.date,
+                        r.fund_flow,
+                        r.aum,
+                        CASE WHEN r.aum IS NOT NULL AND r.aum > 0
+                             THEN r.fund_flow / r.aum
+                             ELSE NULL
+                        END AS flow_pct_aum,
+                        SUM(r.fund_flow) OVER (
+                            PARTITION BY s.symbol_id
+                            ORDER BY r.date
+                            ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                        ) AS flow_5d_sum,
+                        SUM(r.fund_flow) OVER (
+                            PARTITION BY s.symbol_id
+                            ORDER BY r.date
+                            ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                        ) AS flow_20d_sum
+                    FROM raw_etf_flows r
+                    JOIN dim_symbol s ON r.ticker = s.ticker
+                )
+                INSERT INTO cur_etf_flows_daily
+                (symbol_id, date, fund_flow, aum,
+                 flow_pct_aum, flow_5d_sum, flow_20d_sum,
+                 event_time, available_time, time_quality,
+                 ingested_at, data_quality_flag)
+                SELECT
+                    b.symbol_id,
+                    b.date,
+                    b.fund_flow,
+                    b.aum,
+                    b.flow_pct_aum,
+                    b.flow_5d_sum,
+                    b.flow_20d_sum,
+                    b.date::TIMESTAMPTZ AS event_time,
+                    (b.date + INTERVAL '1 day')::TIMESTAMPTZ AS available_time,
+                    'assumed' AS time_quality,
+                    NOW() AS ingested_at,
+                    CASE
+                        WHEN b.aum IS NULL OR b.aum <= 0
+                            THEN 'invalid_aum'
+                        WHEN b.fund_flow IS NULL
+                            THEN 'missing_flow'
+                        ELSE NULL
+                    END AS data_quality_flag
+                FROM base b
+                ON CONFLICT (symbol_id, date) DO UPDATE SET
+                    fund_flow = EXCLUDED.fund_flow,
+                    aum = EXCLUDED.aum,
+                    flow_pct_aum = EXCLUDED.flow_pct_aum,
+                    flow_5d_sum = EXCLUDED.flow_5d_sum,
+                    flow_20d_sum = EXCLUDED.flow_20d_sum,
+                    available_time = EXCLUDED.available_time,
+                    ingested_at = EXCLUDED.ingested_at,
+                    data_quality_flag = EXCLUDED.data_quality_flag
+            """))
+            conn.commit()
+            rows = self._resolve_rowcount(result, conn, "cur_etf_flows_daily")
+
+        logger.info(f"Transformed {rows} ETF flow records")
+        self._record_lineage(
+            "raw_etf_flows", "cur_etf_flows_daily", "transform_etf_flows",
+        )
+        return rows
 
     def transform_cftc_cot(self) -> int:
         """Transform raw CFTC COT data into curated table.
