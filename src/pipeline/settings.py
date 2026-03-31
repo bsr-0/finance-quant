@@ -12,7 +12,7 @@ try:
     from pydantic import field_validator, model_validator
 except ImportError:  # pragma: no cover - pydantic v1 fallback
     field_validator = _v1_validator  # type: ignore[assignment]
-    from pydantic import root_validator as model_validator  # type: ignore[assignment]
+    from pydantic import root_validator as model_validator  # type: ignore[assignment,no-redef]
 
 try:
     from pydantic_settings import BaseSettings, SettingsConfigDict

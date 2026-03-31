@@ -24,9 +24,8 @@ class HttpClientMixin:
     def __enter__(self) -> HttpClientMixin:
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
-        return False
 
     def __del__(self) -> None:
         with contextlib.suppress(Exception):
