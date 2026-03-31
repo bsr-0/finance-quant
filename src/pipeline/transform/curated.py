@@ -1289,7 +1289,7 @@ class CuratedTransformer:
         delay_minutes = max(base_delay, latency_delay)
 
         # Build a temporary CUSIP→symbol_id lookup from settings
-        cusip_map = self.settings.sec.cusip_mapping  # ticker → cusip
+        cusip_map = self.settings.sec_edgar.cusip_mapping  # ticker → cusip
         # We need cusip → ticker (reversed)
         cusip_to_ticker = {v: k for k, v in cusip_map.items()}
 
@@ -1452,9 +1452,9 @@ class CuratedTransformer:
             )
 
             # IV by DTE bucket (mean IV of options within range)
-            def _iv_bucket(lo: int, hi: int) -> float | None:
-                mask = (grp["dte"] >= lo) & (grp["dte"] <= hi)
-                bucket = grp.loc[mask, "implied_volatility"]
+            def _iv_bucket(lo: int, hi: int, _grp: pd.DataFrame = grp) -> float | None:
+                mask = (_grp["dte"] >= lo) & (_grp["dte"] <= hi)
+                bucket = _grp.loc[mask, "implied_volatility"]
                 return float(bucket.mean()) if len(bucket) >= 2 else None
 
             iv_30d = _iv_bucket(20, 40)
@@ -1462,7 +1462,11 @@ class CuratedTransformer:
             iv_90d = _iv_bucket(75, 105)
 
             # ATM IV: strike closest to close price
-            close_px = grp["close"].iloc[0] if "close" in grp.columns and pd.notna(grp["close"].iloc[0]) else None
+            close_px = (
+                grp["close"].iloc[0]
+                if "close" in grp.columns and pd.notna(grp["close"].iloc[0])
+                else None
+            )
             iv_atm_call = None
             iv_atm_put = None
             if close_px is not None and close_px > 0:
