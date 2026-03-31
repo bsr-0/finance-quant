@@ -294,13 +294,6 @@ daily_predictions:
   history_file: data/prediction_history.json
   lookback_days: 252  # 1 year of trading days for price data
 
-# AutoResearch — autonomous ML experiment loop
-autoresearch:
-  api_key: null  # Set via ANTHROPIC_API_KEY env var
-  model: "claude-sonnet-4-20250514"
-  max_experiments: 100
-  config_dir: "data/autoresearch"
-
 # Pipeline defaults
 default_start_date: "2024-01-01"
 default_end_date: "2024-12-31"
