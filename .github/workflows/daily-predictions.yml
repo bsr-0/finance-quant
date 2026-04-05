@@ -21,6 +21,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Configure git auth for private deps
+        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
