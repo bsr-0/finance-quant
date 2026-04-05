@@ -52,16 +52,19 @@ console = Console()
 
 
 def _validate_range(min_val=None, max_val=None):
-    """Create a Typer callback that enforces numeric bounds."""
+    """Create a Typer callback that enforces numeric bounds.
+
+    Delegates to :func:`pipeline.infrastructure.validation.validate_numeric_range`
+    for the pure bounds check, then wraps any ``ValueError`` as a
+    ``typer.BadParameter`` for user-friendly CLI error reporting.
+    """
+    from pipeline.infrastructure.validation import validate_numeric_range
 
     def _check(value):
-        if value is None:
-            return value
-        if min_val is not None and value < min_val:
-            raise typer.BadParameter(f"Must be >= {min_val}, got {value}")
-        if max_val is not None and value > max_val:
-            raise typer.BadParameter(f"Must be <= {max_val}, got {value}")
-        return value
+        try:
+            return validate_numeric_range(value, min_val=min_val, max_val=max_val)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
 
     return _check
 

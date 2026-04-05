@@ -210,6 +210,40 @@ class BatchValidator:
         return valid_records, result
 
 
+def validate_numeric_range(
+    value: float | int | None,
+    min_val: float | int | None = None,
+    max_val: float | int | None = None,
+) -> float | int | None:
+    """Check that *value* falls within [min_val, max_val].
+
+    Raises ``ValueError`` if the value is out of range.  ``None`` values
+    pass through unchanged (opt-in / not-yet-set semantics).
+
+    This is a pure validation helper with no framework dependencies.
+    CLI code wraps the ``ValueError`` in ``typer.BadParameter``; other
+    callers (tests, config loaders) can use it directly.
+
+    Args:
+        value: The value to check.
+        min_val: Inclusive lower bound (``None`` = no lower limit).
+        max_val: Inclusive upper bound (``None`` = no upper limit).
+
+    Returns:
+        The original *value* if it is within bounds.
+
+    Raises:
+        ValueError: If *value* violates either bound.
+    """
+    if value is None:
+        return value
+    if min_val is not None and value < min_val:
+        raise ValueError(f"Must be >= {min_val}, got {value}")
+    if max_val is not None and value > max_val:
+        raise ValueError(f"Must be <= {max_val}, got {value}")
+    return value
+
+
 def validate_fred_observations(df) -> ValidationResult:
     """Validate FRED observations DataFrame."""
     result = ValidationResult()

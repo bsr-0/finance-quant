@@ -368,69 +368,62 @@ class TestMetricsCollector:
 
 
 class TestValidateRange:
-    """Tests for CLI _validate_range callback factory."""
+    """Tests for the validate_numeric_range bounds-checking utility.
+
+    Tests target ``pipeline.infrastructure.validation.validate_numeric_range``
+    directly so they remain runnable in environments where ``typer`` is not
+    installed.  The CLI wrapper (``pipeline.cli._validate_range``) converts
+    any ``ValueError`` into ``typer.BadParameter`` for user-facing error
+    reporting — that wrapping is intentionally not tested here to keep the
+    test suite free of hard CLI-framework dependencies.
+    """
 
     def test_returns_value_within_bounds(self):
-        from pipeline.cli import _validate_range
+        from pipeline.infrastructure.validation import validate_numeric_range
 
-        check = _validate_range(min_val=0, max_val=100)
-        assert check(50) == 50
+        assert validate_numeric_range(50, min_val=0, max_val=100) == 50
 
     def test_returns_min_boundary(self):
-        from pipeline.cli import _validate_range
+        from pipeline.infrastructure.validation import validate_numeric_range
 
-        check = _validate_range(min_val=0)
-        assert check(0) == 0
+        assert validate_numeric_range(0, min_val=0) == 0
 
     def test_returns_max_boundary(self):
-        from pipeline.cli import _validate_range
+        from pipeline.infrastructure.validation import validate_numeric_range
 
-        check = _validate_range(max_val=100)
-        assert check(100) == 100
+        assert validate_numeric_range(100, max_val=100) == 100
 
     def test_none_passthrough(self):
-        from pipeline.cli import _validate_range
+        from pipeline.infrastructure.validation import validate_numeric_range
 
-        check = _validate_range(min_val=1, max_val=100)
-        assert check(None) is None
+        assert validate_numeric_range(None, min_val=1, max_val=100) is None
 
     def test_raises_below_min(self):
-        import typer
+        from pipeline.infrastructure.validation import validate_numeric_range
 
-        from pipeline.cli import _validate_range
-
-        check = _validate_range(min_val=1)
-        with pytest.raises(typer.BadParameter, match="Must be >= 1"):
-            check(0)
+        with pytest.raises(ValueError, match="Must be >= 1"):
+            validate_numeric_range(0, min_val=1)
 
     def test_raises_above_max(self):
-        import typer
+        from pipeline.infrastructure.validation import validate_numeric_range
 
-        from pipeline.cli import _validate_range
-
-        check = _validate_range(max_val=100)
-        with pytest.raises(typer.BadParameter, match="Must be <= 100"):
-            check(101)
+        with pytest.raises(ValueError, match="Must be <= 100"):
+            validate_numeric_range(101, max_val=100)
 
     def test_raises_negative(self):
-        import typer
+        from pipeline.infrastructure.validation import validate_numeric_range
 
-        from pipeline.cli import _validate_range
-
-        check = _validate_range(min_val=0)
-        with pytest.raises(typer.BadParameter, match="Must be >= 0"):
-            check(-1)
+        with pytest.raises(ValueError, match="Must be >= 0"):
+            validate_numeric_range(-1, min_val=0)
 
     def test_min_only(self):
-        from pipeline.cli import _validate_range
+        from pipeline.infrastructure.validation import validate_numeric_range
 
-        check = _validate_range(min_val=5)
-        assert check(5) == 5
-        assert check(100) == 100
+        assert validate_numeric_range(5, min_val=5) == 5
+        assert validate_numeric_range(100, min_val=5) == 100
 
     def test_max_only(self):
-        from pipeline.cli import _validate_range
+        from pipeline.infrastructure.validation import validate_numeric_range
 
-        check = _validate_range(max_val=10)
-        assert check(10) == 10
-        assert check(-5) == -5
+        assert validate_numeric_range(10, max_val=10) == 10
+        assert validate_numeric_range(-5, max_val=10) == -5
