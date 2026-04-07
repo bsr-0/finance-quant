@@ -227,6 +227,7 @@ def walk_forward_ic(
     embargo_size: int = 5,
     expanding: bool = True,
     significance_threshold: float = 0.95,
+    label_horizon: int | None = None,
 ) -> SignalAlphaResult:
     """Compute rank IC across walk-forward OOS folds with deflated Sharpe gate.
 
@@ -247,6 +248,8 @@ def walk_forward_ic(
         expanding: Expanding (True) or rolling (False) window.
         significance_threshold: Deflated Sharpe probability threshold for
             the signal to ``pass`` (default 0.95).
+        label_horizon: If provided, embargo is set to at least this many
+            days to prevent leakage from overlapping forward-return labels.
 
     Returns:
         SignalAlphaResult with IC statistics and pass/fail verdict.
@@ -279,6 +282,7 @@ def walk_forward_ic(
         test_size,
         embargo_size=embargo_size,
         expanding=expanding,
+        label_horizon=label_horizon,
     ):
         test_dates = common_dates[test_idx]
         daily_ics: list[float] = []
@@ -353,6 +357,89 @@ def walk_forward_ic(
         per_fold_ic=per_fold_ic,
         passed=passed,
     )
+
+
+class SignalTrialRegistry:
+    """Registry that logs every signal variant tested and controls false discovery.
+
+    When exploring signal ideas, every variant tested implicitly increases
+    the probability of finding a spuriously significant result.  This
+    registry records every trial so that the Benjamini-Hochberg (or
+    Holm-Bonferroni) correction can be applied to the *full* set of
+    tested signals, not just the subset the researcher chose to report.
+
+    Usage::
+
+        registry = SignalTrialRegistry()
+        for signal_def in candidate_signals:
+            result = walk_forward_ic(signals, returns, signal_name=signal_def.name)
+            registry.record_trial(result)
+
+        # After all trials, get the signals that survive FDR correction
+        survivors = registry.screen(alpha=0.05)
+        for result, is_significant in survivors:
+            print(f"{result.signal_name}: significant={is_significant}")
+    """
+
+    def __init__(self) -> None:
+        self._trials: list[SignalAlphaResult] = []
+
+    @property
+    def n_trials(self) -> int:
+        return len(self._trials)
+
+    @property
+    def trials(self) -> list[SignalAlphaResult]:
+        return list(self._trials)
+
+    def record_trial(self, result: SignalAlphaResult) -> None:
+        """Record a signal trial result."""
+        self._trials.append(result)
+        logger.info(
+            "Signal trial #%d recorded: '%s' (IC=%.4f, p=%.4f)",
+            len(self._trials),
+            result.signal_name,
+            result.ic_mean,
+            result.ic_p_value,
+        )
+
+    def screen(
+        self, alpha: float = 0.05
+    ) -> list[tuple[SignalAlphaResult, bool]]:
+        """Apply Benjamini-Hochberg FDR correction across all recorded trials.
+
+        Args:
+            alpha: Target false discovery rate.
+
+        Returns:
+            List of ``(result, is_significant)`` tuples for every trial.
+        """
+        if not self._trials:
+            return []
+        return signal_fdr_screen(self._trials, alpha=alpha)
+
+    def summary(self) -> dict[str, object]:
+        """Summary statistics for the trial registry."""
+        if not self._trials:
+            return {"n_trials": 0, "n_passed_deflated_sharpe": 0, "n_survived_fdr": 0}
+
+        n_passed_dsr = sum(1 for t in self._trials if t.passed)
+        screened = self.screen()
+        n_survived = sum(1 for _, sig in screened if sig)
+
+        return {
+            "n_trials": len(self._trials),
+            "n_passed_deflated_sharpe": n_passed_dsr,
+            "n_survived_fdr": n_survived,
+            "best_ic_mean": max(t.ic_mean for t in self._trials if np.isfinite(t.ic_mean))
+            if any(np.isfinite(t.ic_mean) for t in self._trials)
+            else np.nan,
+            "trial_names": [t.signal_name for t in self._trials],
+        }
+
+    def clear(self) -> None:
+        """Clear all recorded trials."""
+        self._trials.clear()
 
 
 def signal_fdr_screen(

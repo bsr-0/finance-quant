@@ -8,6 +8,7 @@ from pipeline.eval.robustness import benjamini_hochberg
 from pipeline.eval.signal_alpha import (
     ICDecayResult,
     SignalAlphaResult,
+    SignalTrialRegistry,
     compute_forward_returns,
     ic_decay_analysis,
     rank_ic,
@@ -344,3 +345,88 @@ class TestICDecayAnalysis:
         decay = ic_decay_analysis(random_signals, prices, horizons=[1, 5])
         for h in [1, 5]:
             assert abs(decay.ic_by_horizon[h]) < 0.15
+
+
+# ---------------------------------------------------------------------------
+# SignalTrialRegistry tests
+# ---------------------------------------------------------------------------
+
+
+class TestSignalTrialRegistry:
+    def _make_result(self, name: str, ic_mean: float, p_value: float) -> SignalAlphaResult:
+        return SignalAlphaResult(
+            signal_name=name,
+            ic_mean=ic_mean,
+            ic_std=0.02,
+            ic_t_stat=ic_mean / 0.02 * np.sqrt(5),
+            ic_p_value=p_value,
+            deflated_sharpe_prob=0.99 if p_value < 0.05 else 0.5,
+            n_folds=5,
+            passed=p_value < 0.05,
+        )
+
+    def test_record_and_count(self):
+        registry = SignalTrialRegistry()
+        assert registry.n_trials == 0
+        registry.record_trial(self._make_result("sig_a", 0.05, 0.001))
+        registry.record_trial(self._make_result("sig_b", 0.01, 0.50))
+        assert registry.n_trials == 2
+
+    def test_screen_applies_fdr(self):
+        registry = SignalTrialRegistry()
+        registry.record_trial(self._make_result("sig_a", 0.05, 0.001))
+        registry.record_trial(self._make_result("sig_b", 0.01, 0.50))
+        registry.record_trial(self._make_result("sig_c", 0.03, 0.80))
+        screened = registry.screen(alpha=0.05)
+        assert len(screened) == 3
+        # sig_a (p=0.001) should survive; sig_b and sig_c should not
+        names_sig = {r.signal_name for r, is_sig in screened if is_sig}
+        assert "sig_a" in names_sig
+        assert "sig_b" not in names_sig
+
+    def test_summary(self):
+        registry = SignalTrialRegistry()
+        registry.record_trial(self._make_result("sig_a", 0.05, 0.001))
+        registry.record_trial(self._make_result("sig_b", 0.01, 0.50))
+        s = registry.summary()
+        assert s["n_trials"] == 2
+        assert s["n_passed_deflated_sharpe"] == 1
+        assert "sig_a" in s["trial_names"]
+        assert "sig_b" in s["trial_names"]
+
+    def test_clear(self):
+        registry = SignalTrialRegistry()
+        registry.record_trial(self._make_result("sig_a", 0.05, 0.001))
+        assert registry.n_trials == 1
+        registry.clear()
+        assert registry.n_trials == 0
+
+    def test_empty_screen(self):
+        registry = SignalTrialRegistry()
+        assert registry.screen() == []
+
+    def test_walk_forward_integration(self, random_signals, random_returns, predictive_signals):
+        """End-to-end: run walk_forward_ic on multiple signals, record, screen."""
+        signals_noise, returns_noise = random_signals, random_returns
+        signals_pred, returns_pred = predictive_signals
+
+        registry = SignalTrialRegistry()
+
+        result_noise = walk_forward_ic(
+            signals_noise, returns_noise, signal_name="noise",
+            train_size=100, test_size=50, embargo_size=5,
+        )
+        registry.record_trial(result_noise)
+
+        result_pred = walk_forward_ic(
+            signals_pred, returns_pred, signal_name="predictive",
+            train_size=100, test_size=50, embargo_size=5,
+        )
+        registry.record_trial(result_pred)
+
+        assert registry.n_trials == 2
+        screened = registry.screen(alpha=0.05)
+        sig_map = {r.signal_name: is_sig for r, is_sig in screened}
+        # Predictive should survive; noise should not
+        assert sig_map["predictive"] is True
+        assert sig_map["noise"] is False

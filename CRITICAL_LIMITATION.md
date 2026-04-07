@@ -120,10 +120,11 @@ The following Phase 1 items have been implemented:
 | IC decay analysis | **Done** | `ic_decay_analysis()` measures IC at multiple horizons (1d, 5d, 10d, 21d, 63d) to find optimal holding period |
 | Rolling IC monitoring | **Done** | `rolling_ic()` for tracking signal stability over time |
 | CLI command | **Done** | `pipeline test-signal-alpha --signals <file> --prices <file>` with decay table and PASS/FAIL verdict |
-| Signal weight optimization | **Not started** | Requires cross-validated ridge regression of sub-signals |
-| Walk-forward embargo default | **Not started** | One-line fix to `walk_forward.py` default |
+| Signal weight optimization | **Done** | `optimize_weights()` in `strategy/signal_library.py` — CV ridge regression across walk-forward folds |
+| Walk-forward embargo | **Done** | `label_horizon` parameter in `walk_forward_splits()` — embargo auto-increases to match forward-return horizon |
+| Multiple-testing registry | **Done** | `SignalTrialRegistry` in `eval/signal_alpha.py` — logs every trial, applies BH FDR correction across all |
 
-**Remaining work:** Signal weight optimization (Phase 1.4), multiple-testing registry (Phase 2.6), and setting a non-zero default embargo in walk-forward splits.
+**All Phase 1 and Phase 2 items are now implemented.** The system can now answer "does this signal predict returns?" with statistical rigor.
 
 ---
 
