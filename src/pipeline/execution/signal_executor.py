@@ -402,8 +402,11 @@ class SignalExecutor:
                         "action": "DRY_RUN_APPROVED",
                         "shares": shares,
                         "price": signal.entry_price,
-                        "stop": signal.stop_price,
-                        "target": signal.target_1,
+                        "stop_price": signal.stop_price,
+                        "target_1": signal.target_1,
+                        "target_2": signal.target_2,
+                        "atr": signal.atr,
+                        "score": signal.score,
                     }
                 )
                 continue
@@ -445,6 +448,9 @@ class SignalExecutor:
                         "limit_price": signal.entry_price,
                         "stop_price": signal.stop_price,
                         "target_1": signal.target_1,
+                        "target_2": signal.target_2,
+                        "atr": signal.atr,
+                        "score": signal.score,
                     }
                 )
 

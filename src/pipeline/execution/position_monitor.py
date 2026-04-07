@@ -128,6 +128,7 @@ class PositionMonitor:
         risk_manager: SwingRiskManager | None = None,
         regime: str = "BULL",
         realtime_feed: RealtimePriceFeed | None = None,
+        position_register: object | None = None,
     ) -> None:
         self.broker = broker
         self.guard = CapitalGuard(config=guard_config, account_provider=broker)
@@ -135,10 +136,21 @@ class PositionMonitor:
         self.risk_mgr = risk_manager or SwingRiskManager()
         self.regime = regime
         self.realtime_feed = realtime_feed
+        self._register = position_register
 
         # Tracked positions with entry metadata
         self._tracked: dict[str, TrackedPosition] = {}
         self._initialized = False
+
+        # Load persisted positions from previous session
+        if self._register is not None:
+            self._tracked = self._register.load()
+            if self._tracked:
+                logger.info(
+                    "Restored %d positions from register: %s",
+                    len(self._tracked),
+                    list(self._tracked.keys()),
+                )
 
     def initialize(self) -> None:
         """Sync with broker and initialize risk state.
@@ -152,12 +164,18 @@ class PositionMonitor:
         self._initialized = True
         logger.info("Position monitor initialized: equity=$%.2f", account.equity)
 
+    def _persist(self) -> None:
+        """Save current tracked positions to the register (no-op if no register)."""
+        if self._register is not None:
+            self._register.save(self._tracked)
+
     def register_position(self, tracked: TrackedPosition) -> None:
         """Register a position with entry metadata for exit tracking.
 
         Call this after each successful entry order fill.
         """
         self._tracked[tracked.symbol] = tracked
+        self._persist()
         logger.info(
             "Registered position: %s %.2f shares @ $%.2f, " "stop=$%.2f, target=$%.2f",
             tracked.symbol,
@@ -246,6 +264,7 @@ class PositionMonitor:
                 result.exits_triggered = len(close_orders)
                 result.exits_executed = len(close_orders)
                 self._tracked.clear()
+                self._persist()
             except BrokerError as e:
                 logger.critical("Failed to close all positions: %s", e)
                 notify(
@@ -268,6 +287,7 @@ class PositionMonitor:
                     symbol,
                 )
                 del self._tracked[symbol]
+                self._persist()
                 continue
 
             # Build state for exit engine — prefer real-time prices when available
@@ -318,6 +338,7 @@ class PositionMonitor:
             tracked.trailing_stop = pos_state.trailing_stop
             tracked.trailing_activated = pos_state.trailing_activated
             tracked.highest_price = pos_state.highest_price
+            self._persist()
 
             if exit_signal.should_exit:
                 result.exits_triggered += 1
@@ -361,6 +382,7 @@ class PositionMonitor:
                     result.exits_executed += 1
                     self.risk_mgr.record_trade_result(pnl)
                     del self._tracked[symbol]
+                    self._persist()
 
                     result.actions.append(
                         ExitAction(

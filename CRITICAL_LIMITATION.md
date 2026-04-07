@@ -78,22 +78,21 @@ The previous #1 limitation (no signal alpha validation) was about whether signal
 
 ---
 
-## Recommended Remediation
+## Remediation Status
 
-### Phase 1: Position register (blocking for live deployment)
+All items have been implemented:
 
-1. **`src/pipeline/execution/position_register.py`** (new file) — JSON-backed persistent store for `TrackedPosition` objects. Save after every state change (open, partial close, stop update, trailing activation). Load on runner startup.
-
-2. **Fix ATR extraction** in `runner.py:205` — change `atr_at_entry=0.0` to `atr_at_entry=detail.get("atr", 0.0)`.
-
-3. **Load broker positions on startup** — `TradingRunner.__init__()` should query the broker for open positions and cross-reference against the persistent register. Positions found at the broker but missing from the register should trigger a WARNING and be registered with conservative defaults.
-
-### Phase 2: Multi-day integration test
-
-4. **End-to-end multi-day test** — simulate Day 1 (open positions), Day 2 (verify positions loaded, exits checked), Day 3 (stop-loss fires). This test does not exist in the current 876-test suite.
+| Item | Status | Implementation |
+|------|--------|----------------|
+| Position register | **Done** | `PositionRegister` in `execution/position_register.py` — JSON-backed, atomic writes, fcntl locking |
+| Monitor persistence | **Done** | `PositionMonitor` loads from register on init, persists after every state change |
+| ATR/target/score extraction | **Done** | `runner.py` now extracts `atr`, `target_1`, `target_2`, `score` from executor details |
+| Executor detail fields | **Done** | Both ORDER_SUBMITTED and DRY_RUN paths now include all signal fields |
+| Multi-day flow test | **Done** | `TestMultiDayFlow.test_day1_open_day2_exit` verifies Day 1 → Day 2 stop-loss |
+| Backward compatibility | **Done** | `position_register=None` keeps old behavior (no persistence) |
 
 ---
 
 ## Conclusion
 
-The system has strong signal validation (now with IC testing and FDR correction), solid backtesting infrastructure, and a well-designed exit engine. But the exit engine is disconnected from multi-day reality. It can evaluate exit conditions perfectly — for positions it knows about. After a daily restart, it knows about none of them. Until position state is persisted, live trading with holding periods >1 day will run without stop-losses, trailing stops, or profit targets — the exact scenario the risk management framework was built to prevent.
+With position state now persisted across daily runs, the system can safely hold positions for the strategy's intended 5-21 day holding period. Stop-losses, trailing stops, profit targets, and time exits all survive across runner restarts.
