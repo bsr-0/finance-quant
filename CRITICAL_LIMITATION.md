@@ -1,135 +1,99 @@
-# Critical Limitation #1: No Statistical Validation of Signal Alpha
+# Critical Limitation #1: No Persistent Position State Across Daily Runs
 
 **Date:** 2026-04-07
-**Severity:** CRITICAL — renders all backtest results unreliable for capital allocation decisions
+**Severity:** CRITICAL — live multi-day trading is broken; positions lose all exit metadata overnight
 
 ---
 
 ## Summary
 
-The system's signals are constructed from **8 signal families** combined with **hardcoded weights** (trend=40%, pullback=30%, momentum=20%, volume=10%) and **arbitrary entry thresholds** (60, 70) that have never been statistically validated for predictive power. There is no framework to determine whether any signal — individually or in combination — produces returns distinguishable from noise.
+The `PositionMonitor` holds all tracked position state (entry price, stop-loss, trailing stop, profit targets, ATR, signal score) **exclusively in memory**. When the daily trading runner exits, this state is discarded. The next day's run starts with an empty position register — the system forgets every open position.
 
-This single limitation cascades through every downstream component: backtests report performance that may be entirely attributable to overfitting, risk models size positions based on unvalidated edge assumptions, and the execution layer would deploy real capital on signals with unknown alpha.
+This is fatal for the QSG-MICRO-SWING-001 strategy, which holds positions for **5-21 days** (`max_holding_days=15`). A position opened on Day 1 becomes invisible to the exit engine on Day 2+.
+
+---
+
+## Evidence
+
+### 1. Position state is in-memory only
+
+**File:** `src/pipeline/execution/position_monitor.py:140`
+
+```python
+self._tracked: dict[str, TrackedPosition] = {}
+```
+
+No `save()`, `load()`, or `persist()` method exists on `PositionMonitor`. The `_tracked` dict is created empty at construction and lost when the object is garbage collected.
+
+### 2. ATR is hardcoded to zero on registration
+
+**File:** `src/pipeline/execution/runner.py:205`
+
+```python
+atr_at_entry=0.0,  # Set from signal if available
+```
+
+The signal executor outputs ATR in its result details, but the runner never extracts it. The position monitor needs ATR for exit calculations (stop-loss = entry - 1.5x ATR, trailing = 2x ATR).
+
+### 3. Runner creates a fresh monitor every session
+
+**File:** `src/pipeline/execution/runner.py` — `TradingRunner.__init__()` creates a new `PositionMonitor()`. No mechanism loads yesterday's positions.
+
+### 4. Strategy requires multi-day holding
+
+**File:** `src/pipeline/strategy/engine.py` — `StrategyConfig.max_holding_days=15`
+
+The swing strategy holds positions for up to 15 trading days. Every day after Day 1, the exit engine should check stop-loss, trailing stop, profit targets, and time exit — but it can't, because the position metadata is gone.
+
+---
+
+## What Breaks
+
+| Day | What Happens | Problem |
+|-----|-------------|---------|
+| Day 1 | Signal fires, position opened, stop=$95, target=$115, ATR=2.1 | Works correctly |
+| Day 2 | Runner restarts, `_tracked` is empty | Position exists at broker but system doesn't know about it |
+| Day 2+ | Stock drops to $93 | Stop-loss at $95 should have fired — but monitor has no record of the position or its stop |
+| Day 5 | Stock gaps down 10% | No trailing stop, no circuit breaker awareness for this "unknown" position |
+| Day 15 | Time exit should fire | System has no idea position has been held for 15 days |
+
+### Reconciler sees the mismatch but can't fix it
+
+The `Reconciler` (`execution/reconciler.py`) compares system positions vs broker positions and flags discrepancies. But it only reports — it doesn't reconstruct `TrackedPosition` metadata (stop price, targets, ATR). So it knows a position *exists* but can't manage it.
 
 ---
 
 ## Why This Is #1
 
-The repo has 47 documented deficiencies (see `GAP_ANALYSIS.md`). Many have been remediated — confidence intervals via Lo (2002), Holm-Bonferroni corrections for factor correlations, proper p-values in bias checks, block bootstrap, Cornish-Fisher VaR, etc. These are real improvements.
+The previous #1 limitation (no signal alpha validation) was about whether signals *should* trade. This limitation is about whether the system can *safely manage* trades it has already entered. A position without exit monitoring is an unmanaged risk — exactly the scenario circuit breakers and stop-losses are designed to prevent.
 
-But they all share a common dependency: **they assume the underlying signal has alpha to measure**. If the signal is noise, then:
-
-- Sharpe confidence intervals correctly bound a meaningless number
-- Walk-forward validation faithfully evaluates an overfit model
-- Transaction cost models accurately price trades that shouldn't happen
-- Risk controls carefully size positions in a losing strategy
-
-The signal is the foundation. Without validating it, every other component is precisely wrong.
-
----
-
-## Evidence in the Codebase
-
-### 1. Signal weights are hardcoded, not learned or validated
-
-**File:** `src/pipeline/strategy/signals.py`
-
-The `SignalEngine` combines sub-signals with fixed weights defined at construction time. These weights were chosen by the developer, not by any optimization or cross-validated selection process. There is no record of how these weights were determined or whether alternatives were tested.
-
-### 2. Entry thresholds are arbitrary
-
-**File:** `src/pipeline/strategy/backtest_harness.py`
-
-The composite signal is compared against thresholds (e.g., 60 for entry) that are constants in the strategy configuration. No threshold sensitivity analysis exists. No walk-forward optimization of thresholds has been performed.
-
-### 3. No Information Coefficient (IC) testing
-
-The repo has no function to compute:
-- Rolling IC (rank correlation between signal and forward returns)
-- IC information ratio (mean IC / std IC)
-- IC decay curves (predictive power vs. holding horizon)
-
-These are the standard metrics for determining whether a signal has alpha. Their absence means the system literally cannot answer: "Does this signal predict returns?"
-
-### 4. No multiple-testing correction for signal discovery
-
-**File:** `src/pipeline/strategy/signal_library.py`
-
-Eight signal families are defined and combined. The `holm_bonferroni()` function exists in `eval/robustness.py` and was wired into factor analysis — but it is **never applied to signal selection itself**. With 8 families, each with multiple parameterizations, the probability of finding a spuriously significant signal by chance is substantial.
-
-The `GAP_ANALYSIS.md` acknowledges this explicitly:
-
-> *"This requires a signal research framework (walk-forward IC testing) that is beyond the scope of a single fix. Flagged as critical follow-up."*
-
-That follow-up has not been completed.
-
-### 5. Walk-forward validation lacks embargo
-
-**File:** `src/pipeline/backtesting/walk_forward.py:118`
-
-Default `step_size = test_size` creates zero-gap folds. When labels overlap (e.g., 5-day forward returns), information leaks from test into subsequent training. This inflates apparent out-of-sample performance, masking whether the signal generalizes.
-
-### 6. No deflated Sharpe integration into signal selection
-
-The `deflated_sharpe_ratio()` function exists in `eval/robustness.py` but is a standalone metric. It is not integrated into any signal selection or strategy validation pipeline. The deflated Sharpe explicitly adjusts for the number of strategies tried — exactly the correction needed — but it sits unused.
-
----
-
-## Impact Assessment
-
-| Component | How This Limitation Affects It |
-|-----------|-------------------------------|
-| **Backtesting** | Reports returns from potentially overfit signals; no way to distinguish alpha from noise |
-| **Risk Management** | Sizes positions assuming edge exists; if edge = 0, optimal position = 0 |
-| **Execution** | Would deploy real capital on unvalidated signals |
-| **Walk-Forward** | Validates an unvalidated signal; leaky embargo compounds the problem |
-| **Performance Reports** | Sharpe/Sortino/IR metrics are meaningless if the signal has no predictive power |
-| **Live Readiness** | The checklist scores Signal Generation at 12/15, but signal *validity* is 0/15 |
+| Previous Limitations | Status |
+|---------------------|--------|
+| No IC testing | **Fixed** — `walk_forward_ic()`, `ic_decay_analysis()`, CLI command |
+| No multiple-testing correction | **Fixed** — `SignalTrialRegistry` with BH FDR |
+| Deflated Sharpe unused | **Fixed** — wired into evaluator + signal selection |
+| Walk-forward embargo | **Fixed** — `label_horizon` parameter |
+| Signal weights hardcoded | **Fixed** — `optimize_weights()` via CV ridge |
+| **Position state not persisted** | **OPEN — this document** |
 
 ---
 
 ## Recommended Remediation
 
-### Phase 1: Signal Alpha Validation (blocking for any live deployment)
+### Phase 1: Position register (blocking for live deployment)
 
-1. **IC analysis framework** — Compute rolling Spearman IC between each signal and N-day forward returns. Require IC > 0.02 with t-stat > 2.0 over walk-forward folds.
+1. **`src/pipeline/execution/position_register.py`** (new file) — JSON-backed persistent store for `TrackedPosition` objects. Save after every state change (open, partial close, stop update, trailing activation). Load on runner startup.
 
-2. **Deflated Sharpe gate** — Integrate `deflated_sharpe_ratio()` into the strategy evaluation pipeline. Reject strategies where DSR p-value > 0.05 after accounting for all strategies tested.
+2. **Fix ATR extraction** in `runner.py:205` — change `atr_at_entry=0.0` to `atr_at_entry=detail.get("atr", 0.0)`.
 
-3. **Walk-forward embargo** — Change default embargo to `max(label_horizon, 5)` trading days. This is a one-line fix with outsized impact.
+3. **Load broker positions on startup** — `TradingRunner.__init__()` should query the broker for open positions and cross-reference against the persistent register. Positions found at the broker but missing from the register should trigger a WARNING and be registered with conservative defaults.
 
-4. **Signal weight optimization** — Replace hardcoded weights with cross-validated optimization (ridge regression of sub-signals on forward returns) within walk-forward folds.
+### Phase 2: Multi-day integration test
 
-### Phase 2: Ongoing signal monitoring (required before scaling capital)
-
-5. **IC decay monitoring** — Track live IC vs. backtest IC. Alert when rolling IC drops below 50% of historical average.
-
-6. **Multiple-testing registry** — Log every signal variant tested. Apply Holm-Bonferroni or Benjamini-Hochberg correction to the full set of tested signals.
-
----
-
-## Remediation Status
-
-The following Phase 1 items have been implemented:
-
-| Item | Status | Implementation |
-|------|--------|----------------|
-| IC analysis framework | **Done** | `compute_forward_returns()`, `rolling_ic()`, `ic_decay_analysis()` in `eval/signal_alpha.py` |
-| Walk-forward IC with deflated Sharpe gate | **Already existed** | `walk_forward_ic()` in `eval/signal_alpha.py` — now wired into evaluator |
-| IC gate in evaluator | **Done** | `evaluate_equity()` now runs `walk_forward_ic()` and adds `signal_alpha_pass` gate |
-| IC decay analysis | **Done** | `ic_decay_analysis()` measures IC at multiple horizons (1d, 5d, 10d, 21d, 63d) to find optimal holding period |
-| Rolling IC monitoring | **Done** | `rolling_ic()` for tracking signal stability over time |
-| CLI command | **Done** | `pipeline test-signal-alpha --signals <file> --prices <file>` with decay table and PASS/FAIL verdict |
-| Signal weight optimization | **Done** | `optimize_weights()` in `strategy/signal_library.py` — CV ridge regression across walk-forward folds |
-| Walk-forward embargo | **Done** | `label_horizon` parameter in `walk_forward_splits()` — embargo auto-increases to match forward-return horizon |
-| Multiple-testing registry | **Done** | `SignalTrialRegistry` in `eval/signal_alpha.py` — logs every trial, applies BH FDR correction across all |
-
-**All Phase 1 and Phase 2 items are now implemented.** The system can now answer "does this signal predict returns?" with statistical rigor.
+4. **End-to-end multi-day test** — simulate Day 1 (open positions), Day 2 (verify positions loaded, exits checked), Day 3 (stop-loss fires). This test does not exist in the current 876-test suite.
 
 ---
 
 ## Conclusion
 
-This is a well-engineered system with strong infrastructure (data pipelines, risk controls, execution layer, monitoring). The gap is not in engineering — it's in the scientific foundation. The system can execute trades precisely, manage risk carefully, and report results beautifully. It just can't tell you whether the trades should happen in the first place.
-
-Until signal alpha is statistically validated through proper out-of-sample testing with multiple-comparison corrections, the system is — as the `GAP_ANALYSIS.md` itself states — **not ready for live capital deployment**.
+The system has strong signal validation (now with IC testing and FDR correction), solid backtesting infrastructure, and a well-designed exit engine. But the exit engine is disconnected from multi-day reality. It can evaluate exit conditions perfectly — for positions it knows about. After a daily restart, it knows about none of them. Until position state is persisted, live trading with holding periods >1 day will run without stop-losses, trailing stops, or profit targets — the exact scenario the risk management framework was built to prevent.
