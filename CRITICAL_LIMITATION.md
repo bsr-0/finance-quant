@@ -108,6 +108,25 @@ The `deflated_sharpe_ratio()` function exists in `eval/robustness.py` but is a s
 
 ---
 
+## Remediation Status
+
+The following Phase 1 items have been implemented:
+
+| Item | Status | Implementation |
+|------|--------|----------------|
+| IC analysis framework | **Done** | `compute_forward_returns()`, `rolling_ic()`, `ic_decay_analysis()` in `eval/signal_alpha.py` |
+| Walk-forward IC with deflated Sharpe gate | **Already existed** | `walk_forward_ic()` in `eval/signal_alpha.py` — now wired into evaluator |
+| IC gate in evaluator | **Done** | `evaluate_equity()` now runs `walk_forward_ic()` and adds `signal_alpha_pass` gate |
+| IC decay analysis | **Done** | `ic_decay_analysis()` measures IC at multiple horizons (1d, 5d, 10d, 21d, 63d) to find optimal holding period |
+| Rolling IC monitoring | **Done** | `rolling_ic()` for tracking signal stability over time |
+| CLI command | **Done** | `pipeline test-signal-alpha --signals <file> --prices <file>` with decay table and PASS/FAIL verdict |
+| Signal weight optimization | **Not started** | Requires cross-validated ridge regression of sub-signals |
+| Walk-forward embargo default | **Not started** | One-line fix to `walk_forward.py` default |
+
+**Remaining work:** Signal weight optimization (Phase 1.4), multiple-testing registry (Phase 2.6), and setting a non-zero default embargo in walk-forward splits.
+
+---
+
 ## Conclusion
 
 This is a well-engineered system with strong infrastructure (data pipelines, risk controls, execution layer, monitoring). The gap is not in engineering — it's in the scientific foundation. The system can execute trades precisely, manage risk carefully, and report results beautifully. It just can't tell you whether the trades should happen in the first place.

@@ -6,8 +6,12 @@ import pytest
 
 from pipeline.eval.robustness import benjamini_hochberg
 from pipeline.eval.signal_alpha import (
+    ICDecayResult,
     SignalAlphaResult,
+    compute_forward_returns,
+    ic_decay_analysis,
     rank_ic,
+    rolling_ic,
     signal_fdr_screen,
     walk_forward_ic,
 )
@@ -237,3 +241,106 @@ class TestSignalFDRScreen:
         ]
         screened = signal_fdr_screen(results, alpha=0.05)
         assert screened[1][1] is False  # NaN p-value → not significant
+
+
+# ---------------------------------------------------------------------------
+# compute_forward_returns tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def price_panel(dates, symbols):
+    """Synthetic price panel with upward drift."""
+    rng = np.random.default_rng(11)
+    base = 100.0 + np.cumsum(rng.standard_normal((len(dates), len(symbols))) * 0.5, axis=0)
+    return pd.DataFrame(base, index=dates, columns=symbols)
+
+
+class TestComputeForwardReturns:
+    def test_correct_horizon(self, price_panel):
+        fwd = compute_forward_returns(price_panel, horizon=5)
+        assert fwd.shape == price_panel.shape
+        # Last 5 rows should be NaN (no future data)
+        assert fwd.iloc[-5:].isna().all().all()
+        # Earlier rows should have values
+        assert fwd.iloc[10:-5].notna().all().all()
+
+    def test_single_day_horizon(self, price_panel):
+        fwd = compute_forward_returns(price_panel, horizon=1)
+        assert fwd.iloc[-1].isna().all()
+        assert fwd.iloc[5:-1].notna().all().all()
+
+    def test_empty_input(self):
+        empty = pd.DataFrame()
+        result = compute_forward_returns(empty, horizon=5)
+        assert result.empty
+
+    def test_values_correct(self):
+        """Manual check: forward return = (P_{t+h} - P_t) / P_t."""
+        idx = pd.bdate_range("2020-01-01", periods=10)
+        prices = pd.DataFrame({"A": [100, 102, 104, 106, 108, 110, 112, 114, 116, 118]}, index=idx)
+        fwd = compute_forward_returns(prices, horizon=2)
+        # At t=0: (104-100)/100 = 0.04
+        expected = (prices["A"].iloc[2] - prices["A"].iloc[0]) / prices["A"].iloc[0]
+        assert fwd["A"].iloc[0] == pytest.approx(expected, abs=1e-10)
+
+
+# ---------------------------------------------------------------------------
+# rolling_ic tests
+# ---------------------------------------------------------------------------
+
+
+class TestRollingIC:
+    def test_returns_series(self, random_signals, random_returns):
+        result = rolling_ic(random_signals, random_returns, window=20)
+        assert isinstance(result, pd.Series)
+        assert len(result) == len(random_signals.index.intersection(random_returns.index))
+
+    def test_predictive_signal_positive_ic(self, predictive_signals):
+        signals, returns = predictive_signals
+        result = rolling_ic(signals, returns, window=20)
+        # With a strongly predictive signal, rolling IC should be mostly positive
+        valid = result.dropna()
+        assert valid.mean() > 0.1
+
+    def test_random_signal_near_zero(self, random_signals, random_returns):
+        result = rolling_ic(random_signals, random_returns, window=20)
+        valid = result.dropna()
+        assert abs(valid.mean()) < 0.15
+
+
+# ---------------------------------------------------------------------------
+# ic_decay_analysis tests
+# ---------------------------------------------------------------------------
+
+
+class TestICDecayAnalysis:
+    def test_returns_decay_result(self, predictive_signals):
+        signals, returns = predictive_signals
+        # Build a price panel from returns (cumulative)
+        prices = (1 + returns).cumprod() * 100
+        decay = ic_decay_analysis(signals, prices, signal_name="test", horizons=[1, 5, 10])
+        assert isinstance(decay, ICDecayResult)
+        assert decay.signal_name == "test"
+        assert decay.horizons == [1, 5, 10]
+        assert decay.best_horizon in [1, 5, 10]
+
+    def test_all_horizons_populated(self, predictive_signals):
+        signals, returns = predictive_signals
+        prices = (1 + returns).cumprod() * 100
+        decay = ic_decay_analysis(signals, prices, horizons=[1, 5])
+        for h in [1, 5]:
+            assert h in decay.ic_by_horizon
+            assert h in decay.ic_std_by_horizon
+            assert h in decay.ic_ir_by_horizon
+
+    def test_random_signal_low_ic(self, random_signals, dates, symbols):
+        rng = np.random.default_rng(55)
+        prices = pd.DataFrame(
+            100 + np.cumsum(rng.standard_normal((len(dates), len(symbols))) * 0.5, axis=0),
+            index=dates,
+            columns=symbols,
+        )
+        decay = ic_decay_analysis(random_signals, prices, horizons=[1, 5])
+        for h in [1, 5]:
+            assert abs(decay.ic_by_horizon[h]) < 0.15
