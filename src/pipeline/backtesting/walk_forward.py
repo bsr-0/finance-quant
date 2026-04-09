@@ -101,6 +101,7 @@ def walk_forward_splits(
     step_size: int | None = None,
     expanding: bool = True,
     embargo_size: int = 5,
+    label_horizon: int | None = None,
 ) -> Generator[tuple[np.ndarray, np.ndarray], None, None]:
     """Generate (train_indices, test_indices) for walk-forward validation.
 
@@ -113,7 +114,13 @@ def walk_forward_splits(
         embargo_size: Number of observations to skip between train and test
             sets, preventing information leakage from overlapping labels
             (e.g. multi-day forward returns).  Defaults to 5 (~1 trading week).
+        label_horizon: If provided, the embargo is set to at least this
+            value.  When computing N-day forward returns, set
+            ``label_horizon=N`` so that labels from the training set
+            cannot leak into the test set.
     """
+    if label_horizon is not None and label_horizon > embargo_size:
+        embargo_size = label_horizon
     n = len(index)
     step = step_size or test_size
 
@@ -146,6 +153,7 @@ def walk_forward_validate(
     step_size: int | None = None,
     expanding: bool = True,
     embargo_size: int = 5,
+    label_horizon: int | None = None,
 ) -> ValidationResult:
     """Run walk-forward validation.
 
@@ -160,6 +168,8 @@ def walk_forward_validate(
         step_size: Slide step (defaults to *test_size*).
         expanding: Expanding or rolling window.
         embargo_size: Observations to skip between train and test (default 5).
+        label_horizon: If provided, embargo is set to at least this many
+            days to prevent leakage from overlapping labels.
 
     Returns:
         ValidationResult with per-fold and aggregate metrics.
@@ -167,7 +177,9 @@ def walk_forward_validate(
     folds: list[FoldResult] = []
 
     for fold_i, (train_idx, test_idx) in enumerate(
-        walk_forward_splits(df.index, train_size, test_size, step_size, expanding, embargo_size)
+        walk_forward_splits(
+            df.index, train_size, test_size, step_size, expanding, embargo_size, label_horizon
+        )
     ):
         train_df = df.iloc[train_idx]
         test_df = df.iloc[test_idx]

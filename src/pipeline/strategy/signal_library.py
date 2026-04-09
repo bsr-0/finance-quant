@@ -470,6 +470,155 @@ class SignalPipeline:
 # ---------------------------------------------------------------------------
 
 
+def optimize_weights(
+    pipeline: SignalPipeline,
+    price_data: dict[str, pd.DataFrame],
+    forward_horizon: int = 5,
+    train_size: int = 252,
+    test_size: int = 63,
+    embargo_size: int = 5,
+    alpha: float = 1.0,
+) -> SignalDefinition:
+    """Optimize indicator weights via cross-validated ridge regression.
+
+    Replaces hardcoded weights with weights learned from the relationship
+    between normalized indicators and forward returns, validated
+    out-of-sample across walk-forward folds.
+
+    Args:
+        pipeline: Existing SignalPipeline with indicators to optimize.
+        price_data: ``{ticker: DataFrame}`` with OHLCV columns.
+        forward_horizon: Days forward for return computation.
+        train_size: Walk-forward training window.
+        test_size: Walk-forward test window.
+        embargo_size: Gap between train and test (prevent leakage).
+        alpha: Ridge regularization strength (higher = more shrinkage
+            toward equal weights).
+
+    Returns:
+        New SignalDefinition with optimized weights.
+    """
+    from sklearn.linear_model import Ridge
+
+    from pipeline.backtesting.walk_forward import walk_forward_splits
+    from pipeline.eval.signal_alpha import compute_forward_returns
+
+    # Compute normalized indicators per ticker
+    raw = pipeline.compute_raw(price_data)
+    normalized = pipeline.normalize(raw)
+
+    # Build a stacked panel: (date, ticker) -> indicator values + forward return
+    indicator_names = pipeline.signal_def.indicator_names
+    rows: list[dict] = []
+
+    # Build price panel for forward returns
+    close_panels: dict[str, pd.Series] = {}
+    for ticker, df in price_data.items():
+        if "close" in df.columns and not df.empty:
+            close_panels[ticker] = df["close"]
+
+    if not close_panels:
+        logger.warning("No price data for weight optimization; returning original weights.")
+        return pipeline.signal_def
+
+    price_panel = pd.DataFrame(close_panels)
+    fwd_returns = compute_forward_returns(price_panel, horizon=forward_horizon)
+
+    for ticker, norm_df in normalized.items():
+        if ticker not in fwd_returns.columns:
+            continue
+        fwd_col = fwd_returns[ticker]
+        common_idx = norm_df.index.intersection(fwd_col.dropna().index)
+        for dt in common_idx:
+            row = {col: norm_df.at[dt, col] for col in indicator_names if col in norm_df.columns}
+            row["_fwd_return"] = fwd_col.at[dt]
+            row["_date"] = dt
+            rows.append(row)
+
+    if len(rows) < train_size + test_size + embargo_size:
+        logger.warning(
+            "Insufficient data for weight optimization (%d rows). Returning original weights.",
+            len(rows),
+        )
+        return pipeline.signal_def
+
+    panel = pd.DataFrame(rows).sort_values("_date").reset_index(drop=True)
+    feature_cols = [c for c in indicator_names if c in panel.columns]
+    features = panel[feature_cols].fillna(0).values
+    targets = panel["_fwd_return"].values
+    dates = pd.DatetimeIndex(panel["_date"])
+
+    # Walk-forward ridge regression to get OOS-validated weights
+    fold_coefs: list[np.ndarray] = []
+    for train_idx, _test_idx in walk_forward_splits(
+        dates, train_size, test_size, embargo_size=embargo_size
+    ):
+        x_train, y_train = features[train_idx], targets[train_idx]
+        valid = np.isfinite(y_train)
+        if valid.sum() < 20:
+            continue
+        model = Ridge(alpha=alpha, fit_intercept=True)
+        model.fit(x_train[valid], y_train[valid])
+        fold_coefs.append(model.coef_)
+
+    if not fold_coefs:
+        logger.warning("No valid folds for weight optimization. Returning original weights.")
+        return pipeline.signal_def
+
+    # Average coefficients across folds, then normalize to sum to 1
+    avg_coefs = np.mean(fold_coefs, axis=0)
+    abs_coefs = np.abs(avg_coefs)
+    total = abs_coefs.sum()
+    if total == 0:
+        logger.warning("All ridge coefficients are zero. Returning original weights.")
+        return pipeline.signal_def
+
+    optimized_weights = abs_coefs / total
+
+    # Build new SignalDefinition with optimized weights
+    old_def = pipeline.signal_def
+    new_def = SignalDefinition(
+        name=old_def.name + "_optimized",
+        family=old_def.family,
+        description=old_def.description + " (weights optimized via CV ridge)",
+    )
+    for _i, (indicator, old_cfg) in enumerate(old_def.indicators):
+        col_name = old_cfg.name
+        if col_name in feature_cols:
+            idx = feature_cols.index(col_name)
+            new_weight = float(optimized_weights[idx])
+            # Preserve sign: negative coef means flip higher_is_better
+            sign_flip = avg_coefs[idx] < 0
+        else:
+            new_weight = old_cfg.weight
+            sign_flip = False
+
+        new_cfg = SignalConfig(
+            name=old_cfg.name,
+            description=old_cfg.description,
+            formula=old_cfg.formula,
+            normalization=old_cfg.normalization,
+            lookback_window=old_cfg.lookback_window,
+            winsorize_lower=old_cfg.winsorize_lower,
+            winsorize_upper=old_cfg.winsorize_upper,
+            weight=new_weight,
+            higher_is_better=(
+                old_cfg.higher_is_better if not sign_flip else not old_cfg.higher_is_better
+            ),
+        )
+        new_def.indicators.append((indicator, new_cfg))
+
+    weight_report = {
+        feature_cols[j]: f"{optimized_weights[j]:.3f}" for j in range(len(feature_cols))
+    }
+    logger.info(
+        "Optimized weights (%d folds): %s",
+        len(fold_coefs),
+        weight_report,
+    )
+    return new_def
+
+
 def momentum_signal(
     lookback: int = 126,
     skip: int = 21,

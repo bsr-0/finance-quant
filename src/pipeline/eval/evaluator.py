@@ -31,6 +31,11 @@ from pipeline.eval.portfolio import (
 )
 from pipeline.eval.regime import classify_regimes, regime_performance
 from pipeline.eval.robustness import bootstrap_ci, deflated_sharpe_ratio
+from pipeline.eval.signal_alpha import (
+    SignalAlphaResult,
+    compute_forward_returns,
+    walk_forward_ic,
+)
 from pipeline.eval.stress import DEFAULT_SCENARIOS, evt_tail_risk, scenario_metrics
 from pipeline.settings import get_settings
 
@@ -43,6 +48,7 @@ class EvaluationResult:
     factor_corr: dict[str, float]
     stress_results: dict[str, dict[str, float]]
     passed_gates: dict[str, bool]
+    signal_alpha: SignalAlphaResult | None = None
 
 
 class DatabaseResultStore:
@@ -229,6 +235,14 @@ class Evaluator:
             factor_corr = corr
             metrics["factor_corr_pass"] = 1.0 if passed_corr else 0.0
 
+        # Signal alpha IC test — the foundational validity check
+        signal_alpha_result = self._test_signal_alpha(signals, prices)
+        if signal_alpha_result is not None:
+            metrics["ic_mean"] = signal_alpha_result.ic_mean
+            metrics["ic_t_stat"] = signal_alpha_result.ic_t_stat
+            metrics["ic_p_value"] = signal_alpha_result.ic_p_value
+            metrics["ic_deflated_sharpe_prob"] = signal_alpha_result.deflated_sharpe_prob
+
         gates = self._gate_metrics(metrics)
 
         return EvaluationResult(
@@ -238,6 +252,7 @@ class Evaluator:
             factor_corr=factor_corr,
             stress_results=stress,
             passed_gates=gates,
+            signal_alpha=signal_alpha_result,
         )
 
     def evaluate_prediction_markets(
@@ -340,8 +355,55 @@ class Evaluator:
             "sharpe_gt_2": metrics.get("sharpe", np.nan) > 2.0,
             "sortino_gt_2": metrics.get("sortino", np.nan) > 2.0,
             "max_dd_gt_-0_10": metrics.get("max_drawdown", np.nan) > -0.10,
+            "signal_alpha_pass": metrics.get("ic_deflated_sharpe_prob", 0.0) > 0.95,
         }
         return gates
+
+    def _test_signal_alpha(
+        self,
+        signals: pd.DataFrame,
+        prices: pd.DataFrame,
+    ) -> SignalAlphaResult | None:
+        """Run walk-forward IC test on signals against forward returns."""
+        if signals.empty or prices.empty:
+            return None
+        try:
+            sig = signals.copy()
+            px = prices.copy()
+            sig["date"] = pd.to_datetime(sig["date"])
+            px["date"] = pd.to_datetime(px["date"])
+
+            # Build wide-format signal panel (dates x symbols)
+            if "symbol" in sig.columns and "signal" in sig.columns:
+                sig_panel = sig.pivot(index="date", columns="symbol", values="signal")
+            else:
+                return None
+
+            # Build price panel
+            if "symbol" in px.columns and "price" in px.columns:
+                price_panel = px.pivot(index="date", columns="symbol", values="price")
+            else:
+                return None
+
+            fwd_returns = compute_forward_returns(price_panel, horizon=5)
+
+            # Align to common symbols
+            common_syms = sig_panel.columns.intersection(fwd_returns.columns)
+            if common_syms.empty:
+                return None
+
+            return walk_forward_ic(
+                sig_panel[common_syms],
+                fwd_returns[common_syms],
+                signal_name="equity_signal",
+            )
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Signal alpha test failed — skipping", exc_info=True
+            )
+            return None
 
     def _signal_hit_rate(self, signals: pd.DataFrame, prices: pd.DataFrame) -> float:
         if signals.empty or prices.empty:
