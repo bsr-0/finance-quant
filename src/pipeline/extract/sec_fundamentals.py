@@ -81,13 +81,18 @@ class SecFundamentalsExtractor(HttpClientMixin):
     # ------------------------------------------------------------------
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def _fetch_company_facts(self, cik: int) -> dict:
-        """Fetch XBRL company facts for a CIK."""
+    def _fetch_company_facts(self, cik: int) -> dict | None:
+        """Fetch XBRL company facts for a CIK.
 
-        def _do() -> dict:
+        Returns None for entities without XBRL data (e.g. ETFs).
+        """
+
+        def _do() -> dict | None:
             padded = str(cik).zfill(10)
             url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{padded}.json"
             resp = self.client.get(url)
+            if resp.status_code == 404:
+                return None
             resp.raise_for_status()
             return resp.json()
 
@@ -216,6 +221,9 @@ class SecFundamentalsExtractor(HttpClientMixin):
             try:
                 with self._metrics.time_operation(f"extract_{ticker}"):
                     facts = self._fetch_company_facts(cik)
+                    if facts is None:
+                        logger.warning(f"No XBRL company facts for {ticker} (CIK {cik}), likely an ETF/fund")
+                        continue
                     rows = self._parse_facts(facts, ticker, cik, metrics)
                     rows = self._assign_filing_sequence(rows)
 
