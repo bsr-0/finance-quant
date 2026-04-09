@@ -472,7 +472,10 @@ class SymbolSnapshotBuilder:
     ) -> int:
         if symbol_ids is None:
             result = self.db.run_query("SELECT symbol_id FROM dim_symbol")
-            symbol_ids = [UUID(r["symbol_id"]) for r in result]
+            symbol_ids = [
+                r["symbol_id"] if isinstance(r["symbol_id"], UUID) else UUID(r["symbol_id"])
+                for r in result
+            ]
 
         if not start_ts:
             start_ts = datetime.now(UTC) - timedelta(days=90)
