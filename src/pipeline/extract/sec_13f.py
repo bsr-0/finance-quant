@@ -46,6 +46,7 @@ class Sec13FExtractor(HttpClientMixin):
         self.client = httpx.Client(
             timeout=60.0,
             headers={"User-Agent": SEC_USER_AGENT},
+            follow_redirects=True,
         )
         self._circuit = get_circuit_breaker(
             "sec_edgar_13f", failure_threshold=5, recovery_timeout=60.0
