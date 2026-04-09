@@ -77,6 +77,8 @@ class SecInsiderExtractor(HttpClientMixin):
             padded = str(cik).zfill(10)
             url = f"https://data.sec.gov/submissions/CIK{padded}.json"
             resp = self.client.get(url)
+            if resp.status_code == 404:
+                return []
             resp.raise_for_status()
             data = resp.json()
 
