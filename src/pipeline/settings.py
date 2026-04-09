@@ -636,6 +636,13 @@ def get_settings() -> PipelineSettings:
     """Get or create global settings instance."""
     global _settings
     if _settings is None:
+        # Load .env into OS environment so nested BaseSettings subclasses
+        # (FredSettings, PriceSettings, etc.) can read their env vars.
+        env_path = Path(".env")
+        if env_path.exists():
+            from dotenv import load_dotenv
+
+            load_dotenv(env_path)
         config_path = Path("config.yaml")
         if config_path.exists():
             _settings = PipelineSettings.from_yaml(config_path)

@@ -24,6 +24,12 @@ class FredExtractor(HttpClientMixin):
     def __init__(self, api_key: str | None = None):
         settings = get_settings().fred
         self.api_key = api_key or settings.api_key
+        if not self.api_key:
+            raise ValueError(
+                "FRED API key not found. Set FRED_API_KEY in your .env file "
+                "or pass api_key= to FredExtractor. "
+                "Get a free key at https://fred.stlouisfed.org/docs/api/api_key.html"
+            )
         self.base_url = settings.base_url
         self.series_codes = settings.series_codes
         self.client = httpx.Client(timeout=30.0)
