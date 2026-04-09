@@ -122,7 +122,10 @@ class GDELTExtractor(HttpClientMixin):
 
             # Parse dates
             df["SQLDATE"] = pd.to_datetime(df["SQLDATE"], format="%Y%m%d")
-            df["DATEADDED"] = pd.to_datetime(df["DATEADDED"], format="%Y%m%d%H%M%S")
+            df["DATEADDED"] = pd.to_datetime(
+                df["DATEADDED"].astype(str).str.ljust(14, "0"),
+                format="%Y%m%d%H%M%S",
+            )
 
             # Parse numeric columns
             numeric_cols = ["GoldsteinScale", "NumMentions", "NumSources", "NumArticles", "AvgTone"]

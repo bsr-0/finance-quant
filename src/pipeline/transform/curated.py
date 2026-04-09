@@ -259,7 +259,7 @@ class CuratedTransformer:
                         CASE
                             WHEN :available_source = 'DATEADDED' THEN COALESCE(
                                 (strptime(
-                                    NULLIF(r.raw_data::json->>'DATEADDED', ''),
+                                    RPAD(NULLIF(r.raw_data::json->>'DATEADDED', ''), 14, '0'),
                                     '%Y%m%d%H%M%S'
                                 ) AT TIME ZONE 'UTC'),
                                 r.extracted_at
