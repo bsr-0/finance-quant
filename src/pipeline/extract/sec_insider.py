@@ -41,6 +41,7 @@ class SecInsiderExtractor(HttpClientMixin):
         self.client = httpx.Client(
             timeout=30.0,
             headers={"User-Agent": SEC_USER_AGENT},
+            follow_redirects=True,
         )
         self._circuit = get_circuit_breaker(
             "sec_edgar_insider", failure_threshold=5, recovery_timeout=60.0
@@ -76,6 +77,8 @@ class SecInsiderExtractor(HttpClientMixin):
             padded = str(cik).zfill(10)
             url = f"https://data.sec.gov/submissions/CIK{padded}.json"
             resp = self.client.get(url)
+            if resp.status_code == 404:
+                return []
             resp.raise_for_status()
             data = resp.json()
 

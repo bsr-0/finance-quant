@@ -52,6 +52,7 @@ class CftcCotExtractor(HttpClientMixin):
             headers={
                 "User-Agent": "Mozilla/5.0 (compatible; MarketDataWarehouse/1.0)",
             },
+            follow_redirects=True,
         )
         self._circuit = get_circuit_breaker("cftc_cot", failure_threshold=5, recovery_timeout=60.0)
         self._metrics = PipelineMetrics("cftc_cot_extractor")
@@ -75,6 +76,9 @@ class CftcCotExtractor(HttpClientMixin):
 
             logger.info(f"Fetching COT data for {year} from {url}")
             resp = self.client.get(url)
+            if resp.status_code == 404:
+                logger.warning(f"No COT data available for {year} (404)")
+                return pd.DataFrame()
             resp.raise_for_status()
 
             with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
