@@ -329,6 +329,49 @@ class TestSignalLibrary:
         assert sig.family.value == "mean_reversion"
         assert len(sig.indicators) == 3
 
+    def test_optimize_weights_returns_new_definition(self):
+        from pipeline.strategy.signal_library import (
+            SignalPipeline,
+            mean_reversion_signal,
+            optimize_weights,
+        )
+
+        data = _make_multi_ticker_data(["A", "B", "C", "D", "E"], n=500)
+        sig_def = mean_reversion_signal()
+        pipeline = SignalPipeline(sig_def)
+        optimized = optimize_weights(
+            pipeline,
+            data,
+            forward_horizon=5,
+            train_size=100,
+            test_size=50,
+            embargo_size=5,
+            alpha=1.0,
+        )
+        assert optimized.name.endswith("_optimized")
+        assert len(optimized.indicators) == len(sig_def.indicators)
+        # Weights should sum approximately to 1
+        total = sum(cfg.weight for _, cfg in optimized.indicators)
+        assert abs(total - 1.0) < 0.01
+
+    def test_optimize_weights_changes_weights(self):
+        from pipeline.strategy.signal_library import (
+            SignalPipeline,
+            mean_reversion_signal,
+            optimize_weights,
+        )
+
+        data = _make_multi_ticker_data(["A", "B", "C", "D", "E"], n=500)
+        sig_def = mean_reversion_signal()
+        pipeline = SignalPipeline(sig_def)
+        optimized = optimize_weights(
+            pipeline, data, train_size=100, test_size=50, alpha=1.0,
+        )
+        old_weights = [cfg.weight for _, cfg in sig_def.indicators]
+        new_weights = [cfg.weight for _, cfg in optimized.indicators]
+        # At least one weight should differ from the original
+        assert old_weights != new_weights
+
 
 # ===========================================================================
 # Entry Rules Tests

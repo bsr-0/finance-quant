@@ -561,6 +561,104 @@ def evaluate(
 
 
 @app.command()
+def test_signal_alpha(
+    signals_path: Path = typer.Option(  # noqa: B008
+        ..., "--signals", help="Signals file (wide format: dates x symbols, CSV/parquet)"
+    ),
+    prices_path: Path = typer.Option(  # noqa: B008
+        ..., "--prices", help="Prices file (wide format: dates x symbols, CSV/parquet)"
+    ),
+    signal_name: str = typer.Option("signal", "--signal-name", help="Signal identifier"),  # noqa: B008
+    horizons: str = typer.Option(  # noqa: B008
+        "1,5,10,21,63", "--horizons", help="Comma-separated forward-return horizons (days)"
+    ),
+    train_size: int = typer.Option(252, "--train-size", help="Walk-forward training window"),  # noqa: B008
+    test_size: int = typer.Option(63, "--test-size", help="Walk-forward test window"),  # noqa: B008
+    embargo: int = typer.Option(5, "--embargo", help="Embargo days between train/test"),  # noqa: B008
+):
+    """Test whether a signal has statistically significant predictive power (IC analysis)."""
+    from pipeline.eval.signal_alpha import (
+        compute_forward_returns,
+        ic_decay_analysis,
+        walk_forward_ic,
+    )
+
+    signals = _read_data(signals_path)
+    prices = _read_data(prices_path)
+
+    # Ensure DatetimeIndex
+    if not isinstance(signals.index, pd.DatetimeIndex):
+        if "date" in signals.columns:
+            signals = signals.set_index("date")
+        signals.index = pd.to_datetime(signals.index)
+    if not isinstance(prices.index, pd.DatetimeIndex):
+        if "date" in prices.columns:
+            prices = prices.set_index("date")
+        prices.index = pd.to_datetime(prices.index)
+
+    horizon_list = [int(h.strip()) for h in horizons.split(",")]
+
+    # --- IC Decay Analysis ---
+    console.print(f"\n[bold]IC Decay Analysis for '{signal_name}'[/bold]\n")
+    decay = ic_decay_analysis(signals, prices, signal_name=signal_name, horizons=horizon_list)
+
+    decay_table = Table(title="IC by Forward-Return Horizon")
+    decay_table.add_column("Horizon (days)", justify="right")
+    decay_table.add_column("Mean IC", justify="right")
+    decay_table.add_column("IC Std", justify="right")
+    decay_table.add_column("IC IR", justify="right")
+    for h in decay.horizons:
+        ic = decay.ic_by_horizon.get(h, float("nan"))
+        std = decay.ic_std_by_horizon.get(h, float("nan"))
+        ir = decay.ic_ir_by_horizon.get(h, float("nan"))
+        marker = " *" if h == decay.best_horizon else ""
+        decay_table.add_row(
+            f"{h}{marker}",
+            f"{ic:.4f}" if pd.notna(ic) else "N/A",
+            f"{std:.4f}" if pd.notna(std) else "N/A",
+            f"{ir:.4f}" if pd.notna(ir) else "N/A",
+        )
+    console.print(decay_table)
+    console.print(f"  Best horizon: [bold]{decay.best_horizon}d[/bold] (highest IC IR)\n")
+
+    # --- Walk-Forward IC Test at best horizon ---
+    console.print("[bold]Walk-Forward IC Significance Test[/bold]\n")
+    fwd = compute_forward_returns(prices, horizon=decay.best_horizon)
+    common_syms = signals.columns.intersection(fwd.columns)
+    result = walk_forward_ic(
+        signals[common_syms],
+        fwd[common_syms],
+        signal_name=signal_name,
+        train_size=train_size,
+        test_size=test_size,
+        embargo_size=embargo,
+    )
+
+    result_table = Table(title="Walk-Forward IC Results")
+    result_table.add_column("Metric", justify="left")
+    result_table.add_column("Value", justify="right")
+    result_table.add_row("Folds", str(result.n_folds))
+    result_table.add_row("IC Mean", f"{result.ic_mean:.4f}")
+    result_table.add_row("IC Std", f"{result.ic_std:.4f}")
+    result_table.add_row("IC t-stat", f"{result.ic_t_stat:.2f}")
+    result_table.add_row("IC p-value", f"{result.ic_p_value:.4f}")
+    result_table.add_row("Deflated Sharpe Prob", f"{result.deflated_sharpe_prob:.4f}")
+    console.print(result_table)
+
+    if result.passed:
+        console.print(
+            f"\n[green bold]PASS[/green bold] — Signal '{signal_name}' has statistically "
+            f"significant predictive power (DSR prob={result.deflated_sharpe_prob:.3f} > 0.95)"
+        )
+    else:
+        console.print(
+            f"\n[red bold]FAIL[/red bold] — Signal '{signal_name}' does NOT pass the deflated "
+            f"Sharpe gate (DSR prob={result.deflated_sharpe_prob:.3f} <= 0.95). "
+            "Cannot distinguish from noise."
+        )
+
+
+@app.command()
 def inventory():
     """Print data inventory report."""
     db = get_db_manager()

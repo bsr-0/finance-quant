@@ -42,6 +42,8 @@ from pipeline.strategy.sizing import SizingConfig
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_REGISTER_PATH = "data/open_positions.json"
+
 
 @dataclass
 class RunnerConfig:
@@ -102,10 +104,14 @@ class TradingRunner:
             dry_run=config.dry_run,
         )
 
+        from pipeline.execution.position_register import PositionRegister
+
+        self._register = PositionRegister(path=_DEFAULT_REGISTER_PATH)
         self.monitor = PositionMonitor(
             broker=broker,
             guard_config=guard_config,
             risk_manager=self.risk_mgr,
+            position_register=self._register,
         )
 
         self.reconciler = PositionReconciler(broker=broker)
@@ -202,8 +208,10 @@ class TradingRunner:
                         entry_price=detail.get("limit_price", detail.get("price", 0)),
                         shares=detail.get("shares", 0),
                         stop_price=detail.get("stop_price", 0),
-                        atr_at_entry=0.0,  # Set from signal if available
-                        signal_score=0,
+                        atr_at_entry=detail.get("atr", 0.0),
+                        target_1=detail.get("target_1", 0.0),
+                        target_2=detail.get("target_2", 0.0),
+                        signal_score=detail.get("score", 0),
                     )
                 )
 

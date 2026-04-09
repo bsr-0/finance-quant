@@ -197,6 +197,27 @@ class TestWalkForwardEmbargo:
         assert isinstance(result, ValidationResult)
         assert len(result.folds) >= 1
 
+    def test_label_horizon_overrides_embargo(self, sample_df):
+        """label_horizon increases embargo when larger than embargo_size."""
+        splits_base = list(walk_forward_splits(sample_df.index, 100, 50, embargo_size=5))
+        splits_horizon = list(
+            walk_forward_splits(sample_df.index, 100, 50, embargo_size=5, label_horizon=20)
+        )
+        # With label_horizon=20, the effective embargo is 20, so fewer folds
+        assert len(splits_base) >= len(splits_horizon)
+        # Verify the gap is at least 20
+        for train_idx, test_idx in splits_horizon:
+            gap = test_idx[0] - train_idx[-1]
+            assert gap >= 21  # 20 embargo + 1
+
+    def test_label_horizon_no_effect_when_smaller(self, sample_df):
+        """label_horizon has no effect when smaller than embargo_size."""
+        splits_base = list(walk_forward_splits(sample_df.index, 100, 50, embargo_size=10))
+        splits_small = list(
+            walk_forward_splits(sample_df.index, 100, 50, embargo_size=10, label_horizon=3)
+        )
+        assert len(splits_base) == len(splits_small)
+
 
 # ---------------------------------------------------------------------------
 # Purged k-Fold Tests
