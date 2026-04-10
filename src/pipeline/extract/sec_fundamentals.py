@@ -223,7 +223,10 @@ class SecFundamentalsExtractor(HttpClientMixin):
                 with self._metrics.time_operation(f"extract_{ticker}"):
                     facts = self._fetch_company_facts(cik)
                     if facts is None:
-                        logger.warning(f"No XBRL company facts for {ticker} (CIK {cik}), likely an ETF/fund")
+                        logger.warning(
+                            "No XBRL company facts for %s (CIK %s), likely an ETF/fund",
+                            ticker, cik,
+                        )
                         continue
                     rows = self._parse_facts(facts, ticker, cik, metrics)
                     rows = self._assign_filing_sequence(rows)
