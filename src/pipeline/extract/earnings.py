@@ -42,6 +42,11 @@ class EarningsExtractor(HttpClientMixin):
             url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
             params = {"modules": "earningsHistory,earnings"}
             resp = self.client.get(url, params=params)
+            if resp.status_code in (401, 403, 404):
+                logger.warning(
+                    f"HTTP {resp.status_code} for {ticker} earnings — skipping (non-transient)"
+                )
+                return {}
             resp.raise_for_status()
             data = resp.json()
 
@@ -61,6 +66,11 @@ class EarningsExtractor(HttpClientMixin):
             url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
             params = {"modules": "calendarEvents"}
             resp = self.client.get(url, params=params)
+            if resp.status_code in (401, 403, 404):
+                logger.warning(
+                    f"HTTP {resp.status_code} for {ticker} calendar — skipping (non-transient)"
+                )
+                return []
             resp.raise_for_status()
             data = resp.json()
 
