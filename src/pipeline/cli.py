@@ -153,6 +153,7 @@ def extract(
     output_dir: Path | None = typer.Option(  # noqa: B008
         None, "--output", "-o", help="Output directory"
     ),
+    force: bool = typer.Option(False, "--force", "-f", help="Re-fetch even if output already exists"),
 ):
     """Extract data from a source to raw lake."""
     settings = get_settings()
@@ -188,7 +189,7 @@ def extract(
         elif source == "options":
             files = extract_options(raw_path, run_id=run_id)
         elif source == "earnings":
-            files = extract_earnings(raw_path, start_date=start, end_date=end, run_id=run_id)
+            files = extract_earnings(raw_path, start_date=start, end_date=end, run_id=run_id, force=force)
         elif source == "reddit-sentiment":
             files = extract_reddit_sentiment(raw_path, run_id=run_id)
         elif source == "short-interest":
