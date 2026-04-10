@@ -186,8 +186,13 @@ class EarningsExtractor(HttpClientMixin):
         start_date: date | None = None,
         end_date: date | None = None,
         run_id: str | None = None,
+        force: bool = False,
     ) -> list[Path]:
-        """Extract earnings data for tickers."""
+        """Extract earnings data for tickers.
+
+        Args:
+            force: Re-fetch even if output file already exists.
+        """
         settings = get_settings()
         tickers = tickers or settings.prices.universe
         output_dir = Path(output_dir) / "earnings"
@@ -196,6 +201,13 @@ class EarningsExtractor(HttpClientMixin):
         saved_files: list[Path] = []
 
         for ticker in tickers:
+            file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
+
+            if not force and file_path.exists():
+                logger.info(f"Skipping {ticker} — already extracted ({file_path.name})")
+                saved_files.append(file_path)
+                continue
+
             logger.info(f"Extracting earnings for {ticker}")
             try:
                 with self._metrics.time_operation(f"extract_earnings_{ticker}"):
@@ -222,7 +234,6 @@ class EarningsExtractor(HttpClientMixin):
                 df["extracted_at"] = datetime.now(UTC)
                 df["run_id"] = run_id
 
-                file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
                 df.to_parquet(file_path, index=False)
                 saved_files.append(file_path)
                 self._metrics.record_extracted("earnings", len(df))
@@ -244,6 +255,7 @@ def extract_earnings(
     start_date: str | None = None,
     end_date: str | None = None,
     run_id: str | None = None,
+    force: bool = False,
 ) -> list[Path]:
     """CLI-friendly wrapper."""
     extractor = EarningsExtractor()
@@ -255,4 +267,5 @@ def extract_earnings(
         start_date=start,
         end_date=end,
         run_id=run_id,
+        force=force,
     )
