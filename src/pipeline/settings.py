@@ -292,7 +292,7 @@ class CftcCotSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="CFTC_")
 
     enabled: bool = True
-    base_url: str = "https://www.cftc.gov/dea/newcot"
+    base_url: str = "https://www.cftc.gov/files/dea/history"
     commodity_codes: dict[str, str] = Field(
         default_factory=lambda: {
             "13874A": "E-MINI S&P 500",

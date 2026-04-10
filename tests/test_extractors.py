@@ -1,6 +1,7 @@
 """Unit tests for data extractors (no database required)."""
 
 import io
+import logging
 import zipfile
 from datetime import date
 from unittest.mock import MagicMock, patch
@@ -666,3 +667,146 @@ class TestShortInterestDefensiveGuards:
 
         assert len(rows) == 1
         assert rows[0]["settlement_date"] == date.today()
+
+
+def _make_cot_zip(rows: list[dict]) -> bytes:
+    """Create a zipped CSV in CFTC COT format from a list of row dicts."""
+    df = pd.DataFrame(rows)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("annual.txt", df.to_csv(index=False))
+    return buf.getvalue()
+
+
+class TestCftcCotExtractor:
+    """Tests for CFTC COT extractor."""
+
+    @patch("pipeline.extract.cftc_cot.get_circuit_breaker")
+    @patch("pipeline.extract.cftc_cot.get_settings")
+    def test_fetch_cot_year_404_returns_empty(self, mock_settings, mock_cb):
+        """When the CFTC returns 404, _fetch_cot_year returns an empty DataFrame."""
+        mock_settings.return_value.cftc_cot.base_url = "https://example.com"
+        mock_settings.return_value.cftc_cot.commodity_codes = {"13874A": "S&P"}
+        mock_cb.return_value.call = lambda fn: fn()
+
+        from pipeline.extract.cftc_cot import CftcCotExtractor
+
+        extractor = CftcCotExtractor()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        extractor.client = MagicMock()
+        extractor.client.get.return_value = mock_resp
+
+        df = extractor._fetch_cot_year(2024)
+
+        assert df.empty
+
+    @patch("pipeline.extract.cftc_cot.get_circuit_breaker")
+    @patch("pipeline.extract.cftc_cot.get_settings")
+    def test_extract_to_raw_all_404_returns_empty_list(
+        self, mock_settings, mock_cb, tmp_path, caplog
+    ):
+        """When all years return 404, extract_to_raw returns [] and logs a warning."""
+        mock_settings.return_value.cftc_cot.base_url = "https://example.com"
+        mock_settings.return_value.cftc_cot.commodity_codes = {"13874A": "S&P"}
+        mock_settings.return_value.default_start_date = "2024-01-01"
+        mock_cb.return_value.call = lambda fn: fn()
+
+        from pipeline.extract.cftc_cot import CftcCotExtractor
+
+        extractor = CftcCotExtractor()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        extractor.client = MagicMock()
+        extractor.client.get.return_value = mock_resp
+
+        with caplog.at_level(logging.WARNING):
+            result = extractor.extract_to_raw(
+                tmp_path,
+                start_date=date(2024, 1, 1),
+                end_date=date(2024, 12, 31),
+            )
+
+        assert result == []
+        assert any("No COT data extracted" in msg for msg in caplog.messages)
+
+    @patch("pipeline.extract.cftc_cot.get_circuit_breaker")
+    @patch("pipeline.extract.cftc_cot.get_settings")
+    def test_fetch_cot_year_success_parses_data(self, mock_settings, mock_cb):
+        """A successful download parses the CSV and filters by commodity code."""
+        mock_settings.return_value.cftc_cot.base_url = "https://example.com"
+        mock_settings.return_value.cftc_cot.commodity_codes = {"13874A": "S&P"}
+        mock_cb.return_value.call = lambda fn: fn()
+
+        from pipeline.extract.cftc_cot import CftcCotExtractor
+
+        extractor = CftcCotExtractor()
+
+        zip_content = _make_cot_zip([
+            {
+                "CFTC_Contract_Market_Code": "13874A",
+                "Market_and_Exchange_Names": "E-MINI S&P 500",
+                "Report_Date_as_YYYY-MM-DD": "2024-06-04",
+                "Comm_Positions_Long_All": 100,
+                "Comm_Positions_Short_All": 50,
+                "NonComm_Positions_Long_All": 200,
+                "NonComm_Positions_Short_All": 150,
+                "NonComm_Positions_Spread_All": 10,
+                "NonRept_Positions_Long_All": 30,
+                "NonRept_Positions_Short_All": 20,
+                "Open_Interest_All": 500,
+            },
+            {
+                "CFTC_Contract_Market_Code": "XXXXX",
+                "Market_and_Exchange_Names": "OTHER",
+                "Report_Date_as_YYYY-MM-DD": "2024-06-04",
+                "Comm_Positions_Long_All": 1,
+                "Comm_Positions_Short_All": 1,
+                "NonComm_Positions_Long_All": 1,
+                "NonComm_Positions_Short_All": 1,
+                "NonComm_Positions_Spread_All": 1,
+                "NonRept_Positions_Long_All": 1,
+                "NonRept_Positions_Short_All": 1,
+                "Open_Interest_All": 1,
+            },
+        ])
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = zip_content
+        extractor.client = MagicMock()
+        extractor.client.get.return_value = mock_resp
+
+        df = extractor._fetch_cot_year(2024)
+
+        # Only the matching commodity code should remain
+        assert len(df) == 1
+        assert df.iloc[0]["commodity_code"] == "13874A"
+        assert df.iloc[0]["commercial_long"] == 100
+
+    @patch("pipeline.extract.cftc_cot.get_circuit_breaker")
+    @patch("pipeline.extract.cftc_cot.get_settings")
+    def test_url_uses_consistent_pattern(self, mock_settings, mock_cb):
+        """Both current and historical years use the same deacot{year}.zip pattern."""
+        mock_settings.return_value.cftc_cot.base_url = "https://www.cftc.gov/files/dea/history"
+        mock_settings.return_value.cftc_cot.commodity_codes = {"13874A": "S&P"}
+        mock_cb.return_value.call = lambda fn: fn()
+
+        from pipeline.extract.cftc_cot import CftcCotExtractor
+
+        extractor = CftcCotExtractor()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        extractor.client = MagicMock()
+        extractor.client.get.return_value = mock_resp
+
+        extractor._fetch_cot_year(2023)
+        extractor._fetch_cot_year(date.today().year)
+
+        calls = extractor.client.get.call_args_list
+        assert calls[0].args[0] == "https://www.cftc.gov/files/dea/history/deacot2023.zip"
+        expected_current = f"https://www.cftc.gov/files/dea/history/deacot{date.today().year}.zip"
+        assert calls[1].args[0] == expected_current
