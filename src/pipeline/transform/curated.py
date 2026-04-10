@@ -672,7 +672,11 @@ class CuratedTransformer:
 
         with self.db.engine.connect() as conn:
             df = pd.read_sql(
-                text("SELECT date, mkt_rf, smb, hml, rmw, cma, mom, rf FROM raw_factor_returns"), conn
+                text(
+                    "SELECT date, mkt_rf, smb, hml, rmw, cma, mom, rf"
+                    " FROM raw_factor_returns"
+                ),
+                conn,
             )
             if df.empty:
                 return 0
