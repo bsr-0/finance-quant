@@ -27,17 +27,46 @@ class ShortInterestExtractor(HttpClientMixin):
     summary data.
     """
 
+    _BROWSER_UA = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    )
+
     def __init__(self) -> None:
         self.client = httpx.Client(
             timeout=30.0,
-            headers={
-                "User-Agent": "Mozilla/5.0 (compatible; MarketDataWarehouse/1.0)",
-            },
+            headers={"User-Agent": self._BROWSER_UA},
         )
         self._circuit = get_circuit_breaker(
             "short_interest", failure_threshold=5, recovery_timeout=60.0
         )
         self._metrics = PipelineMetrics("short_interest_extractor")
+        self._crumb: str | None = None
+
+    def _ensure_crumb(self) -> str:
+        """Obtain a Yahoo Finance crumb+cookie pair for authenticated requests.
+
+        Yahoo's v10 quoteSummary API requires a valid crumb parameter and
+        matching session cookies.  We fetch these by hitting the Yahoo Finance
+        landing page first (which sets cookies), then calling the crumb
+        endpoint.
+        """
+        if self._crumb is not None:
+            return self._crumb
+
+        # Step 1: Visit Yahoo Finance to obtain session cookies
+        self.client.get("https://finance.yahoo.com/quote/SPY", headers={"User-Agent": self._BROWSER_UA})
+
+        # Step 2: Fetch the crumb using the session cookies
+        crumb_resp = self.client.get(
+            "https://query2.finance.yahoo.com/v1/test/getcrumb",
+            headers={"User-Agent": self._BROWSER_UA},
+        )
+        crumb_resp.raise_for_status()
+        self._crumb = crumb_resp.text.strip()
+        logger.info("Obtained Yahoo Finance crumb for authenticated requests")
+        return self._crumb
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _fetch_short_interest(self, ticker: str) -> list[dict]:
@@ -49,9 +78,14 @@ class ShortInterestExtractor(HttpClientMixin):
         """
 
         def _do() -> list[dict]:
-            url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
-            params = {"modules": "defaultKeyStatistics"}
+            crumb = self._ensure_crumb()
+            url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
+            params = {"modules": "defaultKeyStatistics", "crumb": crumb}
             resp = self.client.get(url, params=params)
+            if resp.status_code == 401:
+                # Crumb expired — clear and re-fetch on retry
+                self._crumb = None
+                resp.raise_for_status()
             resp.raise_for_status()
             data = resp.json()
 

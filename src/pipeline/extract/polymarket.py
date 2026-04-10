@@ -45,7 +45,7 @@ class PolymarketExtractor(HttpClientMixin):
         self._last_request_time = time.time()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def _make_request(self, url: str, params: dict | None = None) -> dict:
+    def _make_request(self, url: str, params: dict | None = None) -> dict | list:
         """Make API request with retry logic."""
         self._rate_limit()
         response = self.client.get(url, params=params or {})
@@ -70,6 +70,9 @@ class PolymarketExtractor(HttpClientMixin):
             "sort": sort,
         }
         data = self._make_request(url, params)
+        # Gamma API may return a JSON array directly or a dict with a "markets" key
+        if isinstance(data, list):
+            return data
         return data.get("markets", [])
 
     def get_market(self, market_id: str) -> dict | None:
