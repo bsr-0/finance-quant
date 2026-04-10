@@ -38,7 +38,12 @@ class RedditSentimentExtractor(HttpClientMixin):
         self.client = httpx.Client(
             timeout=30.0,
             headers={
-                "User-Agent": "MarketDataWarehouse/1.0 (research bot)",
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/json",
             },
         )
         self._circuit = get_circuit_breaker("reddit", failure_threshold=5, recovery_timeout=60.0)
