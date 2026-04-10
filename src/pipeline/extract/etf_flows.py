@@ -56,24 +56,52 @@ class EtfFlowsExtractor(HttpClientMixin):
     for capital flows without requiring a paid data vendor.
     """
 
+    _BROWSER_UA = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    )
+
     def __init__(self) -> None:
         self.client = httpx.Client(
             timeout=30.0,
-            headers={
-                "User-Agent": "Mozilla/5.0 (compatible; MarketDataWarehouse/1.0)",
-            },
+            headers={"User-Agent": self._BROWSER_UA},
         )
         self._circuit = get_circuit_breaker("etf_flows", failure_threshold=5, recovery_timeout=60.0)
         self._metrics = PipelineMetrics("etf_flows_extractor")
+        self._crumb: str | None = None
+
+    def _ensure_crumb(self) -> str:
+        """Obtain a Yahoo Finance crumb+cookie pair for authenticated requests."""
+        if self._crumb is not None:
+            return self._crumb
+
+        self.client.get(
+            "https://finance.yahoo.com/quote/SPY",
+            headers={"User-Agent": self._BROWSER_UA},
+        )
+
+        crumb_resp = self.client.get(
+            "https://query2.finance.yahoo.com/v1/test/getcrumb",
+            headers={"User-Agent": self._BROWSER_UA},
+        )
+        crumb_resp.raise_for_status()
+        self._crumb = crumb_resp.text.strip()
+        logger.info("Obtained Yahoo Finance crumb for ETF flow requests")
+        return self._crumb
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _fetch_etf_profile(self, ticker: str) -> dict | None:
         """Fetch ETF profile data including AUM and shares outstanding."""
 
         def _do() -> dict | None:
-            url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
-            params = {"modules": "defaultKeyStatistics,summaryDetail,price"}
+            crumb = self._ensure_crumb()
+            url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
+            params = {"modules": "defaultKeyStatistics,summaryDetail,price", "crumb": crumb}
             resp = self.client.get(url, params=params)
+            if resp.status_code == 401:
+                self._crumb = None
+                resp.raise_for_status()
             resp.raise_for_status()
             data = resp.json()
 
