@@ -28,6 +28,7 @@ from pipeline.execution.broker import (
     BrokerError,
 )
 from pipeline.execution.capital_guard import CapitalGuard, CapitalGuardConfig
+from pipeline.execution.position_register import PositionRegister
 from pipeline.execution.realtime_feed import RealtimePriceFeed
 from pipeline.infrastructure.notifier import AlertSeverity, notify
 from pipeline.strategy.exits import ExitEngine, ExitReason, PositionState
@@ -128,7 +129,7 @@ class PositionMonitor:
         risk_manager: SwingRiskManager | None = None,
         regime: str = "BULL",
         realtime_feed: RealtimePriceFeed | None = None,
-        position_register: object | None = None,
+        position_register: PositionRegister | None = None,
     ) -> None:
         self.broker = broker
         self.guard = CapitalGuard(config=guard_config, account_provider=broker)

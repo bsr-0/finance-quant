@@ -199,7 +199,7 @@ def ic_decay_analysis(
 
     # Best horizon = highest IC IR (most consistent predictive power)
     valid = {h: ir for h, ir in ic_ir_by_horizon.items() if np.isfinite(ir)}
-    best_horizon = max(valid, key=valid.get) if valid else horizons[0]
+    best_horizon = max(valid, key=lambda h: valid[h]) if valid else horizons[0]
 
     logger.info(
         "IC decay for '%s': %s  (best horizon=%dd)",
