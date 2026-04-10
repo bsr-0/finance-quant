@@ -1950,7 +1950,13 @@ class CuratedTransformer:
             conn.commit()
             rows = self._resolve_rowcount(result, conn, "cur_cftc_cot")
 
-        logger.info(f"Transformed {rows} CFTC COT records")
+        if rows == 0:
+            logger.warning(
+                "No CFTC COT records transformed – raw_cftc_cot may be empty. "
+                "COT-derived features will be unavailable."
+            )
+        else:
+            logger.info(f"Transformed {rows} CFTC COT records")
         self._record_lineage("raw_cftc_cot", "cur_cftc_cot", "transform_cftc_cot")
         return rows
 

@@ -61,18 +61,13 @@ class CftcCotExtractor(HttpClientMixin):
     def _fetch_cot_year(self, year: int) -> pd.DataFrame:
         """Fetch COT bulk CSV for a given year.
 
-        The CFTC publishes combined Futures+Options reports as zipped CSVs.
-        Current year uses ``deacot_combo.zip``; historical years use
-        ``HistoricalCompressed/deacot<YYYY>.zip`` with the ``_combo`` variant
-        for futures+options combined.
+        The CFTC publishes combined Futures+Options reports as zipped CSVs
+        at ``/files/dea/history/deacot<YYYY>.zip``.  The same URL pattern
+        is used for both current and historical years.
         """
 
         def _do() -> pd.DataFrame:
-            current_year = date.today().year
-            if year == current_year:
-                url = f"{self.base_url}/deacot_combo.zip"
-            else:
-                url = f"{self.base_url}/HistoricalCompressed/deacot{year}_combo.zip"
+            url = f"{self.base_url}/deacot{year}.zip"
 
             logger.info(f"Fetching COT data for {year} from {url}")
             resp = self.client.get(url)
@@ -150,6 +145,14 @@ class CftcCotExtractor(HttpClientMixin):
                 logger.error(f"Failed to fetch COT data for {year}: {e}")
 
         if not all_frames:
+            logger.warning(
+                "No COT data extracted for any year in range %d–%d. "
+                "Verify the CFTC base URL (%s) is accessible.",
+                start_date.year,
+                end_date.year,
+                self.base_url,
+            )
+            self._metrics.record_error("no_data_all_years")
             return []
 
         combined = pd.concat(all_frames, ignore_index=True)
