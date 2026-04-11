@@ -15,6 +15,14 @@ from **2010-01-01 to present** for the 34 tickers configured in
 > them for backfill — invoke the CLI directly with explicit `--start` and
 > `--end`.
 
+> **⚠ Prefix every command below.** There is no bare `extract` binary. Use
+> either `python -m pipeline.cli extract …` (works from the repo root with
+> the package installed editable) **or** `mdw extract …` (the console
+> script installed from `pyproject.toml:70`). Running plain
+> `extract prices …` will fail with `zsh: command not found: extract`.
+> Paste commands one line at a time — copying the whole block with your
+> shell prompt (`user@host %`) in front will cause `zsh: parse error`.
+
 ## 0. Prerequisites
 
 ```bash
@@ -162,6 +170,14 @@ gaps) and **~4k** factor rows (daily Fama-French back to 2010).
 
 ## 7. Troubleshooting
 
+- **`zsh: command not found: extract`** — you dropped the
+  `python -m pipeline.cli` prefix (or the `mdw` entrypoint). There is no
+  standalone `extract` binary. Correct form:
+  `python -m pipeline.cli extract prices --start 2010-01-01 --end 2026-04-11`.
+- **`zsh: parse error near 'user@host'`** (or similar) — you pasted a
+  block of shell that included the shell prompt itself (e.g.
+  `(base) you@host finance-quant %`). Strip the prompt or paste one
+  command per line.
 - **`IOException: Could not set lock on file market_data.duckdb`** —
   another python process is already connected to DuckDB. Only one
   extractor at a time. Use `lsof data/market_data.duckdb` to find it.
