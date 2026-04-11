@@ -126,6 +126,8 @@ defined in `src/pipeline/cli.py`.
 - CLI & subcommands → `src/pipeline/cli.py`
 - Settings / env / YAML wiring → `src/pipeline/settings.py`, `config.yaml`
 - DB schemas → `src/sql/ddl/`, `src/sql/ddl_duckdb/`
+- Historical backfill runbook → `HISTORICAL_BACKFILL.md` (copy-pasteable
+  CLI commands for 2010-present, for running outside a restricted sandbox)
 - Known issues → `CRITICAL_LIMITATION.md`, `GAP_ANALYSIS.md`, `AUDIT_REPORT.md`
 - Strategy design → `STRATEGY_SPEC.md`, `STRATEGY_MEMO.md`
 - Live-trading readiness → `LIVE_READINESS_CHECKLIST.md`
