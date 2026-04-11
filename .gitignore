@@ -29,6 +29,9 @@ env/
 # Data (raw lake, checkpoints, runtime databases)
 data/
 
+# Runtime logs
+logs/
+
 # Test / coverage
 .coverage
 htmlcov/
