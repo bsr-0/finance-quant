@@ -606,6 +606,36 @@ class TestFactorsFFDefensiveGuards:
         with pytest.raises(ValueError, match="Empty ZIP file"):
             _read_zip_csv(buf.getvalue())
 
+    def test_read_zip_csv_multi_table_file(self):
+        """Ken French files concatenate daily + annual tables; parser must
+        locate the header dynamically and stop at the end of the daily block."""
+        from pipeline.extract.factors_ff import _read_zip_csv
+
+        fake = (
+            "This file was created by ...\n"
+            "The data are computed ...\n"
+            "From 1926 ...\n"
+            "\n"
+            ",Mkt-RF,SMB,HML,RMW,CMA,RF\n"
+            "19260701,-0.10,0.05,0.12,0.03,-0.02,0.009\n"
+            "19260702,0.22,-0.11,0.04,0.08,0.01,0.009\n"
+            "20260410,0.88,0.12,-0.44,0.05,-0.01,0.018\n"
+            "\n"
+            " Annual Factors: January-December\n"
+            "\n"
+            ",Mkt-RF,SMB,HML,RMW,CMA,RF\n"
+            "1926,11.62,-0.44,4.51,NA,NA,3.19\n"
+        )
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("F-F_Research_Data_5_Factors_2x3_daily.CSV", fake)
+
+        df = _read_zip_csv(buf.getvalue())
+        assert len(df) == 3, f"expected 3 daily rows, got {len(df)}"
+        assert "Mkt-RF" in df.columns
+        assert str(df.index[0].date()) == "1926-07-01"
+        assert str(df.index[-1].date()) == "2026-04-10"
+
 
 class TestGDELTDefensiveGuards:
     """Tests for gdelt.py empty ZIP guard."""
