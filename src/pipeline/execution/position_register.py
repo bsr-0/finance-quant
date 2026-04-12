@@ -17,8 +17,10 @@ import os
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from pipeline.execution.position_monitor import TrackedPosition
+if TYPE_CHECKING:
+    from pipeline.execution.position_monitor import TrackedPosition
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,8 @@ def _tracked_to_dict(pos: TrackedPosition) -> dict:
 
 
 def _dict_to_tracked(d: dict) -> TrackedPosition:
+    from pipeline.execution.position_monitor import TrackedPosition
+
     entry_date = d["entry_date"]
     if isinstance(entry_date, str):
         dt = datetime.fromisoformat(entry_date)
