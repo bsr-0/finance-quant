@@ -26,15 +26,50 @@ _MOM_URL = (
 
 
 def _read_zip_csv(content: bytes) -> pd.DataFrame:
+    """Parse a Ken French factor ZIP → DataFrame indexed by date.
+
+    Ken French files have a variable-length text preamble and frequently
+    concatenate multiple tables (daily + annual, etc.) in a single CSV,
+    separated by blank lines and text section headers. We locate the
+    header row dynamically and stop at the first blank line or non-date
+    row after the data starts.
+    """
     with zipfile.ZipFile(io.BytesIO(content)) as zf:
         if not zf.namelist():
             raise ValueError("Empty ZIP file — no CSV found")
         name = zf.namelist()[0]
         with zf.open(name) as f:
-            df = pd.read_csv(f, skiprows=3)
-    df = df.rename(columns={"Unnamed: 0": "date"})
-    df = df[df["date"].astype(str).str.len() == 8]
-    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+            raw = f.read().decode("utf-8", errors="replace")
+
+    lines = raw.splitlines()
+
+    # Header row: first line that starts with ',' and contains column letters
+    header_idx: int | None = None
+    for i, line in enumerate(lines):
+        if line.startswith(",") and any(c.isalpha() for c in line):
+            header_idx = i
+            break
+    if header_idx is None:
+        raise ValueError("Could not locate Fama-French CSV header row")
+
+    # Data block ends at first blank line or first row whose leading field
+    # isn't an 8-digit YYYYMMDD date (handles daily→annual table boundary).
+    end_idx = len(lines)
+    for i in range(header_idx + 1, len(lines)):
+        stripped = lines[i].strip()
+        if not stripped:
+            end_idx = i
+            break
+        first_field = stripped.split(",")[0].strip()
+        if not (first_field.isdigit() and len(first_field) == 8):
+            end_idx = i
+            break
+
+    csv_block = "\n".join(lines[header_idx:end_idx])
+    df = pd.read_csv(io.StringIO(csv_block))
+    df.columns = [str(c).strip() for c in df.columns]
+    df = df.rename(columns={df.columns[0]: "date"})
+    df["date"] = pd.to_datetime(df["date"].astype(str), format="%Y%m%d")
     df = df.set_index("date")
     return df
 
