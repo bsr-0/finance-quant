@@ -10,10 +10,15 @@ from **2010-01-01 to present** for the 34 tickers configured in
 > extractors cannot run inside the sandbox. Run these commands on your own
 > machine (or CI) where outbound HTTPS to those providers is allowed.
 
+> **Automated alternative:** use `make historical-backfill` or the CLI
+> command `mdw historical-backfill` to run the full extract → load →
+> transform → latency-stats → snapshot → dq pipeline in one step.
+> See [Automated Backfill](#automated-backfill) below.
+
 > **Note on the Makefile:** the `make extract-*` targets hardcode
 > `2024-01-01`/`2024-12-31` (see `Makefile:82`, `89`, etc.). Do **not** use
 > them for backfill — invoke the CLI directly with explicit `--start` and
-> `--end`.
+> `--end`, or use the dedicated `make historical-backfill` target.
 
 > **⚠ Prefix every command below.** There is no bare `extract` binary. Use
 > either `python -m pipeline.cli extract …` (works from the repo root with
@@ -196,6 +201,39 @@ gaps) and **~4k** factor rows (daily Fama-French back to 2010).
   corporate proxies strip it).
 - **FRED `API key missing`** — export `FRED_API_KEY` before running the
   `extract fred` command.
+
+## Automated Backfill
+
+Instead of running each extractor manually, use the `historical-backfill`
+command which orchestrates the entire pipeline:
+
+```bash
+# Full backfill — all sources, 2010 to today
+mdw historical-backfill --start 2010-01-01
+
+# Or via make (START defaults to 2010-01-01, END to today)
+make historical-backfill
+
+# Prices and factors only
+mdw historical-backfill --source prices --source factors
+make historical-backfill-prices
+
+# Custom date range
+make historical-backfill START=2020-01-01 END=2024-12-31
+
+# Extract only, skip downstream transforms/snapshots/dq
+mdw historical-backfill --skip-transform
+```
+
+The command runs sources sequentially (DuckDB is single-writer) in tier
+order: prices → factors → fred → SEC → CFTC → shallow-history sources.
+Failed sources are logged but do not stop extraction of remaining sources.
+
+After extraction, it automatically runs:
+1. `transform-curated` — build curated tables
+2. `latency-stats` — compute source latency distributions
+3. `build-snapshots` — create point-in-time training snapshots
+4. `dq` — data quality checks
 
 ## 8. What NOT to do
 

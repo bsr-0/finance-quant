@@ -1,4 +1,4 @@
-.PHONY: help setup install install-dev db-init db-reset test test-dq lint format clean extract-all transform snapshots inventory full-pipeline daily-predictions build-site extract-fred extract-gdelt extract-prices extract-polymarket extract-sec-fundamentals extract-sec-insider extract-sec-13f extract-options extract-earnings extract-reddit extract-short-interest extract-etf-flows extract-cftc extract-factors
+.PHONY: help setup install install-dev db-init db-reset test test-dq lint format clean extract-all transform snapshots inventory full-pipeline daily-predictions build-site extract-fred extract-gdelt extract-prices extract-polymarket extract-sec-fundamentals extract-sec-insider extract-sec-13f extract-options extract-earnings extract-reddit extract-short-interest extract-etf-flows extract-cftc extract-factors latency-stats historical-backfill
 
 # Default target
 help:
@@ -21,8 +21,14 @@ help:
 	@echo "Pipeline:"
 	@echo "  make extract-all    - Extract all configured sources"
 	@echo "  make transform      - Run curated transformations"
+	@echo "  make latency-stats  - Compute source latency statistics"
 	@echo "  make snapshots      - Build training snapshots"
 	@echo "  make full-pipeline  - Run complete pipeline"
+	@echo ""
+	@echo "Historical Backfill:"
+	@echo "  make historical-backfill            - Full backfill (2010-present, all sources)"
+	@echo "  make historical-backfill-prices     - Backfill prices + factors only"
+	@echo "  make historical-backfill START=2020-01-01  - Custom start date"
 	@echo ""
 	@echo "Quality:"
 	@echo "  make test           - Run all tests"
@@ -163,8 +169,21 @@ dq:
 inventory:
 	python -m pipeline.cli inventory
 
-full-pipeline: extract-all transform snapshots dq inventory
+latency-stats:
+	python -m pipeline.cli latency-stats
+
+full-pipeline: extract-all transform latency-stats snapshots dq inventory
 	@echo "✓ Full pipeline complete"
+
+# Historical backfill (2010-present by default, override with START= END=)
+START ?= 2010-01-01
+END ?= $(shell date +%Y-%m-%d)
+
+historical-backfill:
+	python -m pipeline.cli historical-backfill --start $(START) --end $(END)
+
+historical-backfill-prices:
+	python -m pipeline.cli historical-backfill --start $(START) --end $(END) --source prices --source factors
 
 # Daily predictions
 daily-predictions:

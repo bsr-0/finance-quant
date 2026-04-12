@@ -77,7 +77,10 @@ All from the `Makefile`; run from repo root.
 | `make transform` | Run curated transformations |
 | `make snapshots` | Build training snapshots |
 | `make dq` / `make test-dq` | Run data-quality tests |
-| `make full-pipeline` | extract-all → transform → snapshots → dq → inventory |
+| `make latency-stats` | Compute source latency distributions |
+| `make full-pipeline` | extract-all → transform → latency-stats → snapshots → dq → inventory |
+| `make historical-backfill` | Full 2010-present backfill (all sources, end-to-end) |
+| `make historical-backfill-prices` | Backfill prices + factors only |
 | `make daily-predictions` | Generate daily predictions + update `site/` |
 | `make test` | `pytest tests/ -v` |
 | `make test-snapshots` | `pytest tests/test_snapshots.py -v` |

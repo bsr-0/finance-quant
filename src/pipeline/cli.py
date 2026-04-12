@@ -455,6 +455,241 @@ def latency_stats(
         raise typer.Exit(1) from e
 
 
+# Sources ordered by tier (see HISTORICAL_BACKFILL.md):
+#   Tier 1 — no API keys: prices, factors
+#   Tier 2 — free API key: fred
+#   Tier 3 — no keys, slow: sec-fundamentals, sec-insider, sec-13f, cftc-cot
+#   Tier 4 — shallow history: gdelt, polymarket, options, earnings,
+#            reddit-sentiment, short-interest, etf-flows
+_BACKFILL_SOURCES: list[tuple[str, str]] = [
+    ("prices", "prices"),
+    ("factors", "factors"),
+    ("fred", "fred"),
+    ("sec-fundamentals", "sec_fundamentals"),
+    ("sec-insider", "sec_insider"),
+    ("sec-13f", "sec_13f"),
+    ("cftc-cot", "cftc_cot"),
+    ("gdelt", "gdelt"),
+    ("polymarket", "polymarket"),
+    ("options", "options"),
+    ("earnings", "earnings"),
+    ("reddit-sentiment", "reddit_sentiment"),
+    ("short-interest", "short_interest"),
+    ("etf-flows", "etf_flows"),
+]
+
+
+@app.command()
+def historical_backfill(
+    start: str = typer.Option(
+        "2010-01-01", "--start", "-s", help="Start date (YYYY-MM-DD)"
+    ),
+    end: str | None = typer.Option(
+        None, "--end", "-e", help="End date (YYYY-MM-DD, default: today)"
+    ),
+    sources: list[str] | None = typer.Option(  # noqa: B008
+        None,
+        "--source",
+        help="Restrict to specific sources (repeatable). Default: all.",
+    ),
+    skip_transform: bool = typer.Option(
+        False, "--skip-transform", help="Skip transform / snapshot / dq steps"
+    ),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Re-fetch even if output already exists"
+    ),
+):
+    """Run a full historical backfill: extract, load, transform, snapshot, dq.
+
+    Orchestrates extraction for every source from --start to --end, loads into
+    the raw warehouse, then runs curated transforms, latency stats, snapshots,
+    data-quality checks, and inventory.
+
+    Examples:
+        # Full 2010-present backfill (all sources)
+        mdw historical-backfill --start 2010-01-01
+
+        # Only prices and factors
+        mdw historical-backfill --source prices --source factors
+
+        # Extract only, skip downstream transforms
+        mdw historical-backfill --skip-transform
+    """
+    end_date = end or date.today().isoformat()
+    settings = get_settings()
+    raw_path = settings.raw_lake_path
+
+    run_id = record_pipeline_run(
+        "historical_backfill",
+        {"start": start, "end": end_date, "sources": sources or "all"},
+    )
+
+    # Determine which sources to run
+    if sources:
+        source_list = [
+            (extract_name, load_name)
+            for extract_name, load_name in _BACKFILL_SOURCES
+            if extract_name in sources
+        ]
+        unknown = set(sources) - {name for name, _ in _BACKFILL_SOURCES}
+        if unknown:
+            console.print(f"[red]Unknown sources: {unknown}[/red]")
+            raise typer.Exit(1)
+    else:
+        source_list = list(_BACKFILL_SOURCES)
+
+    succeeded: list[str] = []
+    failed: list[tuple[str, str]] = []
+
+    # --- Phase 1: Extract + Load each source sequentially ---
+    console.print(
+        f"[bold]Historical backfill: {start} to {end_date} "
+        f"({len(source_list)} sources)[/bold]"
+    )
+
+    for extract_name, load_name in source_list:
+        console.print(f"\n[cyan]--- {extract_name} ---[/cyan]")
+
+        # Extract
+        try:
+            if extract_name == "factors":
+                files = extract_factors_ff(raw_path, run_id=run_id)
+            elif extract_name == "options":
+                files = extract_options(raw_path, run_id=run_id)
+            elif extract_name == "reddit-sentiment":
+                files = extract_reddit_sentiment(raw_path, run_id=run_id)
+            elif extract_name == "short-interest":
+                files = extract_short_interest(raw_path, run_id=run_id)
+            elif extract_name == "etf-flows":
+                files = extract_etf_flows(raw_path, run_id=run_id)
+            elif extract_name == "cftc-cot":
+                s = date.fromisoformat(start)
+                e = date.fromisoformat(end_date)
+                files = extract_cftc_cot(raw_path, start_date=s, end_date=e, run_id=run_id)
+            elif extract_name == "fred":
+                files = extract_fred(
+                    raw_path, start_date=start, end_date=end_date, run_id=run_id
+                )
+            elif extract_name == "gdelt":
+                files = extract_gdelt(
+                    raw_path, start_date=start, end_date=end_date, run_id=run_id
+                )
+            elif extract_name == "polymarket":
+                files = extract_polymarket(
+                    raw_path, start_date=start, end_date=end_date, run_id=run_id
+                )
+            elif extract_name == "prices":
+                files = extract_prices(
+                    raw_path, start_date=start, end_date=end_date, run_id=run_id
+                )
+            elif extract_name == "sec-fundamentals":
+                files = extract_sec_fundamentals(
+                    raw_path, start_date=start, end_date=end_date, run_id=run_id
+                )
+            elif extract_name == "sec-insider":
+                files = extract_sec_insider(
+                    raw_path, start_date=start, end_date=end_date, run_id=run_id
+                )
+            elif extract_name == "sec-13f":
+                files = extract_sec_13f(
+                    raw_path, start_date=start, end_date=end_date, run_id=run_id
+                )
+            elif extract_name == "earnings":
+                files = extract_earnings(
+                    raw_path, start_date=start, end_date=end_date,
+                    run_id=run_id, force=force,
+                )
+            else:
+                console.print(f"  [yellow]⚠ No extract handler for {extract_name}[/yellow]")
+                continue
+
+            file_count = (
+                len(files) if isinstance(files, list) else sum(len(v) for v in files.values())
+            )
+            console.print(f"  [green]✓ Extracted {file_count} files[/green]")
+        except Exception as exc:
+            console.print(f"  [red]✗ Extract failed: {exc}[/red]")
+            failed.append((extract_name, str(exc)))
+            continue
+
+        # Load
+        try:
+            loader = RawLoader()
+            rows = loader.load_all_raw_files(raw_path, load_name, run_id=UUID(run_id))
+            console.print(f"  [green]✓ Loaded {rows} rows[/green]")
+            succeeded.append(extract_name)
+        except Exception as exc:
+            console.print(f"  [red]✗ Load failed: {exc}[/red]")
+            failed.append((extract_name, str(exc)))
+
+    # --- Phase 2: Downstream pipeline ---
+    if not skip_transform and succeeded:
+        console.print("\n[bold]Running downstream pipeline...[/bold]")
+
+        # Transform
+        try:
+            console.print("[cyan]--- transform-curated ---[/cyan]")
+            transformer = CuratedTransformer(run_id=run_id)
+            results = transformer.transform_all()
+            for tbl, cnt in results.items():
+                console.print(f"  {tbl}: {cnt} rows")
+            console.print("[green]✓ Transform complete[/green]")
+        except Exception as exc:
+            console.print(f"[red]✗ Transform failed: {exc}[/red]")
+
+        # Latency stats
+        try:
+            console.print("[cyan]--- latency-stats ---[/cyan]")
+            lat_results = refresh_latency_stats()
+            for src, metrics in lat_results.items():
+                n = metrics.get("sample_size", 0)
+                console.print(f"  {src}: {n} samples")
+            console.print("[green]✓ Latency stats complete[/green]")
+        except Exception as exc:
+            console.print(f"[red]✗ Latency stats failed: {exc}[/red]")
+
+        # Snapshots
+        try:
+            console.print("[cyan]--- build-snapshots ---[/cyan]")
+            builder = SymbolSnapshotBuilder()
+            snap_results = builder.build_all(
+                start_ts=datetime.fromisoformat(f"{start}T00:00:00"),
+                end_ts=datetime.fromisoformat(f"{end_date}T00:00:00"),
+                freq="1d",
+            )
+            console.print(f"[green]✓ Snapshots built: {snap_results}[/green]")
+        except Exception as exc:
+            console.print(f"[red]✗ Snapshots failed: {exc}[/red]")
+
+        # DQ
+        try:
+            console.print("[cyan]--- dq ---[/cyan]")
+            passed = run_dq_tests()
+            if passed:
+                console.print("[green]✓ DQ tests passed[/green]")
+            else:
+                console.print("[yellow]⚠ Some DQ tests failed[/yellow]")
+        except Exception as exc:
+            console.print(f"[red]✗ DQ failed: {exc}[/red]")
+
+    # --- Summary ---
+    console.print("\n[bold]Backfill Summary[/bold]")
+    console.print(f"  Succeeded: {len(succeeded)} source(s)")
+    if failed:
+        console.print(f"  Failed: {len(failed)} source(s)")
+        for name, err in failed:
+            console.print(f"    [red]✗ {name}: {err}[/red]")
+
+    update_pipeline_run(
+        run_id,
+        "success" if not failed else "partial",
+        {"succeeded": succeeded, "failed": [f[0] for f in failed]},
+    )
+
+    if failed:
+        raise typer.Exit(1)
+
+
 def _read_data(path: Path) -> pd.DataFrame:
     if path.suffix.lower() in {".parquet", ".pq"}:
         return pd.read_parquet(path)
