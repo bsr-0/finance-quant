@@ -479,7 +479,23 @@
       "resolved_price": null,
       "pnl_pct": null,
       "days_held": null
+    },
+    {
+      "signal_date": "2026-04-13",
+      "ticker": "XLE",
+      "score": 65,
+      "confidence": "LOW",
+      "entry_price": 57.11,
+      "stop_price": 54.4588,
+      "target_price": 60.645,
+      "regime": "BULL",
+      "direction": "LONG",
+      "outcome": "active",
+      "resolved_date": null,
+      "resolved_price": null,
+      "pnl_pct": null,
+      "days_held": null
     }
   ],
-  "last_updated": "2026-04-10T23:06:06.367216+00:00"
+  "last_updated": "2026-04-13T23:13:23.753214+00:00"
 }
