@@ -474,11 +474,11 @@
       "target_price": 60.6321,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "stopped_out",
+      "resolved_date": "2026-04-17",
+      "resolved_price": 54.1709,
+      "pnl_pct": -4.86,
+      "days_held": 7
     },
     {
       "signal_date": "2026-04-13",
@@ -490,12 +490,12 @@
       "target_price": 60.645,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "stopped_out",
+      "resolved_date": "2026-04-17",
+      "resolved_price": 54.4588,
+      "pnl_pct": -4.64,
+      "days_held": 4
     }
   ],
-  "last_updated": "2026-04-16T23:11:49.926734+00:00"
+  "last_updated": "2026-04-17T23:10:44.745774+00:00"
 }
