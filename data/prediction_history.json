@@ -495,7 +495,23 @@
       "resolved_price": 54.4588,
       "pnl_pct": -4.64,
       "days_held": 4
+    },
+    {
+      "signal_date": "2026-04-29",
+      "ticker": "XLB",
+      "score": 60,
+      "confidence": "LOW",
+      "entry_price": 50.96,
+      "stop_price": 49.8939,
+      "target_price": 52.3814,
+      "regime": "BULL",
+      "direction": "LONG",
+      "outcome": "active",
+      "resolved_date": null,
+      "resolved_price": null,
+      "pnl_pct": null,
+      "days_held": null
     }
   ],
-  "last_updated": "2026-04-28T23:31:07.362374+00:00"
+  "last_updated": "2026-04-29T23:30:41.336179+00:00"
 }
