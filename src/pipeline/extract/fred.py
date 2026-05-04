@@ -11,6 +11,13 @@ import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from pipeline.extract._base import HttpClientMixin
+from pipeline.extract.checkpoint_helpers import (
+    get_checkpoint_manager,
+    make_operation_id,
+    mark_item_done,
+    resumable_items,
+)
+from pipeline.infrastructure.checkpoint import CheckpointContext
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -88,38 +95,46 @@ class FredExtractor(HttpClientMixin):
         start_date: date | None = None,
         end_date: date | None = None,
         run_id: str | None = None,
+        resume: bool = True,
     ) -> list[Path]:
         """Extract series data to raw lake."""
         codes = series_codes or self.series_codes
         output_dir = Path(output_dir) / "fred"
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        ckpt = get_checkpoint_manager()
+        op_id = make_operation_id("fred")
+
         saved_files = []
         failed = []
 
-        for code in codes:
-            logger.info(f"Extracting FRED series: {code}")
-            try:
-                with self._metrics.time_operation(f"extract_{code}"):
-                    df = self.get_observations(code, start_date, end_date)
-                if df.empty:
-                    continue
+        with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
+            for idx, code in resumable_items(codes, ctx):
+                logger.info(f"Extracting FRED series: {code}")
+                try:
+                    with self._metrics.time_operation(f"extract_{code}"):
+                        df = self.get_observations(code, start_date, end_date)
+                    if df.empty:
+                        mark_item_done(ctx, code, idx, len(codes))
+                        continue
 
-                # Add metadata
-                df["extracted_at"] = datetime.now(UTC)
-                df["run_id"] = run_id
+                    # Add metadata
+                    df["extracted_at"] = datetime.now(UTC)
+                    df["run_id"] = run_id
 
-                # Save to parquet
-                file_path = output_dir / f"{code}_{start_date}_{end_date}.parquet"
-                df.to_parquet(file_path, index=False)
-                saved_files.append(file_path)
-                self._metrics.record_extracted("fred", len(df))
-                logger.info(f"Saved {len(df)} observations to {file_path}")
+                    # Save to parquet
+                    file_path = output_dir / f"{code}_{start_date}_{end_date}.parquet"
+                    df.to_parquet(file_path, index=False)
+                    saved_files.append(file_path)
+                    self._metrics.record_extracted("fred", len(df))
+                    logger.info(f"Saved {len(df)} observations to {file_path}")
 
-            except Exception as e:
-                self._metrics.record_error(type(e).__name__)
-                logger.error(f"Failed to extract {code}: {e}")
-                failed.append(code)
+                except Exception as e:
+                    self._metrics.record_error(type(e).__name__)
+                    logger.error(f"Failed to extract {code}: {e}")
+                    failed.append(code)
+
+                mark_item_done(ctx, code, idx, len(codes))
 
         if failed:
             logger.warning(f"Failed to extract {len(failed)}/{len(codes)} series: {failed}")
@@ -132,6 +147,7 @@ def extract_fred(
     start_date: str | None = None,
     end_date: str | None = None,
     run_id: str | None = None,
+    resume: bool = True,
 ) -> list[Path]:
     """CLI-friendly wrapper for FRED extraction."""
 
@@ -146,4 +162,5 @@ def extract_fred(
         start_date=start,
         end_date=end,
         run_id=run_id,
+        resume=resume,
     )

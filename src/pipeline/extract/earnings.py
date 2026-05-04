@@ -12,6 +12,13 @@ import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from pipeline.extract._base import HttpClientMixin
+from pipeline.extract.checkpoint_helpers import (
+    get_checkpoint_manager,
+    make_operation_id,
+    mark_item_done,
+    resumable_items,
+)
+from pipeline.infrastructure.checkpoint import CheckpointContext
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -187,6 +194,7 @@ class EarningsExtractor(HttpClientMixin):
         end_date: date | None = None,
         run_id: str | None = None,
         force: bool = False,
+        resume: bool = True,
     ) -> list[Path]:
         """Extract earnings data for tickers.
 
@@ -198,53 +206,68 @@ class EarningsExtractor(HttpClientMixin):
         output_dir = Path(output_dir) / "earnings"
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        ckpt = get_checkpoint_manager()
+        op_id = make_operation_id("earnings")
+
         saved_files: list[Path] = []
 
-        for ticker in tickers:
-            file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
+        with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
+            for idx, ticker in resumable_items(tickers, ctx):
+                file_path = (
+                    output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
+                )
 
-            if not force and file_path.exists():
-                logger.info(f"Skipping {ticker} — already extracted ({file_path.name})")
-                saved_files.append(file_path)
-                continue
-
-            logger.info(f"Extracting earnings for {ticker}")
-            try:
-                with self._metrics.time_operation(f"extract_earnings_{ticker}"):
-                    modules = self._fetch_earnings_modules(ticker)
-                    rows = self._parse_earnings_data(modules, ticker)
-
-                if not rows:
-                    logger.warning(f"No earnings data for {ticker}")
-                    time.sleep(0.5)
+                if not force and file_path.exists():
+                    logger.info(
+                        f"Skipping {ticker} — already extracted ({file_path.name})"
+                    )
+                    saved_files.append(file_path)
+                    mark_item_done(ctx, ticker, idx, len(tickers))
                     continue
 
-                df = pd.DataFrame(rows)
-                df["report_date"] = pd.to_datetime(df["report_date"], errors="coerce").dt.date
+                logger.info(f"Extracting earnings for {ticker}")
+                try:
+                    with self._metrics.time_operation(
+                        f"extract_earnings_{ticker}"
+                    ):
+                        modules = self._fetch_earnings_modules(ticker)
+                        rows = self._parse_earnings_data(modules, ticker)
 
-                if start_date:
-                    df = df[df["report_date"] >= start_date]
-                if end_date:
-                    df = df[df["report_date"] <= end_date]
+                    if not rows:
+                        logger.warning(f"No earnings data for {ticker}")
+                        time.sleep(0.5)
+                        mark_item_done(ctx, ticker, idx, len(tickers))
+                        continue
 
-                if df.empty:
-                    time.sleep(0.5)
-                    continue
+                    df = pd.DataFrame(rows)
+                    df["report_date"] = pd.to_datetime(
+                        df["report_date"], errors="coerce"
+                    ).dt.date
 
-                df["extracted_at"] = datetime.now(UTC)
-                df["run_id"] = run_id
+                    if start_date:
+                        df = df[df["report_date"] >= start_date]
+                    if end_date:
+                        df = df[df["report_date"] <= end_date]
 
-                df.to_parquet(file_path, index=False)
-                saved_files.append(file_path)
-                self._metrics.record_extracted("earnings", len(df))
-                logger.info(f"Saved {len(df)} earnings records for {ticker}")
+                    if df.empty:
+                        time.sleep(0.5)
+                        mark_item_done(ctx, ticker, idx, len(tickers))
+                        continue
 
-            except Exception as e:
-                self._metrics.record_error(type(e).__name__)
-                logger.error(f"Failed earnings for {ticker}: {e}")
-                continue
+                    df["extracted_at"] = datetime.now(UTC)
+                    df["run_id"] = run_id
 
-            time.sleep(0.5)
+                    df.to_parquet(file_path, index=False)
+                    saved_files.append(file_path)
+                    self._metrics.record_extracted("earnings", len(df))
+                    logger.info(f"Saved {len(df)} earnings records for {ticker}")
+
+                except Exception as e:
+                    self._metrics.record_error(type(e).__name__)
+                    logger.error(f"Failed earnings for {ticker}: {e}")
+
+                mark_item_done(ctx, ticker, idx, len(tickers))
+                time.sleep(0.5)
 
         return saved_files
 
@@ -256,6 +279,7 @@ def extract_earnings(
     end_date: str | None = None,
     run_id: str | None = None,
     force: bool = False,
+    resume: bool = True,
 ) -> list[Path]:
     """CLI-friendly wrapper."""
     extractor = EarningsExtractor()
@@ -268,4 +292,5 @@ def extract_earnings(
         end_date=end,
         run_id=run_id,
         force=force,
+        resume=resume,
     )

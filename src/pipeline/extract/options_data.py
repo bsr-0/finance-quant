@@ -12,6 +12,13 @@ import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from pipeline.extract._base import HttpClientMixin
+from pipeline.extract.checkpoint_helpers import (
+    get_checkpoint_manager,
+    make_operation_id,
+    mark_item_done,
+    resumable_items,
+)
+from pipeline.infrastructure.checkpoint import CheckpointContext
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -98,6 +105,7 @@ class OptionsDataExtractor(HttpClientMixin):
         tickers: list[str] | None = None,
         run_id: str | None = None,
         max_expirations: int = 6,
+        resume: bool = True,
     ) -> list[Path]:
         """Extract options chain data for tickers."""
         settings = get_settings()
@@ -105,44 +113,50 @@ class OptionsDataExtractor(HttpClientMixin):
         output_dir = Path(output_dir) / "options"
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        ckpt = get_checkpoint_manager()
+        op_id = make_operation_id("options")
+
         today = date.today()
         saved_files: list[Path] = []
 
-        for ticker in tickers:
-            logger.info(f"Extracting options for {ticker}")
-            try:
-                # Get available expirations
-                expirations = self._get_expiration_dates(ticker)
-                # Take nearest N expirations for term structure
-                expirations = expirations[:max_expirations]
-                time.sleep(0.5)
-
-                all_rows: list[dict] = []
-
-                for exp_ts in expirations:
-                    with self._metrics.time_operation(f"extract_options_{ticker}"):
-                        data = self._fetch_options_chain(ticker, exp_ts)
-                        rows = self._parse_chain(data, ticker, today)
-                        all_rows.extend(rows)
+        with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
+            for idx, ticker in resumable_items(tickers, ctx):
+                logger.info(f"Extracting options for {ticker}")
+                try:
+                    expirations = self._get_expiration_dates(ticker)
+                    expirations = expirations[:max_expirations]
                     time.sleep(0.5)
 
-                if not all_rows:
-                    continue
+                    all_rows: list[dict] = []
 
-                df = pd.DataFrame(all_rows)
-                df["extracted_at"] = datetime.now(UTC)
-                df["run_id"] = run_id
+                    for exp_ts in expirations:
+                        with self._metrics.time_operation(
+                            f"extract_options_{ticker}"
+                        ):
+                            data = self._fetch_options_chain(ticker, exp_ts)
+                            rows = self._parse_chain(data, ticker, today)
+                            all_rows.extend(rows)
+                        time.sleep(0.5)
 
-                file_path = output_dir / f"{ticker}_{today}.parquet"
-                df.to_parquet(file_path, index=False)
-                saved_files.append(file_path)
-                self._metrics.record_extracted("options", len(df))
-                logger.info(f"Saved {len(df)} options contracts for {ticker}")
+                    if not all_rows:
+                        mark_item_done(ctx, ticker, idx, len(tickers))
+                        continue
 
-            except Exception as e:
-                self._metrics.record_error(type(e).__name__)
-                logger.error(f"Failed options for {ticker}: {e}")
-                continue
+                    df = pd.DataFrame(all_rows)
+                    df["extracted_at"] = datetime.now(UTC)
+                    df["run_id"] = run_id
+
+                    file_path = output_dir / f"{ticker}_{today}.parquet"
+                    df.to_parquet(file_path, index=False)
+                    saved_files.append(file_path)
+                    self._metrics.record_extracted("options", len(df))
+                    logger.info(f"Saved {len(df)} options contracts for {ticker}")
+
+                except Exception as e:
+                    self._metrics.record_error(type(e).__name__)
+                    logger.error(f"Failed options for {ticker}: {e}")
+
+                mark_item_done(ctx, ticker, idx, len(tickers))
 
         return saved_files
 
@@ -151,6 +165,7 @@ def extract_options(
     output_dir: Path,
     tickers: list[str] | None = None,
     run_id: str | None = None,
+    resume: bool = True,
 ) -> list[Path]:
     """CLI-friendly wrapper."""
     extractor = OptionsDataExtractor()
@@ -158,4 +173,5 @@ def extract_options(
         output_dir=output_dir,
         tickers=tickers,
         run_id=run_id,
+        resume=resume,
     )

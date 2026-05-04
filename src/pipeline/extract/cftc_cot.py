@@ -13,6 +13,13 @@ import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from pipeline.extract._base import HttpClientMixin
+from pipeline.extract.checkpoint_helpers import (
+    get_checkpoint_manager,
+    make_operation_id,
+    mark_item_done,
+    resumable_items,
+)
+from pipeline.infrastructure.checkpoint import CheckpointContext
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -120,6 +127,7 @@ class CftcCotExtractor(HttpClientMixin):
         start_date: date | None = None,
         end_date: date | None = None,
         run_id: str | None = None,
+        resume: bool = True,
     ) -> list[Path]:
         """Extract COT data to raw parquet files."""
         settings = get_settings()
@@ -131,18 +139,27 @@ class CftcCotExtractor(HttpClientMixin):
         output_dir = Path(output_dir) / "cftc_cot"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        years = range(start_date.year, end_date.year + 1)
+        year_list = list(range(start_date.year, end_date.year + 1))
+
+        ckpt = get_checkpoint_manager()
+        op_id = make_operation_id("cftc_cot")
+
         all_frames: list[pd.DataFrame] = []
 
-        for year in years:
-            try:
-                with self._metrics.time_operation(f"extract_cot_{year}"):
-                    df = self._fetch_cot_year(year)
-                    if not df.empty:
-                        all_frames.append(df)
-            except Exception as e:
-                self._metrics.record_error(type(e).__name__)
-                logger.error(f"Failed to fetch COT data for {year}: {e}")
+        with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
+            for idx, year in resumable_items(
+                year_list, ctx, key_fn=lambda y: str(y)
+            ):
+                try:
+                    with self._metrics.time_operation(f"extract_cot_{year}"):
+                        df = self._fetch_cot_year(year)
+                        if not df.empty:
+                            all_frames.append(df)
+                except Exception as e:
+                    self._metrics.record_error(type(e).__name__)
+                    logger.error(f"Failed to fetch COT data for {year}: {e}")
+
+                mark_item_done(ctx, str(year), idx, len(year_list))
 
         if not all_frames:
             logger.warning(
@@ -157,7 +174,8 @@ class CftcCotExtractor(HttpClientMixin):
 
         combined = pd.concat(all_frames, ignore_index=True)
         combined = combined[
-            (combined["report_date"] >= start_date) & (combined["report_date"] <= end_date)
+            (combined["report_date"] >= start_date)
+            & (combined["report_date"] <= end_date)
         ]
 
         if combined.empty:
@@ -179,6 +197,7 @@ def extract_cftc_cot(
     start_date: date | None = None,
     end_date: date | None = None,
     run_id: str | None = None,
+    resume: bool = True,
 ) -> list[Path]:
     """CLI-friendly wrapper."""
     extractor = CftcCotExtractor()
@@ -187,4 +206,5 @@ def extract_cftc_cot(
         start_date=start_date,
         end_date=end_date,
         run_id=run_id,
+        resume=resume,
     )

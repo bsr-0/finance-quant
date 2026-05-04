@@ -13,6 +13,13 @@ import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from pipeline.extract._base import HttpClientMixin
+from pipeline.extract.checkpoint_helpers import (
+    get_checkpoint_manager,
+    make_operation_id,
+    mark_item_done,
+    resumable_items,
+)
+from pipeline.infrastructure.checkpoint import CheckpointContext
 
 logger = logging.getLogger(__name__)
 
@@ -152,40 +159,63 @@ class GDELTExtractor(HttpClientMixin):
             raise
 
     def extract_to_raw(
-        self, output_dir: Path, start_date: date, end_date: date, run_id: str | None = None
+        self,
+        output_dir: Path,
+        start_date: date,
+        end_date: date,
+        run_id: str | None = None,
+        resume: bool = True,
     ) -> list[Path]:
         """Extract GDELT data to raw lake."""
         output_dir = Path(output_dir) / "gdelt"
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Build date list so resumable_items can skip completed dates
+        all_dates: list[date] = []
+        d = start_date
+        while d <= end_date:
+            all_dates.append(d)
+            d += timedelta(days=1)
+
+        ckpt = get_checkpoint_manager()
+        op_id = make_operation_id("gdelt")
+
         saved_files = []
-        current_date = start_date
 
-        while current_date <= end_date:
-            try:
-                df = self.download_day(current_date)
-                if df is not None and not df.empty:
-                    # Add metadata
-                    df["extracted_at"] = datetime.now(UTC)
-                    df["run_id"] = run_id
+        with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
+            for idx, current_date in resumable_items(
+                all_dates, ctx, key_fn=lambda d: d.isoformat()
+            ):
+                try:
+                    df = self.download_day(current_date)
+                    if df is not None and not df.empty:
+                        df["extracted_at"] = datetime.now(UTC)
+                        df["run_id"] = run_id
 
-                    # Save to parquet
-                    file_path = output_dir / f"gdelt_{current_date.isoformat()}.parquet"
-                    df.to_parquet(file_path, index=False)
-                    saved_files.append(file_path)
-                    logger.info(f"Saved {len(df)} events to {file_path}")
+                        file_path = (
+                            output_dir
+                            / f"gdelt_{current_date.isoformat()}.parquet"
+                        )
+                        df.to_parquet(file_path, index=False)
+                        saved_files.append(file_path)
+                        logger.info(f"Saved {len(df)} events to {file_path}")
 
-            except Exception as e:
-                logger.error(f"Error processing {current_date}: {e}")
-                # Continue with next date
+                except Exception as e:
+                    logger.error(f"Error processing {current_date}: {e}")
 
-            current_date += timedelta(days=1)
+                mark_item_done(
+                    ctx, current_date.isoformat(), idx, len(all_dates)
+                )
 
         return saved_files
 
 
 def extract_gdelt(
-    output_dir: Path, start_date: str, end_date: str, run_id: str | None = None
+    output_dir: Path,
+    start_date: str,
+    end_date: str,
+    run_id: str | None = None,
+    resume: bool = True,
 ) -> list[Path]:
     """CLI-friendly wrapper for GDELT extraction."""
     extractor = GDELTExtractor()
@@ -194,5 +224,9 @@ def extract_gdelt(
     end = date.fromisoformat(end_date)
 
     return extractor.extract_to_raw(
-        output_dir=output_dir, start_date=start, end_date=end, run_id=run_id
+        output_dir=output_dir,
+        start_date=start,
+        end_date=end,
+        run_id=run_id,
+        resume=resume,
     )

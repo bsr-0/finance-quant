@@ -18,6 +18,13 @@ import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from pipeline.extract._base import HttpClientMixin
+from pipeline.extract.checkpoint_helpers import (
+    get_checkpoint_manager,
+    make_operation_id,
+    mark_item_done,
+    resumable_items,
+)
+from pipeline.infrastructure.checkpoint import CheckpointContext
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -670,18 +677,26 @@ class PriceExtractor:
         start_date: date | None = None,
         end_date: date | None = None,
         run_id: str | None = None,
+        resume: bool = True,
     ) -> list[Path]:
         """Extract price data to raw lake with fallback and adjustment."""
         symbols = tickers or self.universe
         start = start_date or date.fromisoformat(get_settings().default_start_date)
         end = end_date or date.fromisoformat(get_settings().default_end_date)
 
+        ckpt = get_checkpoint_manager()
+        op_id = make_operation_id("prices")
+
         saved_files: list[Path] = []
-        for ticker in symbols:
-            logger.info(f"Extracting prices for {ticker}")
-            path = self._extract_single_ticker(ticker, output_dir, start, end, run_id)
-            if path is not None:
-                saved_files.append(path)
+        with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
+            for i, ticker in resumable_items(symbols, ctx):
+                logger.info(f"Extracting prices for {ticker}")
+                path = self._extract_single_ticker(
+                    ticker, output_dir, start, end, run_id
+                )
+                if path is not None:
+                    saved_files.append(path)
+                mark_item_done(ctx, ticker, i, len(symbols))
 
         # Post-extraction: check for potential delistings
         prices_dir = Path(output_dir) / "prices"
@@ -701,6 +716,7 @@ def extract_prices(
     start_date: str | None = None,
     end_date: str | None = None,
     run_id: str | None = None,
+    resume: bool = True,
 ) -> list[Path]:
     """CLI-friendly wrapper for price extraction."""
     extractor = PriceExtractor()
@@ -714,4 +730,5 @@ def extract_prices(
         start_date=start,
         end_date=end,
         run_id=run_id,
+        resume=resume,
     )

@@ -19,6 +19,7 @@ from pipeline.db import get_db_manager
 from pipeline.dq.data_quality_monitor import DataQualityMonitor, Severity
 from pipeline.dq.tests_sql import run_dq_tests
 from pipeline.extract.cftc_cot import extract_cftc_cot
+from pipeline.extract.checkpoint_helpers import get_checkpoint_manager, make_operation_id
 from pipeline.extract.earnings import extract_earnings
 from pipeline.extract.etf_flows import extract_etf_flows
 from pipeline.extract.factors_ff import extract_factors_ff
@@ -33,6 +34,7 @@ from pipeline.extract.sec_fundamentals import extract_sec_fundamentals
 from pipeline.extract.sec_insider import extract_sec_insider
 from pipeline.extract.short_interest import extract_short_interest
 from pipeline.historical.latency import refresh_latency_stats
+from pipeline.infrastructure.checkpoint import CheckpointContext
 from pipeline.load.raw_loader import RawLoader
 from pipeline.logging_config import configure_logging
 from pipeline.settings import get_settings
@@ -498,12 +500,21 @@ def historical_backfill(
     force: bool = typer.Option(
         False, "--force", "-f", help="Re-fetch even if output already exists"
     ),
+    resume: bool = typer.Option(
+        True,
+        "--resume/--no-resume",
+        help="Resume from last checkpoint (default). --no-resume forces fresh start.",
+    ),
 ):
     """Run a full historical backfill: extract, load, transform, snapshot, dq.
 
     Orchestrates extraction for every source from --start to --end, loads into
     the raw warehouse, then runs curated transforms, latency stats, snapshots,
     data-quality checks, and inventory.
+
+    Supports checkpointed resume: if a backfill is interrupted, re-running the
+    same command will skip already-completed sources and items within each
+    source.  Use --no-resume to force a completely fresh backfill.
 
     Examples:
         # Full 2010-present backfill (all sources)
@@ -514,6 +525,9 @@ def historical_backfill(
 
         # Extract only, skip downstream transforms
         mdw historical-backfill --skip-transform
+
+        # Force a fresh start, ignoring any saved checkpoints
+        mdw historical-backfill --no-resume
     """
     end_date = end or date.today().isoformat()
     settings = get_settings()
@@ -538,6 +552,14 @@ def historical_backfill(
     else:
         source_list = list(_BACKFILL_SOURCES)
 
+    # Clear all checkpoints when --no-resume is set
+    ckpt_mgr = get_checkpoint_manager()
+    source_op_id = "backfill_orchestrator"
+    if not resume:
+        ckpt_mgr.delete_checkpoint(source_op_id)
+        for extract_name, _ in source_list:
+            ckpt_mgr.delete_checkpoint(make_operation_id(extract_name))
+
     succeeded: list[str] = []
     failed: list[tuple[str, str]] = []
 
@@ -547,80 +569,122 @@ def historical_backfill(
         f"({len(source_list)} sources)[/bold]"
     )
 
-    for extract_name, load_name in source_list:
-        console.print(f"\n[cyan]--- {extract_name} ---[/cyan]")
+    with CheckpointContext(ckpt_mgr, source_op_id, resume=resume) as src_ctx:
+        completed_sources: set[str] = set(
+            src_ctx.state.get("completed_sources", [])
+        )
 
-        # Extract
-        try:
-            if extract_name == "factors":
-                files = extract_factors_ff(raw_path, run_id=run_id)
-            elif extract_name == "options":
-                files = extract_options(raw_path, run_id=run_id)
-            elif extract_name == "reddit-sentiment":
-                files = extract_reddit_sentiment(raw_path, run_id=run_id)
-            elif extract_name == "short-interest":
-                files = extract_short_interest(raw_path, run_id=run_id)
-            elif extract_name == "etf-flows":
-                files = extract_etf_flows(raw_path, run_id=run_id)
-            elif extract_name == "cftc-cot":
-                s = date.fromisoformat(start)
-                e = date.fromisoformat(end_date)
-                files = extract_cftc_cot(raw_path, start_date=s, end_date=e, run_id=run_id)
-            elif extract_name == "fred":
-                files = extract_fred(
-                    raw_path, start_date=start, end_date=end_date, run_id=run_id
+        for extract_name, load_name in source_list:
+            if extract_name in completed_sources:
+                console.print(
+                    f"\n[dim]--- {extract_name} (already done, skipping) ---[/dim]"
                 )
-            elif extract_name == "gdelt":
-                files = extract_gdelt(
-                    raw_path, start_date=start, end_date=end_date, run_id=run_id
-                )
-            elif extract_name == "polymarket":
-                files = extract_polymarket(
-                    raw_path, start_date=start, end_date=end_date, run_id=run_id
-                )
-            elif extract_name == "prices":
-                files = extract_prices(
-                    raw_path, start_date=start, end_date=end_date, run_id=run_id
-                )
-            elif extract_name == "sec-fundamentals":
-                files = extract_sec_fundamentals(
-                    raw_path, start_date=start, end_date=end_date, run_id=run_id
-                )
-            elif extract_name == "sec-insider":
-                files = extract_sec_insider(
-                    raw_path, start_date=start, end_date=end_date, run_id=run_id
-                )
-            elif extract_name == "sec-13f":
-                files = extract_sec_13f(
-                    raw_path, start_date=start, end_date=end_date, run_id=run_id
-                )
-            elif extract_name == "earnings":
-                files = extract_earnings(
-                    raw_path, start_date=start, end_date=end_date,
-                    run_id=run_id, force=force,
-                )
-            else:
-                console.print(f"  [yellow]⚠ No extract handler for {extract_name}[/yellow]")
+                succeeded.append(extract_name)
                 continue
 
-            file_count = (
-                len(files) if isinstance(files, list) else sum(len(v) for v in files.values())
-            )
-            console.print(f"  [green]✓ Extracted {file_count} files[/green]")
-        except Exception as exc:
-            console.print(f"  [red]✗ Extract failed: {exc}[/red]")
-            failed.append((extract_name, str(exc)))
-            continue
+            console.print(f"\n[cyan]--- {extract_name} ---[/cyan]")
 
-        # Load
-        try:
-            loader = RawLoader()
-            rows = loader.load_all_raw_files(raw_path, load_name, run_id=UUID(run_id))
-            console.print(f"  [green]✓ Loaded {rows} rows[/green]")
-            succeeded.append(extract_name)
-        except Exception as exc:
-            console.print(f"  [red]✗ Load failed: {exc}[/red]")
-            failed.append((extract_name, str(exc)))
+            # Extract
+            try:
+                if extract_name == "factors":
+                    files = extract_factors_ff(raw_path, run_id=run_id)
+                elif extract_name == "options":
+                    files = extract_options(
+                        raw_path, run_id=run_id, resume=resume
+                    )
+                elif extract_name == "reddit-sentiment":
+                    files = extract_reddit_sentiment(raw_path, run_id=run_id)
+                elif extract_name == "short-interest":
+                    files = extract_short_interest(raw_path, run_id=run_id)
+                elif extract_name == "etf-flows":
+                    files = extract_etf_flows(raw_path, run_id=run_id)
+                elif extract_name == "cftc-cot":
+                    s = date.fromisoformat(start)
+                    e = date.fromisoformat(end_date)
+                    files = extract_cftc_cot(
+                        raw_path, start_date=s, end_date=e,
+                        run_id=run_id, resume=resume,
+                    )
+                elif extract_name == "fred":
+                    files = extract_fred(
+                        raw_path, start_date=start, end_date=end_date,
+                        run_id=run_id, resume=resume,
+                    )
+                elif extract_name == "gdelt":
+                    files = extract_gdelt(
+                        raw_path, start_date=start, end_date=end_date,
+                        run_id=run_id, resume=resume,
+                    )
+                elif extract_name == "polymarket":
+                    files = extract_polymarket(
+                        raw_path, start_date=start, end_date=end_date,
+                        run_id=run_id,
+                    )
+                elif extract_name == "prices":
+                    files = extract_prices(
+                        raw_path, start_date=start, end_date=end_date,
+                        run_id=run_id, resume=resume,
+                    )
+                elif extract_name == "sec-fundamentals":
+                    files = extract_sec_fundamentals(
+                        raw_path, start_date=start, end_date=end_date,
+                        run_id=run_id, resume=resume,
+                    )
+                elif extract_name == "sec-insider":
+                    files = extract_sec_insider(
+                        raw_path, start_date=start, end_date=end_date,
+                        run_id=run_id, resume=resume,
+                    )
+                elif extract_name == "sec-13f":
+                    files = extract_sec_13f(
+                        raw_path, start_date=start, end_date=end_date,
+                        run_id=run_id, resume=resume,
+                    )
+                elif extract_name == "earnings":
+                    files = extract_earnings(
+                        raw_path, start_date=start, end_date=end_date,
+                        run_id=run_id, force=force, resume=resume,
+                    )
+                else:
+                    console.print(
+                        f"  [yellow]⚠ No extract handler for {extract_name}[/yellow]"
+                    )
+                    continue
+
+                file_count = (
+                    len(files)
+                    if isinstance(files, list)
+                    else sum(len(v) for v in files.values())
+                )
+                console.print(f"  [green]✓ Extracted {file_count} files[/green]")
+            except Exception as exc:
+                console.print(f"  [red]✗ Extract failed: {exc}[/red]")
+                failed.append((extract_name, str(exc)))
+                continue
+
+            # Load
+            try:
+                loader = RawLoader()
+                rows = loader.load_all_raw_files(
+                    raw_path, load_name, run_id=UUID(run_id)
+                )
+                console.print(f"  [green]✓ Loaded {rows} rows[/green]")
+                succeeded.append(extract_name)
+            except Exception as exc:
+                console.print(f"  [red]✗ Load failed: {exc}[/red]")
+                failed.append((extract_name, str(exc)))
+                continue
+
+            # Record source completion in checkpoint
+            done_list = src_ctx.state.get("completed_sources", [])
+            done_list.append(extract_name)
+            src_ctx.update(
+                completed_sources=done_list,
+                completed_items=len(done_list),
+                total_items=len(source_list),
+                last_processed=extract_name,
+            )
+            src_ctx.save()
 
     # --- Phase 2: Downstream pipeline ---
     if not skip_transform and succeeded:

@@ -14,6 +14,13 @@ import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from pipeline.extract._base import HttpClientMixin
+from pipeline.extract.checkpoint_helpers import (
+    get_checkpoint_manager,
+    make_operation_id,
+    mark_item_done,
+    resumable_items,
+)
+from pipeline.infrastructure.checkpoint import CheckpointContext
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 
@@ -263,64 +270,77 @@ class Sec13FExtractor(HttpClientMixin):
         start_date: date | None = None,
         end_date: date | None = None,
         run_id: str | None = None,
+        resume: bool = True,
     ) -> list[Path]:
         """Extract 13F holdings for a list of institutional filers."""
         filers = filers or DEFAULT_FILERS
         output_dir = Path(output_dir) / "sec_13f"
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        ckpt = get_checkpoint_manager()
+        op_id = make_operation_id("sec_13f")
+
         saved_files: list[Path] = []
 
-        for filer in filers:
-            filer_name = filer["name"]
-            filer_cik = filer["cik"]
-            logger.info(f"Extracting 13F holdings for {filer_name} (CIK {filer_cik})")
+        with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
+            for idx, filer in resumable_items(
+                filers, ctx, key_fn=lambda f: f["name"]
+            ):
+                filer_name = filer["name"]
+                filer_cik = filer["cik"]
+                logger.info(
+                    f"Extracting 13F holdings for {filer_name} (CIK {filer_cik})"
+                )
 
-            try:
-                filings = self._get_13f_filings(filer_cik, start_date)
-                all_rows: list[dict] = []
+                try:
+                    filings = self._get_13f_filings(filer_cik, start_date)
+                    all_rows: list[dict] = []
 
-                for filing in filings[:8]:  # Cap at ~2 years of quarterly filings
-                    accession = filing.get("accession_number")
-                    report_date = filing.get("report_date")
-                    filing_date = filing.get("filing_date")
+                    for filing in filings[:8]:
+                        accession = filing.get("accession_number")
+                        report_date = filing.get("report_date")
+                        filing_date = filing.get("filing_date")
 
-                    if not accession:
+                        if not accession:
+                            continue
+
+                        xml_text = self._fetch_13f_table(filer_cik, accession)
+                        if xml_text:
+                            rows = self._parse_13f_xml(
+                                xml_text,
+                                filer_cik,
+                                filer_name,
+                                str(report_date or ""),
+                                str(filing_date or ""),
+                            )
+                            for row in rows:
+                                row["accession_number"] = accession
+                            all_rows.extend(rows)
+
+                        time.sleep(0.12)
+
+                    if not all_rows:
+                        mark_item_done(ctx, filer_name, idx, len(filers))
                         continue
 
-                    xml_text = self._fetch_13f_table(filer_cik, accession)
-                    if xml_text:
-                        rows = self._parse_13f_xml(
-                            xml_text,
-                            filer_cik,
-                            filer_name,
-                            str(report_date or ""),
-                            str(filing_date or ""),
-                        )
-                        for row in rows:
-                            row["accession_number"] = accession
-                        all_rows.extend(rows)
+                    df = pd.DataFrame(all_rows)
+                    df["extracted_at"] = datetime.now(UTC)
+                    df["run_id"] = run_id
 
-                    time.sleep(0.12)
+                    safe_name = filer_name.replace(" ", "_").lower()
+                    file_path = (
+                        output_dir / f"{safe_name}_{start_date}_{end_date}.parquet"
+                    )
+                    df.to_parquet(file_path, index=False)
+                    saved_files.append(file_path)
+                    self._metrics.record_extracted("sec_13f", len(df))
+                    logger.info(f"Saved {len(df)} holdings for {filer_name}")
 
-                if not all_rows:
-                    continue
+                except Exception as e:
+                    self._metrics.record_error(type(e).__name__)
+                    logger.error(f"Failed 13F for {filer_name}: {e}")
 
-                df = pd.DataFrame(all_rows)
-                df["extracted_at"] = datetime.now(UTC)
-                df["run_id"] = run_id
-
-                safe_name = filer_name.replace(" ", "_").lower()
-                file_path = output_dir / f"{safe_name}_{start_date}_{end_date}.parquet"
-                df.to_parquet(file_path, index=False)
-                saved_files.append(file_path)
-                self._metrics.record_extracted("sec_13f", len(df))
-                logger.info(f"Saved {len(df)} holdings for {filer_name}")
-
-            except Exception as e:
-                self._metrics.record_error(type(e).__name__)
-                logger.error(f"Failed 13F for {filer_name}: {e}")
-                continue
+                mark_item_done(ctx, filer_name, idx, len(filers))
 
         return saved_files
 
@@ -330,6 +350,7 @@ def extract_sec_13f(
     start_date: str | None = None,
     end_date: str | None = None,
     run_id: str | None = None,
+    resume: bool = True,
 ) -> list[Path]:
     """CLI-friendly wrapper."""
     extractor = Sec13FExtractor()
@@ -340,4 +361,5 @@ def extract_sec_13f(
         start_date=start,
         end_date=end,
         run_id=run_id,
+        resume=resume,
     )

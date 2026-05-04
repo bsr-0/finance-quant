@@ -11,6 +11,13 @@ import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from pipeline.extract._base import HttpClientMixin
+from pipeline.extract.checkpoint_helpers import (
+    get_checkpoint_manager,
+    make_operation_id,
+    mark_item_done,
+    resumable_items,
+)
+from pipeline.infrastructure.checkpoint import CheckpointContext
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -198,6 +205,7 @@ class SecFundamentalsExtractor(HttpClientMixin):
         end_date: date | None = None,
         run_id: str | None = None,
         metrics: list[str] | None = None,
+        resume: bool = True,
     ) -> list[Path]:
         """Extract SEC fundamentals for a list of tickers to parquet files."""
         settings = get_settings()
@@ -209,61 +217,76 @@ class SecFundamentalsExtractor(HttpClientMixin):
         logger.info("Fetching SEC ticker→CIK mapping")
         ticker_to_cik = self._fetch_ticker_to_cik()
 
+        ckpt = get_checkpoint_manager()
+        op_id = make_operation_id("sec_fundamentals")
+
         saved_files: list[Path] = []
         import time
 
-        for ticker in tickers:
-            cik = ticker_to_cik.get(ticker.upper())
-            if cik is None:
-                logger.warning(f"No CIK found for {ticker}, skipping")
-                continue
+        with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
+            for idx, ticker in resumable_items(tickers, ctx):
+                cik = ticker_to_cik.get(ticker.upper())
+                if cik is None:
+                    logger.warning(f"No CIK found for {ticker}, skipping")
+                    mark_item_done(ctx, ticker, idx, len(tickers))
+                    continue
 
-            logger.info(f"Extracting SEC fundamentals for {ticker} (CIK {cik})")
-            try:
-                with self._metrics.time_operation(f"extract_{ticker}"):
-                    facts = self._fetch_company_facts(cik)
-                    if facts is None:
-                        logger.warning(
-                            "No XBRL company facts for %s (CIK %s), likely an ETF/fund",
-                            ticker, cik,
-                        )
+                logger.info(f"Extracting SEC fundamentals for {ticker} (CIK {cik})")
+                try:
+                    with self._metrics.time_operation(f"extract_{ticker}"):
+                        facts = self._fetch_company_facts(cik)
+                        if facts is None:
+                            logger.warning(
+                                "No XBRL company facts for %s (CIK %s), likely an ETF/fund",
+                                ticker, cik,
+                            )
+                            mark_item_done(ctx, ticker, idx, len(tickers))
+                            continue
+                        rows = self._parse_facts(facts, ticker, cik, metrics)
+                        rows = self._assign_filing_sequence(rows)
+
+                    if not rows:
+                        logger.warning(f"No fundamentals data for {ticker}")
+                        mark_item_done(ctx, ticker, idx, len(tickers))
                         continue
-                    rows = self._parse_facts(facts, ticker, cik, metrics)
-                    rows = self._assign_filing_sequence(rows)
 
-                if not rows:
-                    logger.warning(f"No fundamentals data for {ticker}")
-                    continue
+                    df = pd.DataFrame(rows)
 
-                df = pd.DataFrame(rows)
+                    # Optionally filter by date range
+                    df["fiscal_period_end"] = pd.to_datetime(
+                        df["fiscal_period_end"]
+                    ).dt.date
+                    df["filing_date"] = pd.to_datetime(df["filing_date"]).dt.date
+                    if start_date:
+                        df = df[df["fiscal_period_end"] >= start_date]
+                    if end_date:
+                        df = df[df["fiscal_period_end"] <= end_date]
 
-                # Optionally filter by date range
-                df["fiscal_period_end"] = pd.to_datetime(df["fiscal_period_end"]).dt.date
-                df["filing_date"] = pd.to_datetime(df["filing_date"]).dt.date
-                if start_date:
-                    df = df[df["fiscal_period_end"] >= start_date]
-                if end_date:
-                    df = df[df["fiscal_period_end"] <= end_date]
+                    if df.empty:
+                        mark_item_done(ctx, ticker, idx, len(tickers))
+                        continue
 
-                if df.empty:
-                    continue
+                    df["extracted_at"] = datetime.now(UTC)
+                    df["run_id"] = run_id
 
-                df["extracted_at"] = datetime.now(UTC)
-                df["run_id"] = run_id
+                    file_path = (
+                        output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
+                    )
+                    df.to_parquet(file_path, index=False)
+                    saved_files.append(file_path)
+                    self._metrics.record_extracted("sec_fundamentals", len(df))
+                    logger.info(f"Saved {len(df)} fundamentals records for {ticker}")
 
-                file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
-                df.to_parquet(file_path, index=False)
-                saved_files.append(file_path)
-                self._metrics.record_extracted("sec_fundamentals", len(df))
-                logger.info(f"Saved {len(df)} fundamentals records for {ticker}")
+                except Exception as e:
+                    self._metrics.record_error(type(e).__name__)
+                    logger.error(
+                        f"Failed to extract fundamentals for {ticker}: {e}"
+                    )
 
-            except Exception as e:
-                self._metrics.record_error(type(e).__name__)
-                logger.error(f"Failed to extract fundamentals for {ticker}: {e}")
-                continue
+                mark_item_done(ctx, ticker, idx, len(tickers))
 
-            # Rate-limit to stay under SEC's 10 req/s guideline
-            time.sleep(self._rate_limit_delay)
+                # Rate-limit to stay under SEC's 10 req/s guideline
+                time.sleep(self._rate_limit_delay)
 
         return saved_files
 
@@ -310,6 +333,7 @@ def extract_sec_fundamentals(
     start_date: str | None = None,
     end_date: str | None = None,
     run_id: str | None = None,
+    resume: bool = True,
 ) -> list[Path]:
     """CLI-friendly wrapper for SEC fundamentals extraction."""
     extractor = SecFundamentalsExtractor()
@@ -321,4 +345,5 @@ def extract_sec_fundamentals(
         start_date=start,
         end_date=end,
         run_id=run_id,
+        resume=resume,
     )

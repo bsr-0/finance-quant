@@ -13,6 +13,13 @@ import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from pipeline.extract._base import HttpClientMixin
+from pipeline.extract.checkpoint_helpers import (
+    get_checkpoint_manager,
+    make_operation_id,
+    mark_item_done,
+    resumable_items,
+)
+from pipeline.infrastructure.checkpoint import CheckpointContext
 from pipeline.infrastructure.circuit_breaker import get_circuit_breaker
 from pipeline.infrastructure.metrics import PipelineMetrics
 from pipeline.settings import get_settings
@@ -224,6 +231,7 @@ class SecInsiderExtractor(HttpClientMixin):
         start_date: date | None = None,
         end_date: date | None = None,
         run_id: str | None = None,
+        resume: bool = True,
     ) -> list[Path]:
         """Extract insider trades for given tickers."""
         settings = get_settings()
@@ -237,64 +245,82 @@ class SecInsiderExtractor(HttpClientMixin):
 
             ticker_to_cik = SecFundamentalsExtractor()._fetch_ticker_to_cik()
 
+        ckpt = get_checkpoint_manager()
+        op_id = make_operation_id("sec_insider")
+
         saved_files: list[Path] = []
 
-        for ticker in tickers:
-            cik = ticker_to_cik.get(ticker.upper())
-            if cik is None:
-                logger.warning(f"No CIK for {ticker}, skipping insider trades")
-                continue
+        with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
+            for idx, ticker in resumable_items(tickers, ctx):
+                cik = ticker_to_cik.get(ticker.upper())
+                if cik is None:
+                    logger.warning(f"No CIK for {ticker}, skipping insider trades")
+                    mark_item_done(ctx, ticker, idx, len(tickers))
+                    continue
 
-            logger.info(f"Extracting insider trades for {ticker} (CIK {cik})")
-            try:
-                filings = self._fetch_filing_index(cik, start_date)
-                all_rows: list[dict] = []
+                logger.info(f"Extracting insider trades for {ticker} (CIK {cik})")
+                try:
+                    filings = self._fetch_filing_index(cik, start_date)
+                    all_rows: list[dict] = []
 
-                for filing in filings[:100]:  # Cap at 100 filings per ticker
-                    accession = filing.get("accession_number")
-                    primary_doc = filing.get("primary_document", "")
-                    f_date = filing.get("filing_date")
+                    for filing in filings[:100]:
+                        accession = filing.get("accession_number")
+                        primary_doc = filing.get("primary_document", "")
+                        f_date = filing.get("filing_date")
 
-                    if not accession or not primary_doc.endswith(".xml"):
+                        if not accession or not primary_doc.endswith(".xml"):
+                            continue
+
+                        xml_text = self._fetch_form4_xml(cik, accession, primary_doc)
+                        if xml_text:
+                            rows = self._parse_form4_xml(
+                                xml_text, ticker, cik, f_date or ""
+                            )
+                            for row in rows:
+                                row["accession_number"] = accession
+                            all_rows.extend(rows)
+
+                        time.sleep(0.12)  # SEC rate limit
+
+                    if not all_rows:
+                        mark_item_done(ctx, ticker, idx, len(tickers))
                         continue
 
-                    xml_text = self._fetch_form4_xml(cik, accession, primary_doc)
-                    if xml_text:
-                        rows = self._parse_form4_xml(xml_text, ticker, cik, f_date or "")
-                        for row in rows:
-                            row["accession_number"] = accession
-                        all_rows.extend(rows)
+                    df = pd.DataFrame(all_rows)
+                    df["extracted_at"] = datetime.now(UTC)
+                    df["run_id"] = run_id
 
-                    time.sleep(0.12)  # SEC rate limit
+                    if start_date:
+                        df["transaction_date"] = pd.to_datetime(
+                            df["transaction_date"]
+                        ).dt.date
+                        df = df[df["transaction_date"] >= start_date]
+                    if end_date:
+                        if "transaction_date" not in df.select_dtypes(
+                            include=["object"]
+                        ).columns:
+                            df["transaction_date"] = pd.to_datetime(
+                                df["transaction_date"]
+                            ).dt.date
+                        df = df[df["transaction_date"] <= end_date]
 
-                if not all_rows:
-                    continue
+                    if df.empty:
+                        mark_item_done(ctx, ticker, idx, len(tickers))
+                        continue
 
-                df = pd.DataFrame(all_rows)
-                df["extracted_at"] = datetime.now(UTC)
-                df["run_id"] = run_id
+                    file_path = (
+                        output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
+                    )
+                    df.to_parquet(file_path, index=False)
+                    saved_files.append(file_path)
+                    self._metrics.record_extracted("sec_insider", len(df))
+                    logger.info(f"Saved {len(df)} insider trades for {ticker}")
 
-                if start_date:
-                    df["transaction_date"] = pd.to_datetime(df["transaction_date"]).dt.date
-                    df = df[df["transaction_date"] >= start_date]
-                if end_date:
-                    if "transaction_date" not in df.select_dtypes(include=["object"]).columns:
-                        df["transaction_date"] = pd.to_datetime(df["transaction_date"]).dt.date
-                    df = df[df["transaction_date"] <= end_date]
+                except Exception as e:
+                    self._metrics.record_error(type(e).__name__)
+                    logger.error(f"Failed insider trades for {ticker}: {e}")
 
-                if df.empty:
-                    continue
-
-                file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
-                df.to_parquet(file_path, index=False)
-                saved_files.append(file_path)
-                self._metrics.record_extracted("sec_insider", len(df))
-                logger.info(f"Saved {len(df)} insider trades for {ticker}")
-
-            except Exception as e:
-                self._metrics.record_error(type(e).__name__)
-                logger.error(f"Failed insider trades for {ticker}: {e}")
-                continue
+                mark_item_done(ctx, ticker, idx, len(tickers))
 
         return saved_files
 
@@ -305,6 +331,7 @@ def extract_sec_insider(
     start_date: str | None = None,
     end_date: str | None = None,
     run_id: str | None = None,
+    resume: bool = True,
 ) -> list[Path]:
     """CLI-friendly wrapper."""
     extractor = SecInsiderExtractor()
@@ -316,4 +343,5 @@ def extract_sec_insider(
         start_date=start,
         end_date=end,
         run_id=run_id,
+        resume=resume,
     )
