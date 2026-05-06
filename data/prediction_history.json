@@ -506,12 +506,12 @@
       "target_price": 52.3814,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-06",
+      "resolved_price": 52.3814,
+      "pnl_pct": 2.79,
+      "days_held": 7
     }
   ],
-  "last_updated": "2026-05-05T23:28:47.251767+00:00"
+  "last_updated": "2026-05-06T23:16:42.792091+00:00"
 }
