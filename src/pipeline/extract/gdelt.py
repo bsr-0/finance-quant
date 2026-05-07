@@ -158,6 +158,9 @@ class GDELTExtractor(HttpClientMixin):
             logger.error(f"Failed to download GDELT for {target_date}: {e}")
             raise
 
+    # GDELT daily export files are available from 2013-04-01 onward
+    EARLIEST_DATE = date(2013, 4, 1)
+
     def extract_to_raw(
         self,
         output_dir: Path,
@@ -169,6 +172,14 @@ class GDELTExtractor(HttpClientMixin):
         """Extract GDELT data to raw lake."""
         output_dir = Path(output_dir) / "gdelt"
         output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Clamp start to earliest available GDELT daily export
+        if start_date < self.EARLIEST_DATE:
+            logger.info(
+                f"Clamping GDELT start from {start_date} to {self.EARLIEST_DATE} "
+                f"(daily exports not available before this date)"
+            )
+            start_date = self.EARLIEST_DATE
 
         # Build date list so resumable_items can skip completed dates
         all_dates: list[date] = []
@@ -186,16 +197,25 @@ class GDELTExtractor(HttpClientMixin):
             for idx, current_date in resumable_items(
                 all_dates, ctx, key_fn=lambda d: d.isoformat()
             ):
+                file_path = (
+                    output_dir
+                    / f"gdelt_{current_date.isoformat()}.parquet"
+                )
+
+                # Skip dates already downloaded in a prior run
+                if file_path.exists():
+                    logger.debug(f"Skipping {current_date} — {file_path} exists")
+                    mark_item_done(
+                        ctx, current_date.isoformat(), idx, len(all_dates)
+                    )
+                    continue
+
                 try:
                     df = self.download_day(current_date)
                     if df is not None and not df.empty:
                         df["extracted_at"] = datetime.now(UTC)
                         df["run_id"] = run_id
 
-                        file_path = (
-                            output_dir
-                            / f"gdelt_{current_date.isoformat()}.parquet"
-                        )
                         df.to_parquet(file_path, index=False)
                         saved_files.append(file_path)
                         logger.info(f"Saved {len(df)} events to {file_path}")
