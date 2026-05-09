@@ -258,10 +258,21 @@ class CuratedTransformer:
                         ) AS event_time,
                         CASE
                             WHEN :available_source = 'DATEADDED' THEN COALESCE(
-                                (strptime(
-                                    RPAD(NULLIF(r.raw_data::json->>'DATEADDED', ''), 14, '0'),
-                                    '%Y%m%d%H%M%S'
-                                ) AT TIME ZONE 'UTC'),
+                                -- Handle both GDELT numeric format (20150101020000)
+                                -- and ISO format (2015-01-01 02:00:00) from parsed parquets
+                                CASE
+                                    WHEN regexp_matches(
+                                        NULLIF(r.raw_data::json->>'DATEADDED', ''),
+                                        '^[0-9]{8,14}$'
+                                    )
+                                    THEN strptime(
+                                        RPAD(r.raw_data::json->>'DATEADDED', 14, '0'),
+                                        '%Y%m%d%H%M%S'
+                                    ) AT TIME ZONE 'UTC'
+                                    ELSE TRY_CAST(
+                                        r.raw_data::json->>'DATEADDED' AS TIMESTAMP
+                                    ) AT TIME ZONE 'UTC'
+                                END,
                                 r.extracted_at
                             )
                             ELSE r.extracted_at

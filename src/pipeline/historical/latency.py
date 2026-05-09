@@ -84,8 +84,8 @@ def compute_gdelt_latency_stats(window_days: int) -> dict[str, float | None]:
                 ) AT TIME ZONE 'UTC') AS date_added,
                 (r.raw_data::json->>'SQLDATE')::date::timestamptz AS event_time
             FROM raw_gdelt_events r
-            WHERE r.raw_data ? 'DATEADDED'
-              AND r.raw_data ? 'SQLDATE'
+            WHERE r.raw_data::json->>'DATEADDED' IS NOT NULL
+              AND r.raw_data::json->>'SQLDATE' IS NOT NULL
               AND (r.raw_data::json->>'SQLDATE')::date >= :start_date
               AND (r.raw_data::json->>'SQLDATE')::date <= :end_date
         ),
@@ -174,7 +174,7 @@ def compute_prices_latency_stats(window_days: int) -> dict[str, float | None]:
         WITH base AS (
             SELECT
                 r.extracted_at,
-                (r.date + :close_time::time) AT TIME ZONE :exchange_tz AS event_time
+                (r.date + CAST(:close_time AS TIME)) AT TIME ZONE :exchange_tz AS event_time
             FROM raw_prices_ohlcv r
             WHERE r.date >= :start_date
               AND r.date <= :end_date

@@ -557,8 +557,9 @@ def historical_backfill(
     source_op_id = "backfill_orchestrator"
     if not resume:
         ckpt_mgr.delete_checkpoint(source_op_id)
-        for extract_name, _ in source_list:
+        for extract_name, load_name in source_list:
             ckpt_mgr.delete_checkpoint(make_operation_id(extract_name))
+            ckpt_mgr.delete_checkpoint(f"load_{load_name}")
 
     succeeded: list[str] = []
     failed: list[tuple[str, str]] = []
@@ -666,7 +667,7 @@ def historical_backfill(
             try:
                 loader = RawLoader()
                 rows = loader.load_all_raw_files(
-                    raw_path, load_name, run_id=UUID(run_id)
+                    raw_path, load_name, run_id=UUID(run_id), resume=resume
                 )
                 console.print(f"  [green]✓ Loaded {rows} rows[/green]")
                 succeeded.append(extract_name)
@@ -716,10 +717,10 @@ def historical_backfill(
         try:
             console.print("[cyan]--- build-snapshots ---[/cyan]")
             builder = SymbolSnapshotBuilder()
-            snap_results = builder.build_all(
+            snap_results = builder.build_snapshots_for_range(
                 start_ts=datetime.fromisoformat(f"{start}T00:00:00"),
                 end_ts=datetime.fromisoformat(f"{end_date}T00:00:00"),
-                freq="1d",
+                frequency="1d",
             )
             console.print(f"[green]✓ Snapshots built: {snap_results}[/green]")
         except Exception as exc:

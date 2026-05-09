@@ -127,12 +127,10 @@ class GDELTExtractor(HttpClientMixin):
                         low_memory=False,
                     )
 
-            # Parse dates
+            # Parse SQLDATE to date; keep DATEADDED as the raw GDELT numeric
+            # string (e.g. "20150101020000") so the transform can parse it
+            # consistently without format ambiguity.
             df["SQLDATE"] = pd.to_datetime(df["SQLDATE"], format="%Y%m%d")
-            df["DATEADDED"] = pd.to_datetime(
-                df["DATEADDED"].astype(str).str.ljust(14, "0"),
-                format="%Y%m%d%H%M%S",
-            )
 
             # Parse numeric columns
             numeric_cols = ["GoldsteinScale", "NumMentions", "NumSources", "NumArticles", "AvgTone"]
@@ -193,22 +191,31 @@ class GDELTExtractor(HttpClientMixin):
 
         saved_files = []
 
+        # Fast path: count already-downloaded files so we can skip them
+        # without expensive per-file checkpoint writes.
+        existing = {
+            d for d in all_dates
+            if (output_dir / f"gdelt_{d.isoformat()}.parquet").exists()
+        }
+        if existing:
+            logger.info(
+                "Skipping %d already-downloaded dates (files on disk)",
+                len(existing),
+            )
+        to_download = [d for d in all_dates if d not in existing]
+
+        if not to_download:
+            logger.info("All %d dates already downloaded", len(all_dates))
+            return saved_files
+
         with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
             for idx, current_date in resumable_items(
-                all_dates, ctx, key_fn=lambda d: d.isoformat()
+                to_download, ctx, key_fn=lambda d: d.isoformat()
             ):
                 file_path = (
                     output_dir
                     / f"gdelt_{current_date.isoformat()}.parquet"
                 )
-
-                # Skip dates already downloaded in a prior run
-                if file_path.exists():
-                    logger.debug(f"Skipping {current_date} — {file_path} exists")
-                    mark_item_done(
-                        ctx, current_date.isoformat(), idx, len(all_dates)
-                    )
-                    continue
 
                 try:
                     df = self.download_day(current_date)
@@ -224,7 +231,7 @@ class GDELTExtractor(HttpClientMixin):
                     logger.error(f"Error processing {current_date}: {e}")
 
                 mark_item_done(
-                    ctx, current_date.isoformat(), idx, len(all_dates)
+                    ctx, current_date.isoformat(), idx, len(to_download)
                 )
 
         return saved_files
