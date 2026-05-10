@@ -85,59 +85,59 @@ pg-reset: pg-down
 
 # Pipeline commands
 extract-fred:
-	python -m pipeline.cli extract fred --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract fred --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw fred
 
 extract-gdelt:
-	python -m pipeline.cli extract gdelt --start 2024-11-01 --end 2024-11-30
+	python -m pipeline.cli extract gdelt --start $(GDELT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw gdelt
 
 extract-prices:
-	python -m pipeline.cli extract prices --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract prices --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw prices
 
 extract-polymarket:
-	python -m pipeline.cli extract polymarket --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract polymarket --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw polymarket
 
 extract-sec-fundamentals:
-	python -m pipeline.cli extract sec-fundamentals --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract sec-fundamentals --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw sec_fundamentals
 
 extract-sec-insider:
-	python -m pipeline.cli extract sec-insider --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract sec-insider --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw sec_insider
 
 extract-sec-13f:
-	python -m pipeline.cli extract sec-13f --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract sec-13f --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw sec_13f
 
 extract-options:
-	python -m pipeline.cli extract options --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract options --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw options
 
 extract-earnings:
-	python -m pipeline.cli extract earnings --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract earnings --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw earnings
 
 extract-reddit:
-	python -m pipeline.cli extract reddit-sentiment --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract reddit-sentiment --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw reddit_sentiment
 
 extract-short-interest:
-	python -m pipeline.cli extract short-interest --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract short-interest --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw short_interest
 
 extract-etf-flows:
-	python -m pipeline.cli extract etf-flows --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract etf-flows --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw etf_flows
 
 extract-cftc:
-	python -m pipeline.cli extract cftc-cot --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract cftc-cot --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw cftc_cot
 
 extract-factors:
-	python -m pipeline.cli extract factors --start 2024-01-01 --end 2024-12-31
+	python -m pipeline.cli extract factors --start $(EXTRACT_START) --end $(TODAY)
 	python -m pipeline.cli load-raw factors
 
 # Prices are required; other sources are best-effort (may lack API keys in CI)
@@ -175,9 +175,15 @@ latency-stats:
 full-pipeline: extract-all transform latency-stats snapshots dq inventory
 	@echo "✓ Full pipeline complete"
 
+# Date helpers — override any of these on the command line
+TODAY := $(shell date +%Y-%m-%d)
+EXTRACT_START ?= 2010-01-01
+# GDELT is high-volume; default to last 30 days
+GDELT_START ?= $(shell python3 -c "from datetime import date, timedelta; print(date.today()-timedelta(days=30))")
+
 # Historical backfill (2010-present by default, override with START= END=)
 START ?= 2010-01-01
-END ?= $(shell date +%Y-%m-%d)
+END ?= $(TODAY)
 
 historical-backfill:
 	python -m pipeline.cli historical-backfill --start $(START) --end $(END)
