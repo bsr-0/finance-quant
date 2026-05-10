@@ -379,19 +379,38 @@ def build_static_site(
     env.filters["pnl_class"] = _pnl_class
     env.globals["now"] = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
-    # Load latest signals
-    latest_csv = _find_latest_signal_csv(signals_dir)
+    # Load latest signals — scan CSVs newest-first and keep only signals that
+    # are still active (not yet resolved in prediction_history.json).
+    resolved_keys: set[tuple[str, str]] = set()
+    if history_path.exists():
+        try:
+            _hist = json.loads(history_path.read_text())
+            for p in _hist.get("predictions", []):
+                if p.get("outcome") and p["outcome"] != "active":
+                    resolved_keys.add((p["signal_date"], p["ticker"]))
+        except Exception:
+            pass
+
     signals_df = pd.DataFrame()
     signal_date = "N/A"
-    if latest_csv:
-        signals_df = pd.read_csv(latest_csv)
+    for csv_path in sorted(signals_dir.glob("signals_*.csv"), reverse=True):
+        df = pd.read_csv(csv_path)
+        date_str = csv_path.stem.replace("signals_", "")
+        # Normalise to YYYY-MM-DD for comparison with history keys
         try:
-            signal_date = latest_csv.stem.replace("signals_", "")
-        except Exception:
-            signal_date = "unknown"
-        logger.info("Loaded %d signals from %s", len(signals_df), latest_csv.name)
+            date_fmt = datetime.strptime(date_str, "%Y%m%d").strftime("%Y-%m-%d")
+        except ValueError:
+            date_fmt = date_str
+        # Drop rows already resolved
+        if not df.empty and "ticker" in df.columns:
+            df = df[~df["ticker"].apply(lambda t: (date_fmt, t) in resolved_keys)]
+        if not df.empty:
+            signals_df = df
+            signal_date = date_fmt  # YYYY-MM-DD
+            logger.info("Loaded %d signals from %s", len(df), csv_path.name)
+            break
     else:
-        logger.warning("No signal CSVs found in %s", signals_dir)
+        logger.warning("No active signals found in %s", signals_dir)
 
     # Load prediction history
     history_data: dict = {"predictions": [], "last_updated": ""}
