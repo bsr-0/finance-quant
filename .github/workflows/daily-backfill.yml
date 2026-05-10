@@ -1,0 +1,77 @@
+name: Daily Data Backfill
+
+on:
+  schedule:
+    # 10:00 UTC = ~6am ET, after overnight data settlement, weekdays only
+    - cron: "0 10 * * 1-5"
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e . -q
+
+      - name: Initialize database
+        run: make db-init
+
+      - name: Compute rolling date window
+        id: dates
+        run: |
+          echo "end=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          echo "start=$(date -d '-14 days' +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Extract prices (Yahoo Finance, no key needed)
+        run: |
+          python -m pipeline.cli extract prices \
+            --start "${{ steps.dates.outputs.start }}" \
+            --end "${{ steps.dates.outputs.end }}"
+          python -m pipeline.cli load-raw prices
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+
+      - name: Extract FRED macro data
+        if: ${{ secrets.FRED_API_KEY != '' }}
+        run: |
+          python -m pipeline.cli extract fred \
+            --start "${{ steps.dates.outputs.start }}" \
+            --end "${{ steps.dates.outputs.end }}"
+          python -m pipeline.cli load-raw fred
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+      - name: Transform curated layer
+        run: python -m pipeline.cli transform-curated
+
+      - name: Compute latency stats
+        run: python -m pipeline.cli latency-stats
+        continue-on-error: true # Non-fatal; stats are best-effort
+
+      - name: Commit updated signals and predictions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f data/signals/ data/prediction_history.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No data changes to commit."
+          else
+            git commit -m "chore: daily backfill $(date +%Y-%m-%d) [skip ci]"
+            git push
+          fi
