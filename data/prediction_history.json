@@ -543,7 +543,55 @@
       "resolved_price": null,
       "pnl_pct": null,
       "days_held": null
+    },
+    {
+      "signal_date": "2026-05-11",
+      "ticker": "C",
+      "score": 85,
+      "confidence": "HIGH",
+      "entry_price": 125.85,
+      "stop_price": 121.0426,
+      "target_price": 132.2599,
+      "regime": "BULL",
+      "direction": "LONG",
+      "outcome": "active",
+      "resolved_date": null,
+      "resolved_price": null,
+      "pnl_pct": null,
+      "days_held": null
+    },
+    {
+      "signal_date": "2026-05-11",
+      "ticker": "USB",
+      "score": 85,
+      "confidence": "HIGH",
+      "entry_price": 54.49,
+      "stop_price": 52.8995,
+      "target_price": 56.6107,
+      "regime": "BULL",
+      "direction": "LONG",
+      "outcome": "active",
+      "resolved_date": null,
+      "resolved_price": null,
+      "pnl_pct": null,
+      "days_held": null
+    },
+    {
+      "signal_date": "2026-05-11",
+      "ticker": "BKNG",
+      "score": 70,
+      "confidence": "MEDIUM",
+      "entry_price": 157.8,
+      "stop_price": 147.0536,
+      "target_price": 172.1286,
+      "regime": "BULL",
+      "direction": "LONG",
+      "outcome": "active",
+      "resolved_date": null,
+      "resolved_price": null,
+      "pnl_pct": null,
+      "days_held": null
     }
   ],
-  "last_updated": "2026-05-11T04:53:48.794332+00:00"
+  "last_updated": "2026-05-11T23:33:26.685256+00:00"
 }
