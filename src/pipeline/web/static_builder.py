@@ -403,7 +403,7 @@ def build_static_site(
             date_fmt = date_str
         # Drop rows already resolved
         if not df.empty and "ticker" in df.columns:
-            df = df[~df["ticker"].apply(lambda t: (date_fmt, t) in resolved_keys)]
+            df = df[~df["ticker"].apply(lambda t, k=date_fmt: (k, t) in resolved_keys)]
         if not df.empty:
             signals_df = df
             signal_date = date_fmt  # YYYY-MM-DD

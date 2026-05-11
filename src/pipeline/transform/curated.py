@@ -235,7 +235,7 @@ class CuratedTransformer:
         return rows
 
     def transform_world_events(self, batch_days: int = 7) -> int:
-        """Transform raw GDELT data to curated world events, processed in date batches to avoid OOM."""
+        """Transform raw GDELT data to curated world events, in date batches to avoid OOM."""
         logger.info("Transforming world events (batch_days=%d)...", batch_days)
 
         source_id = self._get_source_id("gdelt")
@@ -248,7 +248,8 @@ class CuratedTransformer:
             WITH base AS (
                 SELECT
                     :source_id AS source_id,
-                    TRY_CAST(json_extract_string(r.raw_data, '$.GLOBALEVENTID') AS BIGINT) AS gdelt_event_id,
+                    TRY_CAST(json_extract_string(r.raw_data, '$.GLOBALEVENTID') AS BIGINT)
+                        AS gdelt_event_id,
                     json_extract_string(r.raw_data, '$.EventCode')               AS event_type,
                     COALESCE(
                         TRY_CAST(json_extract_string(r.raw_data, '$.SQLDATE') AS DATE)::timestamptz,
@@ -274,10 +275,18 @@ class CuratedTransformer:
                         ELSE r.extracted_at
                     END                                           AS base_available_time,
                     json_object(
-                        'action_geo_fullname', json_extract_string(r.raw_data, '$.ActionGeo_FullName'),
-                        'action_geo_country',  json_extract_string(r.raw_data, '$.ActionGeo_CountryCode'),
-                        'action_geo_lat',      TRY_CAST(json_extract_string(r.raw_data, '$.ActionGeo_Lat') AS DECIMAL(18,3)),
-                        'action_geo_long',     TRY_CAST(json_extract_string(r.raw_data, '$.ActionGeo_Long') AS DECIMAL(18,3))
+                        'action_geo_fullname',
+                            json_extract_string(r.raw_data, '$.ActionGeo_FullName'),
+                        'action_geo_country',
+                            json_extract_string(r.raw_data, '$.ActionGeo_CountryCode'),
+                        'action_geo_lat',
+                            TRY_CAST(
+                                json_extract_string(r.raw_data, '$.ActionGeo_Lat')
+                                AS DECIMAL(18,3)),
+                        'action_geo_long',
+                            TRY_CAST(
+                                json_extract_string(r.raw_data, '$.ActionGeo_Long')
+                                AS DECIMAL(18,3))
                     )                                             AS location,
                     json_object(
                         'actor1_name', json_extract_string(r.raw_data, '$.Actor1Name'),
@@ -286,7 +295,8 @@ class CuratedTransformer:
                         'actor2_code', json_extract_string(r.raw_data, '$.Actor2Code')
                     )                                             AS actors,
                     json_array(json_extract_string(r.raw_data, '$.EventBaseCode')) AS themes,
-                    TRY_CAST(json_extract_string(r.raw_data, '$.AvgTone') AS DECIMAL(18,3)) AS tone_score,
+                    TRY_CAST(json_extract_string(r.raw_data, '$.AvgTone') AS DECIMAL(18,3))
+                        AS tone_score,
                     CASE
                         WHEN :available_source = 'DATEADDED'
                             AND json_extract_string(r.raw_data, '$.DATEADDED') IS NOT NULL
@@ -327,7 +337,7 @@ class CuratedTransformer:
 
         # Start from the day after the latest already-curated event (incremental load).
         # Fall back to the earliest raw event only if cur_world_events is empty.
-        from datetime import timedelta, date as _date
+        from datetime import timedelta
         with self.db.engine.connect() as conn:
             already_curated = conn.execute(text(
                 "SELECT CAST(MAX(event_time) AS DATE) FROM cur_world_events"
@@ -340,10 +350,7 @@ class CuratedTransformer:
             logger.info("No raw GDELT events to transform")
             return 0
 
-        if already_curated is not None:
-            batch_start = already_curated  # resume from last curated date
-        else:
-            batch_start = raw_bounds[0]
+        batch_start = already_curated if already_curated is not None else raw_bounds[0]
 
         batch_end_overall = raw_bounds[1]
         total_rows = 0

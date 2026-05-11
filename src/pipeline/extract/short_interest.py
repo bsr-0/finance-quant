@@ -56,7 +56,9 @@ class ShortInterestExtractor(HttpClientMixin):
             return self._crumb
 
         # Step 1: Visit Yahoo Finance to obtain session cookies
-        self.client.get("https://finance.yahoo.com/quote/SPY", headers={"User-Agent": self._BROWSER_UA})
+        self.client.get(
+            "https://finance.yahoo.com/quote/SPY", headers={"User-Agent": self._BROWSER_UA}
+        )
 
         # Step 2: Fetch the crumb using the session cookies
         crumb_resp = self.client.get(
