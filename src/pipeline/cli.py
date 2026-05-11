@@ -1939,7 +1939,6 @@ def daily_predictions(
     config_path = Path("config.yaml")
     config = (_yaml.safe_load(config_path.read_text()) or {}) if config_path.exists() else {}
     dp_config = config.get("daily_predictions", {})
-    universe = dp_config.get("universe", ["SPY", "QQQ", "IWM"])
     signals_dir = Path(dp_config.get("signals_dir", "data/signals"))
     history_path = Path(dp_config.get("history_file", "data/prediction_history.json"))
     output_dir = Path(dp_config.get("output_dir", "site"))
@@ -1947,11 +1946,33 @@ def daily_predictions(
 
     signals_dir.mkdir(parents=True, exist_ok=True)
 
+    # Resolve universe: dynamic fetch or fallback to config list
+    universe_source = dp_config.get("universe_source")
+    universe_extra = dp_config.get("universe_extra", [])
+    universe_fallback = dp_config.get("universe", ["SPY", "QQQ", "IWM"])
+    if universe_source:
+        from pipeline.extract.universe import get_universe
+
+        try:
+            universe = get_universe(
+                source=universe_source,
+                extra=universe_extra,
+                fallback=universe_fallback,
+            )
+            console.print(
+                f"  Universe: {len(universe)} symbols "
+                f"({universe_source} + {len(universe_extra)} extras)"
+            )
+        except Exception as exc:
+            console.print(f"  [yellow]Universe fetch failed ({exc}), using fallback[/yellow]")
+            universe = universe_fallback
+    else:
+        universe = universe_fallback
+        console.print(f"  Universe: {len(universe)} symbols (config list)")
+
     # Signal date is resolved after loading price data so we can fall back
     # to the latest available trading day when no explicit date is given.
     explicit_date = pd.Timestamp(date) if date else None
-
-    console.print(f"  Universe: {len(universe)} ETFs")
 
     # Load price data from database
     db = get_db_manager()

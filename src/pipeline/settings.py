@@ -153,6 +153,8 @@ class PriceSettings(BaseSettings):
     exchange_timezone: str = "America/New_York"
     vendor_delay_minutes: int = 15
     adjust_corporate_actions: bool = True  # Auto-adjust prices for splits/dividends
+    universe_source: str | None = None  # "sp100" | "sp500" | None (use explicit list)
+    universe_extra: list[str] = Field(default_factory=list)
     universe: list[str] = Field(
         default_factory=lambda: [
             "SPY",
@@ -167,6 +169,22 @@ class PriceSettings(BaseSettings):
             "TSLA",
         ]
     )
+
+    @property
+    def resolved_universe(self) -> list[str]:
+        """Return the universe, fetching dynamically if universe_source is set."""
+        if not self.universe_source:
+            return self.universe
+        try:
+            from pipeline.extract.universe import get_universe
+
+            return get_universe(
+                source=self.universe_source,
+                extra=self.universe_extra,
+                fallback=self.universe,
+            )
+        except Exception:
+            return self.universe
 
 
 class SecEdgarSettings(BaseSettings):

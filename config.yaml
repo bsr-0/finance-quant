@@ -89,41 +89,38 @@ prices:
   exchange_timezone: "America/New_York"
   vendor_delay_minutes: 15
   adjust_corporate_actions: true  # Auto-adjust prices for splits/dividends
+  # Dynamic universe: fetch S&P 100 constituents from Wikipedia (cached 7 days)
+  universe_source: sp100
+  universe_extra:
+    - SPY    # S&P 500 ETF
+    - QQQ    # Nasdaq 100 ETF
+    - IWM    # Russell 2000 ETF
+    - DIA    # Dow Jones ETF
+    - XLF    # Financials sector ETF
+    - XLK    # Technology sector ETF
+    - XLE    # Energy sector ETF
+    - XLV    # Healthcare sector ETF
+    - XLI    # Industrials sector ETF
+    - XLC    # Communication Services ETF
+    - XLY    # Consumer Discretionary ETF
+    - XLP    # Consumer Staples ETF
+    - XLB    # Materials ETF
+    - XLU    # Utilities ETF
+    - XLRE   # Real Estate ETF
+    - TLT    # 20+ Year Treasury ETF
+    - GLD    # Gold ETF
+  # Fallback if Wikipedia is unreachable
   universe:
     - SPY
     - QQQ
     - IWM
-    - VTI
-    - VOO
-    - DIA    # Dow Jones (daily-predictions ETF)
-    - XLF    # Financials
-    - XLK    # Technology
-    - XLE    # Energy
-    - XLV    # Healthcare
-    - XLI    # Industrials
-    - XLC    # Communication Services
-    - XLY    # Consumer Discretionary
-    - XLP    # Consumer Staples
-    - XLB    # Materials
-    - XLU    # Utilities
-    - XLRE   # Real Estate
-    - TLT    # 20+ Year Treasury
-    - GLD    # Gold
     - AAPL
     - MSFT
     - GOOGL
     - AMZN
+    - NVDA
     - META
     - TSLA
-    - NVDA
-    - JPM
-    - JNJ
-    - V
-    - WMT
-    - PG
-    - UNH
-    - HD
-    - MA
 
 # SEC EDGAR settings (fundamentals, insider trades, 13F)
 sec_edgar:
@@ -270,25 +267,43 @@ execution:
 
 # Daily predictions settings
 daily_predictions:
-  # ETF universe for daily signal generation
+  # Dynamic universe: fetch top-100 S&P constituents from Wikipedia weekly.
+  # Set to "sp500" for the full 500, or remove to use the explicit list below.
+  universe_source: sp100
+
+  # Extra tickers appended after the dynamic list (ETFs not in the S&P 100).
+  universe_extra:
+    - SPY    # S&P 500 ETF
+    - QQQ    # Nasdaq 100 ETF
+    - IWM    # Russell 2000 ETF
+    - DIA    # Dow Jones ETF
+    - XLF    # Financials sector ETF
+    - XLK    # Technology sector ETF
+    - XLE    # Energy sector ETF
+    - XLV    # Healthcare sector ETF
+    - XLI    # Industrials sector ETF
+    - XLC    # Communication Services ETF
+    - XLY    # Consumer Discretionary ETF
+    - XLP    # Consumer Staples ETF
+    - XLB    # Materials ETF
+    - XLU    # Utilities ETF
+    - XLRE   # Real Estate ETF
+    - TLT    # 20+ Year Treasury ETF
+    - GLD    # Gold ETF
+
+  # Fallback if Wikipedia fetch fails (keeps pipeline running offline)
   universe:
-    - SPY    # S&P 500
-    - QQQ    # Nasdaq 100
-    - IWM    # Russell 2000
-    - DIA    # Dow Jones
-    - XLF    # Financials
-    - XLK    # Technology
-    - XLE    # Energy
-    - XLV    # Healthcare
-    - XLI    # Industrials
-    - XLC    # Communication Services
-    - XLY    # Consumer Discretionary
-    - XLP    # Consumer Staples
-    - XLB    # Materials
-    - XLU    # Utilities
-    - XLRE   # Real Estate
-    - TLT    # 20+ Year Treasury
-    - GLD    # Gold
+    - SPY
+    - QQQ
+    - IWM
+    - AAPL
+    - MSFT
+    - GOOGL
+    - AMZN
+    - NVDA
+    - META
+    - TSLA
+
   output_dir: site
   signals_dir: data/signals
   history_file: data/prediction_history.json

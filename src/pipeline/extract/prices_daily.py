@@ -612,7 +612,7 @@ class PriceExtractor:
         settings = get_settings().prices
         self.source = settings.source
         self.fallback_source = settings.fallback_source
-        self.universe = settings.universe
+        self.universe = settings.resolved_universe
         self._adjust = settings.adjust_corporate_actions
 
         self._extractor = _create_extractor(self.source)
