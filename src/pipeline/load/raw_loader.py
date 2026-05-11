@@ -29,17 +29,13 @@ class RawLoader:
         self._batch_size = get_settings().infrastructure.batch_size
         self._corruption_handler: CorruptionHandler | None = None
 
-    def _batch_insert(
-        self, conn, insert_sql, records: list[dict], label: str = ""
-    ) -> int:
+    def _batch_insert(self, conn, insert_sql, records: list[dict], label: str = "") -> int:
         if not records:
             return 0
         total = 0
         num_batches = (len(records) + self._batch_size - 1) // self._batch_size
         log_every = max(1, num_batches // 10)  # Log ~10 progress updates
-        for batch_num, i in enumerate(
-            range(0, len(records), self._batch_size), start=1
-        ):
+        for batch_num, i in enumerate(range(0, len(records), self._batch_size), start=1):
             batch = records[i : i + self._batch_size]
             conn.execute(insert_sql, batch)
             total += len(batch)
@@ -145,9 +141,7 @@ class RawLoader:
         logger.info(f"Loaded {rows_loaded} FRED observations")
         return rows_loaded
 
-    def _load_gdelt_duckdb_native(
-        self, file_path: Path, run_id: UUID | None
-    ) -> int:
+    def _load_gdelt_duckdb_native(self, file_path: Path, run_id: UUID | None) -> int:
         """Fast-path: use DuckDB's native parquet reader to bulk-load GDELT."""
         run_id_literal = f"'{run_id}'::UUID" if run_id else "NULL"
         abs_path = str(file_path.resolve())
@@ -194,9 +188,7 @@ class RawLoader:
                 logger.info(f"Loaded {rows_loaded:,} GDELT events (native parquet)")
                 return rows_loaded
             except Exception as e:
-                logger.warning(
-                    f"DuckDB native load failed, falling back to row-wise: {e}"
-                )
+                logger.warning(f"DuckDB native load failed, falling back to row-wise: {e}")
 
         df = self._read_parquet_or_quarantine(file_path, handler)
         if df is None:

@@ -365,7 +365,11 @@ class TestSignalLibrary:
         sig_def = mean_reversion_signal()
         pipeline = SignalPipeline(sig_def)
         optimized = optimize_weights(
-            pipeline, data, train_size=100, test_size=50, alpha=1.0,
+            pipeline,
+            data,
+            train_size=100,
+            test_size=50,
+            alpha=1.0,
         )
         old_weights = [cfg.weight for _, cfg in sig_def.indicators]
         new_weights = [cfg.weight for _, cfg in optimized.indicators]

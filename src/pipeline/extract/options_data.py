@@ -130,9 +130,7 @@ class OptionsDataExtractor(HttpClientMixin):
                     all_rows: list[dict] = []
 
                     for exp_ts in expirations:
-                        with self._metrics.time_operation(
-                            f"extract_options_{ticker}"
-                        ):
+                        with self._metrics.time_operation(f"extract_options_{ticker}"):
                             data = self._fetch_options_chain(ticker, exp_ts)
                             rows = self._parse_chain(data, ticker, today)
                             all_rows.extend(rows)

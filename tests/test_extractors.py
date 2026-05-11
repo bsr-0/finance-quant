@@ -774,34 +774,36 @@ class TestCftcCotExtractor:
 
         extractor = CftcCotExtractor()
 
-        zip_content = _make_cot_zip([
-            {
-                "CFTC_Contract_Market_Code": "13874A",
-                "Market_and_Exchange_Names": "E-MINI S&P 500",
-                "Report_Date_as_YYYY-MM-DD": "2024-06-04",
-                "Comm_Positions_Long_All": 100,
-                "Comm_Positions_Short_All": 50,
-                "NonComm_Positions_Long_All": 200,
-                "NonComm_Positions_Short_All": 150,
-                "NonComm_Positions_Spread_All": 10,
-                "NonRept_Positions_Long_All": 30,
-                "NonRept_Positions_Short_All": 20,
-                "Open_Interest_All": 500,
-            },
-            {
-                "CFTC_Contract_Market_Code": "XXXXX",
-                "Market_and_Exchange_Names": "OTHER",
-                "Report_Date_as_YYYY-MM-DD": "2024-06-04",
-                "Comm_Positions_Long_All": 1,
-                "Comm_Positions_Short_All": 1,
-                "NonComm_Positions_Long_All": 1,
-                "NonComm_Positions_Short_All": 1,
-                "NonComm_Positions_Spread_All": 1,
-                "NonRept_Positions_Long_All": 1,
-                "NonRept_Positions_Short_All": 1,
-                "Open_Interest_All": 1,
-            },
-        ])
+        zip_content = _make_cot_zip(
+            [
+                {
+                    "CFTC_Contract_Market_Code": "13874A",
+                    "Market_and_Exchange_Names": "E-MINI S&P 500",
+                    "Report_Date_as_YYYY-MM-DD": "2024-06-04",
+                    "Comm_Positions_Long_All": 100,
+                    "Comm_Positions_Short_All": 50,
+                    "NonComm_Positions_Long_All": 200,
+                    "NonComm_Positions_Short_All": 150,
+                    "NonComm_Positions_Spread_All": 10,
+                    "NonRept_Positions_Long_All": 30,
+                    "NonRept_Positions_Short_All": 20,
+                    "Open_Interest_All": 500,
+                },
+                {
+                    "CFTC_Contract_Market_Code": "XXXXX",
+                    "Market_and_Exchange_Names": "OTHER",
+                    "Report_Date_as_YYYY-MM-DD": "2024-06-04",
+                    "Comm_Positions_Long_All": 1,
+                    "Comm_Positions_Short_All": 1,
+                    "NonComm_Positions_Long_All": 1,
+                    "NonComm_Positions_Short_All": 1,
+                    "NonComm_Positions_Spread_All": 1,
+                    "NonRept_Positions_Long_All": 1,
+                    "NonRept_Positions_Short_All": 1,
+                    "Open_Interest_All": 1,
+                },
+            ]
+        )
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200

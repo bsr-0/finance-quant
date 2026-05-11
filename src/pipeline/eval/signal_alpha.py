@@ -403,9 +403,7 @@ class SignalTrialRegistry:
             result.ic_p_value,
         )
 
-    def screen(
-        self, alpha: float = 0.05
-    ) -> list[tuple[SignalAlphaResult, bool]]:
+    def screen(self, alpha: float = 0.05) -> list[tuple[SignalAlphaResult, bool]]:
         """Apply Benjamini-Hochberg FDR correction across all recorded trials.
 
         Args:
@@ -431,9 +429,11 @@ class SignalTrialRegistry:
             "n_trials": len(self._trials),
             "n_passed_deflated_sharpe": n_passed_dsr,
             "n_survived_fdr": n_survived,
-            "best_ic_mean": max(t.ic_mean for t in self._trials if np.isfinite(t.ic_mean))
-            if any(np.isfinite(t.ic_mean) for t in self._trials)
-            else np.nan,
+            "best_ic_mean": (
+                max(t.ic_mean for t in self._trials if np.isfinite(t.ic_mean))
+                if any(np.isfinite(t.ic_mean) for t in self._trials)
+                else np.nan
+            ),
             "trial_names": [t.signal_name for t in self._trials],
         }
 

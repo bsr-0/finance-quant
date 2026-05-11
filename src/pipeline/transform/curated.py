@@ -338,13 +338,14 @@ class CuratedTransformer:
         # Start from the day after the latest already-curated event (incremental load).
         # Fall back to the earliest raw event only if cur_world_events is empty.
         from datetime import timedelta
+
         with self.db.engine.connect() as conn:
-            already_curated = conn.execute(text(
-                "SELECT CAST(MAX(event_time) AS DATE) FROM cur_world_events"
-            )).scalar()
-            raw_bounds = conn.execute(text(
-                "SELECT MIN(event_date), MAX(event_date) FROM raw_gdelt_events"
-            )).fetchone()
+            already_curated = conn.execute(
+                text("SELECT CAST(MAX(event_time) AS DATE) FROM cur_world_events")
+            ).scalar()
+            raw_bounds = conn.execute(
+                text("SELECT MIN(event_date), MAX(event_date) FROM raw_gdelt_events")
+            ).fetchone()
 
         if not raw_bounds or raw_bounds[0] is None:
             logger.info("No raw GDELT events to transform")
@@ -358,13 +359,16 @@ class CuratedTransformer:
         while batch_start <= batch_end_overall:
             batch_end = batch_start + timedelta(days=batch_days)
             with self.db.engine.connect() as conn:
-                result = conn.execute(batch_sql, {
-                    "source_id": source_id,
-                    "available_source": available_source,
-                    "latency_minutes": latency_minutes,
-                    "batch_start": batch_start,
-                    "batch_end": batch_end,
-                })
+                result = conn.execute(
+                    batch_sql,
+                    {
+                        "source_id": source_id,
+                        "available_source": available_source,
+                        "latency_minutes": latency_minutes,
+                        "batch_start": batch_start,
+                        "batch_end": batch_end,
+                    },
+                )
                 conn.commit()
                 batch_rows = result.rowcount if result.rowcount >= 0 else 0
             total_rows += batch_rows
@@ -718,10 +722,7 @@ class CuratedTransformer:
 
         with self.db.engine.connect() as conn:
             df = pd.read_sql(
-                text(
-                    "SELECT date, mkt_rf, smb, hml, rmw, cma, mom, rf"
-                    " FROM raw_factor_returns"
-                ),
+                text("SELECT date, mkt_rf, smb, hml, rmw, cma, mom, rf" " FROM raw_factor_returns"),
                 conn,
             )
             if df.empty:

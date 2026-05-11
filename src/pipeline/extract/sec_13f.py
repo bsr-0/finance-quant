@@ -283,14 +283,10 @@ class Sec13FExtractor(HttpClientMixin):
         saved_files: list[Path] = []
 
         with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
-            for idx, filer in resumable_items(
-                filers, ctx, key_fn=lambda f: f["name"]
-            ):
+            for idx, filer in resumable_items(filers, ctx, key_fn=lambda f: f["name"]):
                 filer_name = filer["name"]
                 filer_cik = filer["cik"]
-                logger.info(
-                    f"Extracting 13F holdings for {filer_name} (CIK {filer_cik})"
-                )
+                logger.info(f"Extracting 13F holdings for {filer_name} (CIK {filer_cik})")
 
                 try:
                     filings = self._get_13f_filings(filer_cik, start_date)
@@ -328,9 +324,7 @@ class Sec13FExtractor(HttpClientMixin):
                     df["run_id"] = run_id
 
                     safe_name = filer_name.replace(" ", "_").lower()
-                    file_path = (
-                        output_dir / f"{safe_name}_{start_date}_{end_date}.parquet"
-                    )
+                    file_path = output_dir / f"{safe_name}_{start_date}_{end_date}.parquet"
                     df.to_parquet(file_path, index=False)
                     saved_files.append(file_path)
                     self._metrics.record_extracted("sec_13f", len(df))

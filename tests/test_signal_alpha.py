@@ -413,14 +413,22 @@ class TestSignalTrialRegistry:
         registry = SignalTrialRegistry()
 
         result_noise = walk_forward_ic(
-            signals_noise, returns_noise, signal_name="noise",
-            train_size=100, test_size=50, embargo_size=5,
+            signals_noise,
+            returns_noise,
+            signal_name="noise",
+            train_size=100,
+            test_size=50,
+            embargo_size=5,
         )
         registry.record_trial(result_noise)
 
         result_pred = walk_forward_ic(
-            signals_pred, returns_pred, signal_name="predictive",
-            train_size=100, test_size=50, embargo_size=5,
+            signals_pred,
+            returns_pred,
+            signal_name="predictive",
+            train_size=100,
+            test_size=50,
+            embargo_size=5,
         )
         registry.record_trial(result_pred)
 

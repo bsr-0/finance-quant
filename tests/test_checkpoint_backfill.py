@@ -107,9 +107,7 @@ class TestMarkItemDone:
 
     def test_incremental_save_survives_crash(self, ckpt: CheckpointManager):
         """If the context exits with an error, checkpoint should persist."""
-        with pytest.raises(RuntimeError), CheckpointContext(
-            ckpt, "crash_op", resume=True
-        ) as ctx:
+        with pytest.raises(RuntimeError), CheckpointContext(ckpt, "crash_op", resume=True) as ctx:
             mark_item_done(ctx, "A", 0, 3)
             mark_item_done(ctx, "B", 1, 3)
             raise RuntimeError("simulated crash")
@@ -126,9 +124,7 @@ class TestMarkItemDone:
     def test_resume_after_crash(self, ckpt: CheckpointManager):
         """After a crash, resuming should skip completed items."""
         # Simulate crash after processing A and B
-        with pytest.raises(RuntimeError), CheckpointContext(
-            ckpt, "resume_op", resume=True
-        ) as ctx:
+        with pytest.raises(RuntimeError), CheckpointContext(ckpt, "resume_op", resume=True) as ctx:
             for i, item in resumable_items(["A", "B", "C"], ctx):
                 mark_item_done(ctx, item, i, 3)
                 if item == "B":
@@ -218,9 +214,7 @@ class TestExtractorCheckpointIntegration:
 
         # Simulate extracting first 3, then crashing
         extracted = []
-        with pytest.raises(RuntimeError), CheckpointContext(
-            ckpt, op_id, resume=True
-        ) as ctx:
+        with pytest.raises(RuntimeError), CheckpointContext(ckpt, op_id, resume=True) as ctx:
             for i, ticker in resumable_items(tickers, ctx):
                 extracted.append(ticker)
                 mark_item_done(ctx, ticker, i, len(tickers))
@@ -251,9 +245,7 @@ class TestExtractorCheckpointIntegration:
 
         # Process 2 dates then crash
         processed = []
-        with pytest.raises(RuntimeError), CheckpointContext(
-            ckpt, op_id, resume=True
-        ) as ctx:
+        with pytest.raises(RuntimeError), CheckpointContext(ckpt, op_id, resume=True) as ctx:
             for i, d in resumable_items(dates, ctx, key_fn=lambda d: d.isoformat()):
                 processed.append(d)
                 mark_item_done(ctx, d.isoformat(), i, len(dates))

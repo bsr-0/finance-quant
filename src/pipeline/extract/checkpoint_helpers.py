@@ -56,9 +56,7 @@ def resumable_items(
         yield i, item
 
 
-def mark_item_done(
-    ctx: CheckpointContext, item_key: str, index: int, total: int
-) -> None:
+def mark_item_done(ctx: CheckpointContext, item_key: str, index: int, total: int) -> None:
     """Record that *item_key* has been processed and persist the checkpoint."""
     completed: list[str] = ctx.state.get("completed_keys", [])
     completed.append(item_key)

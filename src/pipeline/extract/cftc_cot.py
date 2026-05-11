@@ -147,9 +147,7 @@ class CftcCotExtractor(HttpClientMixin):
         all_frames: list[pd.DataFrame] = []
 
         with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
-            for idx, year in resumable_items(
-                year_list, ctx, key_fn=lambda y: str(y)
-            ):
+            for idx, year in resumable_items(year_list, ctx, key_fn=lambda y: str(y)):
                 try:
                     with self._metrics.time_operation(f"extract_cot_{year}"):
                         df = self._fetch_cot_year(year)
@@ -174,8 +172,7 @@ class CftcCotExtractor(HttpClientMixin):
 
         combined = pd.concat(all_frames, ignore_index=True)
         combined = combined[
-            (combined["report_date"] >= start_date)
-            & (combined["report_date"] <= end_date)
+            (combined["report_date"] >= start_date) & (combined["report_date"] <= end_date)
         ]
 
         if combined.empty:

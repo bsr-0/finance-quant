@@ -273,9 +273,7 @@ class SecInsiderExtractor(HttpClientMixin):
 
                         xml_text = self._fetch_form4_xml(cik, accession, primary_doc)
                         if xml_text:
-                            rows = self._parse_form4_xml(
-                                xml_text, ticker, cik, f_date or ""
-                            )
+                            rows = self._parse_form4_xml(xml_text, ticker, cik, f_date or "")
                             for row in rows:
                                 row["accession_number"] = accession
                             all_rows.extend(rows)
@@ -291,26 +289,18 @@ class SecInsiderExtractor(HttpClientMixin):
                     df["run_id"] = run_id
 
                     if start_date:
-                        df["transaction_date"] = pd.to_datetime(
-                            df["transaction_date"]
-                        ).dt.date
+                        df["transaction_date"] = pd.to_datetime(df["transaction_date"]).dt.date
                         df = df[df["transaction_date"] >= start_date]
                     if end_date:
-                        if "transaction_date" not in df.select_dtypes(
-                            include=["object"]
-                        ).columns:
-                            df["transaction_date"] = pd.to_datetime(
-                                df["transaction_date"]
-                            ).dt.date
+                        if "transaction_date" not in df.select_dtypes(include=["object"]).columns:
+                            df["transaction_date"] = pd.to_datetime(df["transaction_date"]).dt.date
                         df = df[df["transaction_date"] <= end_date]
 
                     if df.empty:
                         mark_item_done(ctx, ticker, idx, len(tickers))
                         continue
 
-                    file_path = (
-                        output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
-                    )
+                    file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
                     df.to_parquet(file_path, index=False)
                     saved_files.append(file_path)
                     self._metrics.record_extracted("sec_insider", len(df))

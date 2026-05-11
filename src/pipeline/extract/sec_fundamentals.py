@@ -238,7 +238,8 @@ class SecFundamentalsExtractor(HttpClientMixin):
                         if facts is None:
                             logger.warning(
                                 "No XBRL company facts for %s (CIK %s), likely an ETF/fund",
-                                ticker, cik,
+                                ticker,
+                                cik,
                             )
                             mark_item_done(ctx, ticker, idx, len(tickers))
                             continue
@@ -253,9 +254,7 @@ class SecFundamentalsExtractor(HttpClientMixin):
                     df = pd.DataFrame(rows)
 
                     # Optionally filter by date range
-                    df["fiscal_period_end"] = pd.to_datetime(
-                        df["fiscal_period_end"]
-                    ).dt.date
+                    df["fiscal_period_end"] = pd.to_datetime(df["fiscal_period_end"]).dt.date
                     df["filing_date"] = pd.to_datetime(df["filing_date"]).dt.date
                     if start_date:
                         df = df[df["fiscal_period_end"] >= start_date]
@@ -269,9 +268,7 @@ class SecFundamentalsExtractor(HttpClientMixin):
                     df["extracted_at"] = datetime.now(UTC)
                     df["run_id"] = run_id
 
-                    file_path = (
-                        output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
-                    )
+                    file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
                     df.to_parquet(file_path, index=False)
                     saved_files.append(file_path)
                     self._metrics.record_extracted("sec_fundamentals", len(df))
@@ -279,9 +276,7 @@ class SecFundamentalsExtractor(HttpClientMixin):
 
                 except Exception as e:
                     self._metrics.record_error(type(e).__name__)
-                    logger.error(
-                        f"Failed to extract fundamentals for {ticker}: {e}"
-                    )
+                    logger.error(f"Failed to extract fundamentals for {ticker}: {e}")
 
                 mark_item_done(ctx, ticker, idx, len(tickers))
 

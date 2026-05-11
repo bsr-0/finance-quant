@@ -213,23 +213,17 @@ class EarningsExtractor(HttpClientMixin):
 
         with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
             for idx, ticker in resumable_items(tickers, ctx):
-                file_path = (
-                    output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
-                )
+                file_path = output_dir / f"{ticker}_{start_date}_{end_date}.parquet"
 
                 if not force and file_path.exists():
-                    logger.info(
-                        f"Skipping {ticker} — already extracted ({file_path.name})"
-                    )
+                    logger.info(f"Skipping {ticker} — already extracted ({file_path.name})")
                     saved_files.append(file_path)
                     mark_item_done(ctx, ticker, idx, len(tickers))
                     continue
 
                 logger.info(f"Extracting earnings for {ticker}")
                 try:
-                    with self._metrics.time_operation(
-                        f"extract_earnings_{ticker}"
-                    ):
+                    with self._metrics.time_operation(f"extract_earnings_{ticker}"):
                         modules = self._fetch_earnings_modules(ticker)
                         rows = self._parse_earnings_data(modules, ticker)
 
@@ -240,9 +234,7 @@ class EarningsExtractor(HttpClientMixin):
                         continue
 
                     df = pd.DataFrame(rows)
-                    df["report_date"] = pd.to_datetime(
-                        df["report_date"], errors="coerce"
-                    ).dt.date
+                    df["report_date"] = pd.to_datetime(df["report_date"], errors="coerce").dt.date
 
                     if start_date:
                         df = df[df["report_date"] >= start_date]

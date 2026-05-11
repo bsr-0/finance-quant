@@ -691,9 +691,7 @@ class PriceExtractor:
         with CheckpointContext(ckpt, op_id, resume=resume) as ctx:
             for i, ticker in resumable_items(symbols, ctx):
                 logger.info(f"Extracting prices for {ticker}")
-                path = self._extract_single_ticker(
-                    ticker, output_dir, start, end, run_id
-                )
+                path = self._extract_single_ticker(ticker, output_dir, start, end, run_id)
                 if path is not None:
                     saved_files.append(path)
                 mark_item_done(ctx, ticker, i, len(symbols))

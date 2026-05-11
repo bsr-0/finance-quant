@@ -90,9 +90,7 @@ class PositionRegister:
         data = {sym: _tracked_to_dict(pos) for sym, pos in positions.items()}
         content = json.dumps(data, indent=2)
 
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(self.path.parent), suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(self.path.parent), suffix=".tmp")
         try:
             with os.fdopen(fd, "w") as f:
                 fcntl.flock(f, fcntl.LOCK_EX)
@@ -122,9 +120,7 @@ class PositionRegister:
                 finally:
                     fcntl.flock(f, fcntl.LOCK_UN)
             positions = {sym: _dict_to_tracked(d) for sym, d in data.items()}
-            logger.info(
-                "Position register loaded: %d open positions", len(positions)
-            )
+            logger.info("Position register loaded: %d open positions", len(positions))
             return positions
         except (json.JSONDecodeError, KeyError):
             logger.warning(

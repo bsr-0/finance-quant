@@ -194,8 +194,7 @@ class GDELTExtractor(HttpClientMixin):
         # Fast path: count already-downloaded files so we can skip them
         # without expensive per-file checkpoint writes.
         existing = {
-            d for d in all_dates
-            if (output_dir / f"gdelt_{d.isoformat()}.parquet").exists()
+            d for d in all_dates if (output_dir / f"gdelt_{d.isoformat()}.parquet").exists()
         }
         if existing:
             logger.info(
@@ -212,10 +211,7 @@ class GDELTExtractor(HttpClientMixin):
             for idx, current_date in resumable_items(
                 to_download, ctx, key_fn=lambda d: d.isoformat()
             ):
-                file_path = (
-                    output_dir
-                    / f"gdelt_{current_date.isoformat()}.parquet"
-                )
+                file_path = output_dir / f"gdelt_{current_date.isoformat()}.parquet"
 
                 try:
                     df = self.download_day(current_date)
@@ -230,9 +226,7 @@ class GDELTExtractor(HttpClientMixin):
                 except Exception as e:
                     logger.error(f"Error processing {current_date}: {e}")
 
-                mark_item_done(
-                    ctx, current_date.isoformat(), idx, len(to_download)
-                )
+                mark_item_done(ctx, current_date.isoformat(), idx, len(to_download))
 
         return saved_files
 

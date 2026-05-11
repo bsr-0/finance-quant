@@ -487,9 +487,7 @@ _BACKFILL_SOURCES: list[tuple[str, str]] = [
 
 @app.command()
 def historical_backfill(
-    start: str = typer.Option(
-        "2010-01-01", "--start", "-s", help="Start date (YYYY-MM-DD)"
-    ),
+    start: str = typer.Option("2010-01-01", "--start", "-s", help="Start date (YYYY-MM-DD)"),
     end: str | None = typer.Option(
         None, "--end", "-e", help="End date (YYYY-MM-DD, default: today)"
     ),
@@ -570,20 +568,15 @@ def historical_backfill(
 
     # --- Phase 1: Extract + Load each source sequentially ---
     console.print(
-        f"[bold]Historical backfill: {start} to {end_date} "
-        f"({len(source_list)} sources)[/bold]"
+        f"[bold]Historical backfill: {start} to {end_date} " f"({len(source_list)} sources)[/bold]"
     )
 
     with CheckpointContext(ckpt_mgr, source_op_id, resume=resume) as src_ctx:
-        completed_sources: set[str] = set(
-            src_ctx.state.get("completed_sources", [])
-        )
+        completed_sources: set[str] = set(src_ctx.state.get("completed_sources", []))
 
         for extract_name, load_name in source_list:
             if extract_name in completed_sources:
-                console.print(
-                    f"\n[dim]--- {extract_name} (already done, skipping) ---[/dim]"
-                )
+                console.print(f"\n[dim]--- {extract_name} (already done, skipping) ---[/dim]")
                 succeeded.append(extract_name)
                 continue
 
@@ -594,9 +587,7 @@ def historical_backfill(
                 if extract_name == "factors":
                     files = extract_factors_ff(raw_path, run_id=run_id)
                 elif extract_name == "options":
-                    files = extract_options(
-                        raw_path, run_id=run_id, resume=resume
-                    )
+                    files = extract_options(raw_path, run_id=run_id, resume=resume)
                 elif extract_name == "reddit-sentiment":
                     files = extract_reddit_sentiment(raw_path, run_id=run_id)
                 elif extract_name == "short-interest":
@@ -607,59 +598,82 @@ def historical_backfill(
                     s = date.fromisoformat(start)
                     e = date.fromisoformat(end_date)
                     files = extract_cftc_cot(
-                        raw_path, start_date=s, end_date=e,
-                        run_id=run_id, resume=resume,
+                        raw_path,
+                        start_date=s,
+                        end_date=e,
+                        run_id=run_id,
+                        resume=resume,
                     )
                 elif extract_name == "fred":
                     files = extract_fred(
-                        raw_path, start_date=start, end_date=end_date,
-                        run_id=run_id, resume=resume,
+                        raw_path,
+                        start_date=start,
+                        end_date=end_date,
+                        run_id=run_id,
+                        resume=resume,
                     )
                 elif extract_name == "gdelt":
                     files = extract_gdelt(
-                        raw_path, start_date=start, end_date=end_date,
-                        run_id=run_id, resume=resume,
+                        raw_path,
+                        start_date=start,
+                        end_date=end_date,
+                        run_id=run_id,
+                        resume=resume,
                     )
                 elif extract_name == "polymarket":
                     files = extract_polymarket(
-                        raw_path, start_date=start, end_date=end_date,
+                        raw_path,
+                        start_date=start,
+                        end_date=end_date,
                         run_id=run_id,
                     )
                 elif extract_name == "prices":
                     files = extract_prices(
-                        raw_path, start_date=start, end_date=end_date,
-                        run_id=run_id, resume=resume,
+                        raw_path,
+                        start_date=start,
+                        end_date=end_date,
+                        run_id=run_id,
+                        resume=resume,
                     )
                 elif extract_name == "sec-fundamentals":
                     files = extract_sec_fundamentals(
-                        raw_path, start_date=start, end_date=end_date,
-                        run_id=run_id, resume=resume,
+                        raw_path,
+                        start_date=start,
+                        end_date=end_date,
+                        run_id=run_id,
+                        resume=resume,
                     )
                 elif extract_name == "sec-insider":
                     files = extract_sec_insider(
-                        raw_path, start_date=start, end_date=end_date,
-                        run_id=run_id, resume=resume,
+                        raw_path,
+                        start_date=start,
+                        end_date=end_date,
+                        run_id=run_id,
+                        resume=resume,
                     )
                 elif extract_name == "sec-13f":
                     files = extract_sec_13f(
-                        raw_path, start_date=start, end_date=end_date,
-                        run_id=run_id, resume=resume,
+                        raw_path,
+                        start_date=start,
+                        end_date=end_date,
+                        run_id=run_id,
+                        resume=resume,
                     )
                 elif extract_name == "earnings":
                     files = extract_earnings(
-                        raw_path, start_date=start, end_date=end_date,
-                        run_id=run_id, force=force, resume=resume,
+                        raw_path,
+                        start_date=start,
+                        end_date=end_date,
+                        run_id=run_id,
+                        force=force,
+                        resume=resume,
                     )
                 else:
-                    console.print(
-                        f"  [yellow]⚠ No extract handler for {extract_name}[/yellow]"
-                    )
+                    console.print(f"  [yellow]⚠ No extract handler for {extract_name}[/yellow]")
                     continue
 
                 file_count = (
-                    len(files)
-                    if isinstance(files, list)
-                    else sum(len(v) for v in files.values())
+                    len(files) if isinstance(files, list) else sum(len(v) for v in files.values())
                 )
                 console.print(f"  [green]✓ Extracted {file_count} files[/green]")
             except Exception as exc:
@@ -873,13 +887,19 @@ def test_signal_alpha(
     prices_path: Path = typer.Option(  # noqa: B008
         ..., "--prices", help="Prices file (wide format: dates x symbols, CSV/parquet)"
     ),
-    signal_name: str = typer.Option("signal", "--signal-name", help="Signal identifier"),  # noqa: B008
+    signal_name: str = typer.Option(
+        "signal", "--signal-name", help="Signal identifier"
+    ),  # noqa: B008
     horizons: str = typer.Option(  # noqa: B008
         "1,5,10,21,63", "--horizons", help="Comma-separated forward-return horizons (days)"
     ),
-    train_size: int = typer.Option(252, "--train-size", help="Walk-forward training window"),  # noqa: B008
+    train_size: int = typer.Option(
+        252, "--train-size", help="Walk-forward training window"
+    ),  # noqa: B008
     test_size: int = typer.Option(63, "--test-size", help="Walk-forward test window"),  # noqa: B008
-    embargo: int = typer.Option(5, "--embargo", help="Embargo days between train/test"),  # noqa: B008
+    embargo: int = typer.Option(
+        5, "--embargo", help="Embargo days between train/test"
+    ),  # noqa: B008
 ):
     """Test whether a signal has statistically significant predictive power (IC analysis)."""
     from pipeline.eval.signal_alpha import (
