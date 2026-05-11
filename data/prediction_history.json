@@ -511,7 +511,39 @@
       "resolved_price": 52.3814,
       "pnl_pct": 2.79,
       "days_held": 7
+    },
+    {
+      "signal_date": "2026-05-08",
+      "ticker": "BKNG",
+      "score": 75,
+      "confidence": "MEDIUM",
+      "entry_price": 165.93,
+      "stop_price": 155.7311,
+      "target_price": 179.5286,
+      "regime": "BULL",
+      "direction": "LONG",
+      "outcome": "active",
+      "resolved_date": null,
+      "resolved_price": null,
+      "pnl_pct": null,
+      "days_held": null
+    },
+    {
+      "signal_date": "2026-05-08",
+      "ticker": "C",
+      "score": 70,
+      "confidence": "MEDIUM",
+      "entry_price": 125.55,
+      "stop_price": 120.6761,
+      "target_price": 132.0486,
+      "regime": "BULL",
+      "direction": "LONG",
+      "outcome": "active",
+      "resolved_date": null,
+      "resolved_price": null,
+      "pnl_pct": null,
+      "days_held": null
     }
   ],
-  "last_updated": "2026-05-11T03:56:13.784278+00:00"
+  "last_updated": "2026-05-11T04:53:48.794332+00:00"
 }
