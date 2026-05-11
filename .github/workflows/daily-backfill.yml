@@ -12,6 +12,8 @@ permissions:
 jobs:
   backfill:
     runs-on: ubuntu-latest
+    env:
+      FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
     steps:
       - name: Checkout repository
@@ -48,7 +50,7 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
 
       - name: Extract FRED macro data
-        if: ${{ secrets.FRED_API_KEY != '' }}
+        if: env.FRED_API_KEY != ''
         run: |
           python -m pipeline.cli extract fred \
             --start "${{ steps.dates.outputs.start }}" \

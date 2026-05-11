@@ -79,7 +79,8 @@ class PolymarketExtractor(HttpClientMixin):
         """Get detailed market information."""
         url = f"{self.gamma_url}/markets/{market_id}"
         try:
-            return self._make_request(url)
+            result = self._make_request(url)
+            return result if isinstance(result, dict) else None
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None
@@ -156,7 +157,8 @@ class PolymarketExtractor(HttpClientMixin):
             else:
                 params["offset"] = offset
 
-            data = self._make_request(url, params)
+            result = self._make_request(url, params)
+            data: dict = result if isinstance(result, dict) else {}
             batch = data.get("trades") or data.get("data") or []
             if not batch:
                 break
@@ -195,7 +197,8 @@ class PolymarketExtractor(HttpClientMixin):
         url = f"{self.clob_url}/book"
         params = {"market": market_id}
         try:
-            return self._make_request(url, params)
+            result = self._make_request(url, params)
+            return result if isinstance(result, dict) else None
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None

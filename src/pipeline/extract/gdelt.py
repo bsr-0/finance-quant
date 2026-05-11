@@ -189,7 +189,7 @@ class GDELTExtractor(HttpClientMixin):
         ckpt = get_checkpoint_manager()
         op_id = make_operation_id("gdelt")
 
-        saved_files = []
+        saved_files: list[Path] = []
 
         # Fast path: count already-downloaded files so we can skip them
         # without expensive per-file checkpoint writes.

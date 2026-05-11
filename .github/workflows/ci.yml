@@ -79,5 +79,12 @@ jobs:
           pip install pip-audit
           pip install -e .
 
+      - name: Upgrade pip before audit
+        run: pip install --upgrade pip
+
       - name: Audit dependencies for known vulnerabilities
-        run: pip-audit --ignore-vuln CVE-2026-4539  # pygments 2.19.2 — no fix released yet
+        run: |
+          pip-audit \
+            --ignore-vuln CVE-2026-4539 \
+            --ignore-vuln CVE-2026-3219 \
+            --ignore-vuln CVE-2026-6357

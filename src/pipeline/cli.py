@@ -584,6 +584,7 @@ def historical_backfill(
 
             # Extract
             try:
+                files: list[Path] | dict[str, list[Path]]
                 if extract_name == "factors":
                     files = extract_factors_ff(raw_path, run_id=run_id)
                 elif extract_name == "options":
