@@ -2066,6 +2066,7 @@ def daily_predictions(
         output_dir=output_dir,
         signals_dir=signals_dir,
         history_path=history_path,
+        scores=scores,
     )
     console.print(f"[green]  Static site built at {site_path}/[/green]")
 

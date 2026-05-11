@@ -339,10 +339,41 @@ _DQ_CHECKS = [
 ]
 
 
+def _radar_rows(scores: list) -> list[dict]:
+    """Convert SignalScore objects to dicts with a human-readable blocker field."""
+    rows = []
+    for s in scores:
+        blockers: list[str] = []
+        if not s.entry_eligible:
+            if s.regime == "BEAR":
+                blockers.append("Bear regime")
+            if s.trend_pts < 25:
+                blockers.append("Weak trend")
+            if s.pullback_pts == 0:
+                blockers.append("No pullback")
+            if not blockers:
+                blockers.append("Score too low")
+        rows.append(
+            {
+                "symbol": s.symbol,
+                "score": s.score,
+                "trend_pts": s.trend_pts,
+                "pullback_pts": s.pullback_pts,
+                "volume_pts": s.volume_pts,
+                "volatility_pts": s.volatility_pts,
+                "regime": s.regime,
+                "entry_eligible": s.entry_eligible,
+                "blocker": ", ".join(blockers),
+            }
+        )
+    return rows
+
+
 def build_static_site(
     output_dir: str | Path = "site",
     signals_dir: str | Path = "data/signals",
     history_path: str | Path = "data/prediction_history.json",
+    scores: list | None = None,
 ) -> Path:
     """Build the complete static site.
 
@@ -350,6 +381,8 @@ def build_static_site(
         output_dir: Where to write the static HTML files.
         signals_dir: Directory containing signal CSV files.
         history_path: Path to prediction_history.json.
+        scores: Optional list of SignalScore objects from today's run, used
+            to render the Signal Radar section on the dashboard.
 
     Returns:
         Path to the output directory.
@@ -450,6 +483,8 @@ def build_static_site(
         "tickers": tickers,
         "stats": stats,
         "signals": signals_list,
+        "radar": _radar_rows(scores) if scores else [],
+        "radar_date": (str(scores[0].date)[:10] if scores else signal_date),
         "data_sources": _DATA_SOURCES,
         "strategy_components": _STRATEGY_COMPONENTS,
         "dq_gates": _DQ_GATES,

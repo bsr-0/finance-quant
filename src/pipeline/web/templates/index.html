@@ -108,6 +108,52 @@
 </table>
 {% endif %}
 
+{# ── Signal Radar ── #}
+{% if radar %}
+<h2 class="section-title">Signal Radar
+    <span class="badge badge-blue">{{ radar_date }}</span>
+    <span style="font-size:0.85rem; font-weight:400; color:var(--muted); margin-left:0.5rem;">
+        — why the strategy isn't firing
+    </span>
+</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Ticker</th>
+            <th class="num" title="Composite score (0–100)">Score</th>
+            <th class="num hide-mobile" title="Trend alignment (max 40)">Trend</th>
+            <th class="num hide-mobile" title="Pullback depth (max 30)">Pullback</th>
+            <th class="num hide-mobile" title="Volume confirmation (max 15)">Volume</th>
+            <th class="num hide-mobile" title="Volatility / momentum (max 15)">Volatility</th>
+            <th>Regime</th>
+            <th>Entry blocker</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in radar %}
+        <tr>
+            <td><strong>{{ r.symbol }}</strong></td>
+            <td class="num {{ r.score | score_class }}">{{ r.score }}</td>
+            <td class="num hide-mobile">{{ r.trend_pts }}<span style="color:var(--muted)">/40</span></td>
+            <td class="num hide-mobile {% if r.pullback_pts == 0 %}pnl-negative{% endif %}">
+                {{ r.pullback_pts }}<span style="color:var(--muted)">/30</span>
+            </td>
+            <td class="num hide-mobile">{{ r.volume_pts }}<span style="color:var(--muted)">/15</span></td>
+            <td class="num hide-mobile">{{ r.volatility_pts }}<span style="color:var(--muted)">/15</span></td>
+            <td><span class="regime regime-{{ r.regime | lower }}">{{ r.regime }}</span></td>
+            <td>
+                {% if r.entry_eligible %}
+                    <span class="badge badge-green">Active signal</span>
+                {% else %}
+                    <span style="color:var(--muted); font-size:0.85rem;">{{ r.blocker }}</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
 {# ── Data sources & Strategy side-by-side ── #}
 <div class="two-col">
     <div>
