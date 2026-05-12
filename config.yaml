@@ -90,7 +90,7 @@ prices:
   vendor_delay_minutes: 15
   adjust_corporate_actions: true  # Auto-adjust prices for splits/dividends
   # Dynamic universe: fetch S&P 100 constituents from Wikipedia (cached 7 days)
-  universe_source: sp100
+  universe_source: russell1000
   universe_extra:
     - SPY    # S&P 500 ETF
     - QQQ    # Nasdaq 100 ETF
@@ -269,7 +269,7 @@ execution:
 daily_predictions:
   # Dynamic universe: fetch top-100 S&P constituents from Wikipedia weekly.
   # Set to "sp500" for the full 500, or remove to use the explicit list below.
-  universe_source: sp100
+  universe_source: russell1000
 
   # Extra tickers appended after the dynamic list (ETFs not in the S&P 100).
   universe_extra:

@@ -9,6 +9,7 @@ Usage::
     from pipeline.extract.universe import get_universe
     tickers = get_universe("sp100")          # list[str], ~101 symbols
     tickers = get_universe("sp500")          # list[str], ~503 symbols
+    tickers = get_universe("russell1000")    # list[str], ~1003 symbols
     tickers = get_universe("sp100", extra=["GLD", "TLT"])  # append extras
 """
 
@@ -29,12 +30,17 @@ _CACHE_DIR = Path("data/universe")
 _SOURCES: dict[str, dict] = {
     "sp100": {
         "url": "https://en.wikipedia.org/wiki/S%26P_100",
-        "table_index": 2,  # third table on the page
+        "table_index": 2,
         "ticker_col": "Symbol",
     },
     "sp500": {
         "url": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
-        "table_index": 0,  # first table
+        "table_index": 0,
+        "ticker_col": "Symbol",
+    },
+    "russell1000": {
+        "url": "https://en.wikipedia.org/wiki/Russell_1000_Index",
+        "table_index": 3,
         "ticker_col": "Symbol",
     },
 }
