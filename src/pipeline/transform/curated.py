@@ -245,16 +245,19 @@ class CuratedTransformer:
         )
 
         batch_sql = text("""
-            WITH base AS (
-                SELECT
-                    :source_id AS source_id,
-                    TRY_CAST(json_extract_string(r.raw_data, '$.GLOBALEVENTID') AS BIGINT)
-                        AS gdelt_event_id,
-                    json_extract_string(r.raw_data, '$.EventCode')               AS event_type,
-                    COALESCE(
-                        TRY_CAST(json_extract_string(r.raw_data, '$.SQLDATE') AS DATE)::timestamptz,
-                        r.extracted_at
-                    ) AS event_time,
+            INSERT INTO cur_world_events
+            (source_id, gdelt_event_id, event_type, event_time, available_time,
+             location, actors, themes, tone_score, sentiment_positive,
+             sentiment_negative, time_quality, ingested_at, data_quality_flag)
+            SELECT
+                :source_id,
+                TRY_CAST(json_extract_string(r.raw_data, '$.GLOBALEVENTID') AS BIGINT),
+                json_extract_string(r.raw_data, '$.EventCode'),
+                COALESCE(
+                    TRY_CAST(json_extract_string(r.raw_data, '$.SQLDATE') AS DATE)::timestamptz,
+                    r.extracted_at
+                ),
+                GREATEST(
                     CASE
                         WHEN :available_source = 'DATEADDED' THEN COALESCE(
                             CASE
@@ -273,70 +276,41 @@ class CuratedTransformer:
                             r.extracted_at
                         )
                         ELSE r.extracted_at
-                    END                                           AS base_available_time,
-                    json_object(
-                        'action_geo_fullname',
-                            json_extract_string(r.raw_data, '$.ActionGeo_FullName'),
-                        'action_geo_country',
-                            json_extract_string(r.raw_data, '$.ActionGeo_CountryCode'),
-                        'action_geo_lat',
-                            TRY_CAST(
-                                json_extract_string(r.raw_data, '$.ActionGeo_Lat')
-                                AS DECIMAL(18,3)),
-                        'action_geo_long',
-                            TRY_CAST(
-                                json_extract_string(r.raw_data, '$.ActionGeo_Long')
-                                AS DECIMAL(18,3))
-                    )                                             AS location,
-                    json_object(
-                        'actor1_name', json_extract_string(r.raw_data, '$.Actor1Name'),
-                        'actor1_code', json_extract_string(r.raw_data, '$.Actor1Code'),
-                        'actor2_name', json_extract_string(r.raw_data, '$.Actor2Name'),
-                        'actor2_code', json_extract_string(r.raw_data, '$.Actor2Code')
-                    )                                             AS actors,
-                    json_array(json_extract_string(r.raw_data, '$.EventBaseCode')) AS themes,
-                    TRY_CAST(json_extract_string(r.raw_data, '$.AvgTone') AS DECIMAL(18,3))
-                        AS tone_score,
-                    CASE
-                        WHEN :available_source = 'DATEADDED'
-                            AND json_extract_string(r.raw_data, '$.DATEADDED') IS NOT NULL
-                            THEN 'confirmed'
-                        ELSE 'assumed'
-                    END                                           AS time_quality
-                FROM raw_gdelt_events r
-                WHERE r.event_date >= :batch_start AND r.event_date < :batch_end
-            )
-            INSERT INTO cur_world_events
-            (source_id, gdelt_event_id, event_type, event_time, available_time,
-             location, actors, themes, tone_score, sentiment_positive,
-             sentiment_negative, time_quality, ingested_at, data_quality_flag)
-            SELECT
-                b.source_id,
-                b.gdelt_event_id,
-                b.event_type,
-                b.event_time,
-                GREATEST(
-                    b.base_available_time,
-                    b.event_time + (CAST(:latency_minutes AS INTEGER) * INTERVAL '1' MINUTE)
-                ) AS available_time,
-                b.location,
-                b.actors,
-                b.themes,
-                b.tone_score,
-                NULL AS sentiment_positive,
-                NULL AS sentiment_negative,
-                b.time_quality,
-                NOW() AS ingested_at,
-                NULL AS data_quality_flag
-            FROM base b
-            LEFT JOIN cur_world_events c
-                ON b.gdelt_event_id = c.gdelt_event_id
-            WHERE c.event_id IS NULL
+                    END,
+                    COALESCE(
+                        TRY_CAST(json_extract_string(r.raw_data, '$.SQLDATE') AS DATE)::timestamptz,
+                        r.extracted_at
+                    ) + (CAST(:latency_minutes AS INTEGER) * INTERVAL '1' MINUTE)
+                ),
+                json_object(
+                    'action_geo_fullname', json_extract_string(r.raw_data, '$.ActionGeo_FullName'),
+                    'action_geo_country',  json_extract_string(r.raw_data, '$.ActionGeo_CountryCode'),
+                    'action_geo_lat',      TRY_CAST(json_extract_string(r.raw_data, '$.ActionGeo_Lat') AS DECIMAL(18,3)),
+                    'action_geo_long',     TRY_CAST(json_extract_string(r.raw_data, '$.ActionGeo_Long') AS DECIMAL(18,3))
+                ),
+                json_object(
+                    'actor1_name', json_extract_string(r.raw_data, '$.Actor1Name'),
+                    'actor1_code', json_extract_string(r.raw_data, '$.Actor1Code'),
+                    'actor2_name', json_extract_string(r.raw_data, '$.Actor2Name'),
+                    'actor2_code', json_extract_string(r.raw_data, '$.Actor2Code')
+                ),
+                json_array(json_extract_string(r.raw_data, '$.EventBaseCode')),
+                TRY_CAST(json_extract_string(r.raw_data, '$.AvgTone') AS DECIMAL(18,3)),
+                NULL,
+                NULL,
+                CASE
+                    WHEN :available_source = 'DATEADDED'
+                        AND json_extract_string(r.raw_data, '$.DATEADDED') IS NOT NULL
+                    THEN 'confirmed'
+                    ELSE 'assumed'
+                END,
+                NOW(),
+                NULL
+            FROM raw_gdelt_events r
+            WHERE r.event_date >= :batch_start AND r.event_date < :batch_end
             ON CONFLICT DO NOTHING
         """)
 
-        # Start from the day after the latest already-curated event (incremental load).
-        # Fall back to the earliest raw event only if cur_world_events is empty.
         from datetime import timedelta
 
         with self.db.engine.connect() as conn:
@@ -351,9 +325,19 @@ class CuratedTransformer:
             logger.info("No raw GDELT events to transform")
             return 0
 
-        batch_start = already_curated if already_curated is not None else raw_bounds[0]
-
         batch_end_overall = raw_bounds[1]
+
+        if already_curated is not None and already_curated >= batch_end_overall:
+            logger.info("GDELT already up to date (curated through %s)", already_curated)
+            return 0
+
+        # Start one batch-period after the last curated date to skip already-processed data.
+        # Fall back to the earliest raw event only if cur_world_events is empty.
+        if already_curated is not None:
+            batch_start = already_curated + timedelta(days=batch_days)
+        else:
+            batch_start = raw_bounds[0]
+
         total_rows = 0
 
         while batch_start <= batch_end_overall:
@@ -402,8 +386,8 @@ class CuratedTransformer:
                     (r.raw_data::json->>'resolutionDate')::timestamptz AS resolution_time,
                     r.raw_data::json->>'resolutionSource' AS resolution_rule_text,
                     CASE
-                        WHEN list_contains(CAST(r.raw_data::json->'outcomes' AS VARCHAR[]), 'Yes')
-                         AND list_contains(CAST(r.raw_data::json->'outcomes' AS VARCHAR[]), 'No')
+                        WHEN (r.raw_data::json->>'outcomes') LIKE '%Yes%'
+                         AND (r.raw_data::json->>'outcomes') LIKE '%No%'
                         THEN 'binary' ELSE 'multi'
                     END AS outcome_type,
                     CAST(r.raw_data::json->'outcomes' AS JSON)  AS outcomes,
@@ -721,10 +705,10 @@ class CuratedTransformer:
         jitter_minutes = self.settings.historical_fixes.macro_release_jitter_minutes
 
         with self.db.engine.connect() as conn:
-            df = pd.read_sql(
-                text("SELECT date, mkt_rf, smb, hml, rmw, cma, mom, rf" " FROM raw_factor_returns"),
-                conn,
+            result = conn.execute(
+                text("SELECT date, mkt_rf, smb, hml, rmw, cma, mom, rf FROM raw_factor_returns")
             )
+            df = pd.DataFrame(result.fetchall(), columns=list(result.keys()))
             if df.empty:
                 return 0
 
@@ -1460,8 +1444,7 @@ class CuratedTransformer:
 
         with self.db.engine.connect() as conn:
             # Read raw options + close prices for ATM identification
-            df = pd.read_sql(
-                text("""
+            result = conn.execute(text("""
                 SELECT
                     r.ticker,
                     r.quote_date,
@@ -1475,9 +1458,8 @@ class CuratedTransformer:
                 FROM raw_options_chain r
                 WHERE r.implied_volatility IS NOT NULL
                   AND r.implied_volatility > 0
-            """),
-                conn,
-            )
+            """))
+            df = pd.DataFrame(result.fetchall(), columns=list(result.keys()))
 
         if df.empty:
             logger.info("No options data to transform")
@@ -1487,14 +1469,12 @@ class CuratedTransformer:
 
         # Get latest close prices for ATM strike identification
         with self.db.engine.connect() as conn:
-            prices_df = pd.read_sql(
-                text("""
+            result = conn.execute(text("""
                 SELECT s.ticker, p.date, p.close
                 FROM cur_prices_ohlcv_daily p
                 JOIN dim_symbol s ON p.symbol_id = s.symbol_id
-            """),
-                conn,
-            )
+            """))
+            prices_df = pd.DataFrame(result.fetchall(), columns=list(result.keys()))
 
         # Merge close prices to identify ATM
         df = df.merge(
@@ -2009,8 +1989,13 @@ class CuratedTransformer:
 
     # ------------------------------------------------------------------
 
-    def transform_all(self) -> dict:
-        """Run all transformations."""
+    def transform_all(self, include_gdelt: bool = False) -> dict:
+        """Run all transformations.
+
+        GDELT is excluded by default because raw_gdelt_events can contain
+        hundreds of millions of rows; even a MIN/MAX scan takes several minutes.
+        Pass include_gdelt=True or use ``make transform-gdelt`` to run it explicitly.
+        """
         results = {}
         # Prices first — most critical for daily predictions
         results["prices_ohlcv"] = self.transform_prices_ohlcv()
@@ -2024,12 +2009,15 @@ class CuratedTransformer:
         results["contract_trades"] = self.transform_contract_trades()
         results["contract_orderbooks"] = self.transform_contract_orderbooks()
         results["contract_resolution"] = self.transform_contract_resolution()
-        # GDELT last — large dataset, slow, best-effort
-        try:
-            results["world_events"] = self.transform_world_events()
-        except Exception as exc:
-            logger.warning("transform_world_events failed (best-effort): %s", exc)
-            results["world_events"] = 0
+        # GDELT: opt-in only — 198M+ rows, slow even for metadata queries
+        if include_gdelt:
+            try:
+                results["world_events"] = self.transform_world_events()
+            except Exception as exc:
+                logger.warning("transform_world_events failed (best-effort): %s", exc)
+                results["world_events"] = 0
+        else:
+            logger.info("Skipping GDELT transform (use include_gdelt=True or make transform-gdelt)")
         # New data source transforms (call only if implemented)
         for name in (
             "fundamentals",

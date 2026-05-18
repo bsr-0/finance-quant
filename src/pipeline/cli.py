@@ -252,13 +252,17 @@ def load_raw(
 
 
 @app.command()
-def transform_curated():
+def transform_curated(
+    include_gdelt: bool = typer.Option(
+        False, "--include-gdelt", help="Also run GDELT transform (slow: 198M+ rows)"
+    ),
+):
     """Transform raw data into curated tables."""
-    run_id = record_pipeline_run("transform_curated", {})
+    run_id = record_pipeline_run("transform_curated", {"include_gdelt": include_gdelt})
 
     try:
         transformer = CuratedTransformer(run_id=run_id)
-        results = transformer.transform_all()
+        results = transformer.transform_all(include_gdelt=include_gdelt)
 
         update_pipeline_run(run_id, "success", results)
 
@@ -1904,6 +1908,393 @@ def ensemble_build(
     console.print(f"[green]Best ensemble method: {result.method}[/green]")
     console.print(f"[green]{primary_metric}: {result.primary_metric_value:.4f}[/green]")
     console.print(f"[green]Report saved to {report_path}[/green]")
+
+
+@app.command()
+def backtest_earnings_drift(
+    prices_dir: Path = typer.Option(  # noqa: B008
+        Path("data/prices"),
+        "--prices-dir",
+        "-p",
+        help="Directory of per-ticker OHLCV CSV/Parquet files (ignored when --from-db).",
+    ),
+    earnings_dir: Path = typer.Option(  # noqa: B008
+        Path("data/raw/earnings"),
+        "--earnings-dir",
+        "-e",
+        help="Directory of per-ticker earnings parquets (from EarningsExtractor).",
+    ),
+    start_date: str = typer.Option("2020-01-01", "--start", help="Backtest start (YYYY-MM-DD)"),
+    end_date: str = typer.Option("2025-12-31", "--end", help="Backtest end (YYYY-MM-DD)"),
+    lookback_days: int = typer.Option(
+        30, "--lookback", help="Days to carry PEAD signal after earnings report"
+    ),
+    min_surprise_pct: float = typer.Option(
+        5.0, "--min-surprise", help="Minimum |EPS surprise %| to generate a signal"
+    ),
+    capital: float = typer.Option(1e7, "--capital", help="Initial backtest capital ($)"),
+    from_db: bool = typer.Option(
+        False, "--from-db", help="Load price data from the warehouse DB instead of files."
+    ),
+):
+    """Backtest the QSG-EARNINGS-DRIFT-001 (PEAD) strategy.
+
+    Loads OHLCV price data from --prices-dir (or the warehouse DB with --from-db)
+    and earnings surprise data from --earnings-dir (written by 'make extract-all'),
+    then runs the post-earnings announcement drift backtest.
+
+    Examples:
+        mdw backtest-earnings-drift --from-db
+        mdw backtest-earnings-drift --from-db --min-surprise 3.0 --lookback 20
+        mdw backtest-earnings-drift --prices-dir data/prices --start 2022-01-01
+    """
+    configure_logging()
+
+    from pipeline.strategy.earnings_drift import run_earnings_drift_backtest
+
+    # ------------------------------------------------------------------
+    # Load price data
+    # ------------------------------------------------------------------
+    price_data: dict[str, pd.DataFrame] = {}
+
+    if from_db:
+        console.print("  Loading price data from warehouse DB...")
+        db = get_db_manager()
+        rows = db.run_query(f"""
+            SELECT s.ticker, p.date, p.open, p.high, p.low, p.close, p.volume
+            FROM cur_prices_ohlcv_daily p
+            JOIN dim_symbol s ON s.symbol_id = p.symbol_id
+            WHERE p.date >= '{start_date}' AND p.date <= '{end_date}'
+            ORDER BY s.ticker, p.date
+        """)
+        if not rows:
+            console.print("[red]No price data in DB for the requested date range.[/red]")
+            raise typer.Exit(1)
+        import collections
+        by_ticker: dict[str, list] = collections.defaultdict(list)
+        for r in rows:
+            by_ticker[r["ticker"]].append(r)
+        for ticker, ticker_rows in by_ticker.items():
+            df = pd.DataFrame(ticker_rows).drop(columns=["ticker"])
+            df["date"] = pd.to_datetime(df["date"])
+            df = df.set_index("date").sort_index()
+            for col in ["open", "high", "low", "close", "volume"]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+            price_data[ticker] = df
+        console.print(f"  Loaded {len(price_data)} tickers from DB")
+    else:
+        if not prices_dir.exists():
+            console.print(
+                f"[red]Prices directory not found: {prices_dir}\n"
+                "  Use --from-db to load from the warehouse instead.[/red]"
+            )
+            raise typer.Exit(1)
+
+        for f in sorted(prices_dir.iterdir()):
+            if f.suffix.lower() not in {".csv", ".parquet", ".pq"}:
+                continue
+            ticker = f.stem.upper()
+            df = _read_data(f)
+            if "date" in df.columns:
+                df["date"] = pd.to_datetime(df["date"])
+                df = df.set_index("date").sort_index()
+            required = {"open", "high", "low", "close", "volume"}
+            if not required.issubset(set(df.columns)):
+                logger.warning("Skipping %s: missing OHLCV columns", ticker)
+                continue
+            price_data[ticker] = df
+
+        if not price_data:
+            console.print(f"[red]No OHLCV files found in {prices_dir}[/red]")
+            raise typer.Exit(1)
+        console.print(f"  Loaded {len(price_data)} tickers from {prices_dir}")
+
+    # ------------------------------------------------------------------
+    # Earnings data check
+    # ------------------------------------------------------------------
+    if not earnings_dir.exists():
+        console.print(
+            f"[yellow]Earnings directory not found: {earnings_dir}[/yellow]\n"
+            "  Run [bold]make extract-all[/bold] or [bold]mdw extract-earnings[/bold] first.\n"
+            "  Continuing — tickers without earnings data will score 0."
+        )
+    else:
+        n_files = len(list(earnings_dir.glob("*.parquet")))
+        console.print(f"  Found {n_files} earnings parquet(s) in {earnings_dir}")
+
+    # ------------------------------------------------------------------
+    # Run backtest
+    # ------------------------------------------------------------------
+    console.print(
+        f"\n[bold blue]Running QSG-EARNINGS-DRIFT-001 backtest[/bold blue]\n"
+        f"  Period: {start_date} → {end_date}\n"
+        f"  Min surprise: {min_surprise_pct:.1f}%  |  Lookback: {lookback_days}d\n"
+        f"  Capital: ${capital:,.0f}"
+    )
+
+    result = run_earnings_drift_backtest(
+        price_data=price_data,
+        earnings_dir=earnings_dir,
+        lookback_days=lookback_days,
+        min_surprise_pct=min_surprise_pct,
+        initial_capital=capital,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    # ------------------------------------------------------------------
+    # Print results
+    # ------------------------------------------------------------------
+    console.print("\n" + result.summary_table())
+
+    if not result.trade_log.empty:
+        console.print(f"\n[dim]Total trades: {len(result.trade_log)}[/dim]")
+        by_exit = result.trade_log.groupby("exit_reason").size()
+        for reason, count in by_exit.items():
+            console.print(f"  {reason}: {count}")
+
+    if result.metrics.total_trades == 0:
+        console.print(
+            "\n[yellow]No trades generated. Check that earnings data exists in "
+            f"{earnings_dir} and that the surprise threshold ({min_surprise_pct}%) "
+            "is not too high.[/yellow]"
+        )
+
+
+@app.command()
+def validate_earnings_drift(
+    earnings_dir: Path = typer.Option(  # noqa: B008
+        Path("data/raw/earnings"),
+        "--earnings-dir",
+        "-e",
+        help="Directory of per-ticker earnings parquets.",
+    ),
+    start_date: str = typer.Option("2020-01-01", "--start", help="Validation start (YYYY-MM-DD)"),
+    end_date: str = typer.Option("2025-12-31", "--end", help="Validation end (YYYY-MM-DD)"),
+    window_months: int = typer.Option(
+        6, "--window", "-w", help="Length of each OOS window in months"
+    ),
+    lookback_days: int = typer.Option(30, "--lookback", help="PEAD signal lookback days"),
+    min_surprise_pct: float = typer.Option(5.0, "--min-surprise", help="Min |EPS surprise %|"),
+    capital: float = typer.Option(1e6, "--capital", help="Capital per window ($)"),
+    rate_hike_threshold: float = typer.Option(
+        75.0,
+        "--rate-hike-threshold",
+        help="Block entries when FEDFUNDS 3mo change exceeds this (bps). 0 = disabled.",
+    ),
+):
+    """Walk-forward validation for QSG-EARNINGS-DRIFT-001 (PEAD).
+
+    Splits the date range into independent out-of-sample windows and runs
+    the backtest on each. Reports per-window Sharpe, return, hit rate, and
+    drawdown to show whether the edge is consistent across time.
+
+    Loads price data from the warehouse DB. Uses a FEDFUNDS rate-hike regime
+    filter to sit flat during aggressive Fed tightening cycles.
+
+    Examples:
+        mdw validate-earnings-drift
+        mdw validate-earnings-drift --window 3 --min-surprise 3.0
+        mdw validate-earnings-drift --rate-hike-threshold 0   # disable filter
+    """
+    configure_logging()
+
+    from pipeline.strategy.earnings_drift import walk_forward_earnings_drift
+
+    # Load all price data from DB for the full period
+    console.print("  Loading price data from warehouse DB...")
+    db = get_db_manager()
+    rows = db.run_query(f"""
+        SELECT s.ticker, p.date, p.open, p.high, p.low, p.close, p.volume
+        FROM cur_prices_ohlcv_daily p
+        JOIN dim_symbol s ON s.symbol_id = p.symbol_id
+        WHERE p.date >= '{start_date}' AND p.date <= '{end_date}'
+        ORDER BY s.ticker, p.date
+    """)
+    if not rows:
+        console.print("[red]No price data in DB for the requested date range.[/red]")
+        raise typer.Exit(1)
+
+    import collections
+
+    by_ticker: dict[str, list] = collections.defaultdict(list)
+    for r in rows:
+        by_ticker[r["ticker"]].append(r)
+
+    price_data: dict[str, pd.DataFrame] = {}
+    for ticker, ticker_rows in by_ticker.items():
+        df = pd.DataFrame(ticker_rows).drop(columns=["ticker"])
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date").sort_index()
+        for col in ["open", "high", "low", "close", "volume"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        price_data[ticker] = df
+
+    console.print(f"  Loaded {len(price_data)} tickers from DB")
+
+    n_files = len(list(earnings_dir.glob("*.parquet"))) if earnings_dir.exists() else 0
+    console.print(f"  Found {n_files} earnings parquet(s) in {earnings_dir}")
+
+    console.print(
+        f"\n[bold blue]Walk-forward validation — QSG-EARNINGS-DRIFT-001[/bold blue]\n"
+        f"  Period: {start_date} → {end_date}  |  Window: {window_months}mo\n"
+        f"  Min surprise: {min_surprise_pct:.1f}%  |  Lookback: {lookback_days}d\n"
+        f"  Capital per window: ${capital:,.0f}"
+    )
+
+    wf_results = walk_forward_earnings_drift(
+        price_data=price_data,
+        earnings_dir=earnings_dir,
+        lookback_days=lookback_days,
+        min_surprise_pct=min_surprise_pct,
+        initial_capital=capital,
+        start_date=start_date,
+        end_date=end_date,
+        window_months=window_months,
+        embargo_days=15,
+        rate_hike_threshold_bps=rate_hike_threshold if rate_hike_threshold > 0 else None,
+    )
+
+    if not wf_results:
+        console.print("[red]No windows produced results.[/red]")
+        raise typer.Exit(1)
+
+    # Per-window table
+    table = Table(title="Walk-Forward Results — Per Window")
+    table.add_column("Win", justify="right", style="dim")
+    table.add_column("Period")
+    table.add_column("Trades", justify="right")
+    table.add_column("Return %", justify="right")
+    table.add_column("Sharpe", justify="right")
+    table.add_column("Hit %", justify="right")
+    table.add_column("MaxDD %", justify="right")
+    table.add_column("PF", justify="right")
+
+    n_profitable = 0
+    n_positive_sharpe = 0
+    sharpes = []
+    returns = []
+
+    for r in wf_results:
+        ret = r["total_return_pct"]
+        sharpe = r["sharpe"]
+        hit = r["hit_rate_pct"]
+        dd = r["max_drawdown_pct"]
+        pf = r["profit_factor"]
+
+        if ret is not None and ret > 0:
+            n_profitable += 1
+        if sharpe is not None and sharpe > 0:
+            n_positive_sharpe += 1
+        if sharpe is not None:
+            sharpes.append(sharpe)
+        if ret is not None:
+            returns.append(ret)
+
+        ret_style = "green" if (ret or 0) > 0 else "red"
+        sharpe_style = "green" if (sharpe or 0) > 0.5 else (
+            "yellow" if (sharpe or 0) > 0 else "red"
+        )
+
+        table.add_row(
+            str(r["window"]),
+            f"{r['start']} → {r['end']}",
+            str(r["trades"]),
+            f"[{ret_style}]{ret:.1f}%[/{ret_style}]" if ret is not None else "N/A",
+            f"[{sharpe_style}]{sharpe:.3f}[/{sharpe_style}]" if sharpe is not None else "N/A",
+            f"{hit:.1f}%" if hit is not None else "N/A",
+            f"{dd:.1f}%" if dd is not None else "N/A",
+            f"{pf:.2f}" if pf is not None else "N/A",
+        )
+
+    console.print(table)
+
+    # Summary
+    n = len(wf_results)
+    import statistics
+
+    mean_sharpe = statistics.mean(sharpes) if sharpes else float("nan")
+    std_sharpe = statistics.stdev(sharpes) if len(sharpes) > 1 else float("nan")
+    mean_return = statistics.mean(returns) if returns else float("nan")
+
+    summary = Table(title="Walk-Forward Summary", show_header=False)
+    summary.add_column("Metric", style="cyan")
+    summary.add_column("Value", justify="right")
+    summary.add_row("Windows evaluated", str(n))
+    summary.add_row("Profitable windows", f"{n_profitable}/{n} ({n_profitable/n:.0%})")
+    pos_sharpe_pct = n_positive_sharpe / n
+    summary.add_row("Positive Sharpe windows", f"{n_positive_sharpe}/{n} ({pos_sharpe_pct:.0%})")
+    summary.add_row("Mean Sharpe (across windows)", f"{mean_sharpe:.3f}")
+    summary.add_row("Std Sharpe (across windows)", f"{std_sharpe:.3f}")
+    summary.add_row("Mean window return", f"{mean_return:.1f}%")
+    console.print(summary)
+
+    # Verdict
+    if mean_sharpe > 0.5 and n_profitable / n >= 0.6:
+        console.print("\n[bold green]VERDICT: Edge appears consistent.[/bold green]")
+        console.print(
+            "  Mean Sharpe > 0.5 and >60% of windows profitable. "
+            "Proceed to paper trading validation."
+        )
+    elif mean_sharpe > 0 and n_profitable / n >= 0.5:
+        console.print("\n[bold yellow]VERDICT: Edge is marginal — more data needed.[/bold yellow]")
+        console.print("  Positive but weak. Watch for regime-dependence in the window breakdown.")
+    else:
+        console.print("\n[bold red]VERDICT: Edge not confirmed out-of-sample.[/bold red]")
+        console.print("  Do not deploy. Review parameter choices and universe selection.")
+
+
+@app.command()
+def test_notifications(
+    severity: str = typer.Option(
+        "INFO",
+        "--severity",
+        help="Alert severity to send: INFO | WARNING | CRITICAL",
+    ),
+    title: str = typer.Option("Test alert", "--title", help="Alert title"),
+    message: str = typer.Option(
+        "This is a test notification from the pipeline CLI.",
+        "--message",
+        help="Alert message body",
+    ),
+) -> None:
+    """Send a test notification to all configured channels.
+
+    Useful for verifying Slack webhook and SMTP settings without
+    triggering a real event.
+
+    Examples::
+
+        mdw test-notifications
+        mdw test-notifications --severity WARNING --title "DQ check" --message "Prices stale"
+        mdw test-notifications --severity CRITICAL
+    """
+    from pipeline.infrastructure.notifier import AlertSeverity, get_notifier
+
+    severity_upper = severity.strip().upper()
+    try:
+        sev = AlertSeverity[severity_upper]
+    except KeyError:
+        console.print(
+            f"[red]Unknown severity '{severity}'. Must be INFO, WARNING, or CRITICAL.[/red]"
+        )
+        raise typer.Exit(1)
+
+    notifier = get_notifier()
+    console.print(f"Sending [{severity_upper}] test notification …")
+    console.print(f"  Slack configured: {'yes' if notifier.slack else 'no'}")
+    console.print(f"  Email configured: {'yes' if notifier.email else 'no'}")
+    console.print(f"  Console: always on")
+
+    notifier.send(
+        severity=sev,
+        title=title,
+        message=message,
+        context={"source": "cli:test-notifications", "requested_severity": severity_upper},
+    )
+    console.print("[green]Done. Check configured channels for the test alert.[/green]")
 
 
 @app.command()

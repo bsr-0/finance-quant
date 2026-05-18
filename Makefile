@@ -1,4 +1,4 @@
-.PHONY: help setup install install-dev db-init db-reset test test-dq lint format clean extract-all transform snapshots inventory full-pipeline daily-predictions build-site extract-fred extract-gdelt extract-prices extract-polymarket extract-sec-fundamentals extract-sec-insider extract-sec-13f extract-options extract-earnings extract-reddit extract-short-interest extract-etf-flows extract-cftc extract-factors latency-stats historical-backfill
+.PHONY: help setup install install-dev db-init db-reset test test-dq lint format clean extract-all transform transform-gdelt snapshots inventory full-pipeline daily-predictions build-site extract-fred extract-gdelt extract-prices extract-polymarket extract-sec-fundamentals extract-sec-insider extract-sec-13f extract-options extract-earnings extract-reddit extract-short-interest extract-etf-flows extract-cftc extract-factors latency-stats historical-backfill
 
 # Default target
 help:
@@ -159,6 +159,9 @@ extract-all: extract-prices
 
 transform: db-init
 	python -m pipeline.cli transform-curated
+
+transform-gdelt: db-init
+	python -m pipeline.cli transform-curated --include-gdelt
 
 snapshots:
 	python -m pipeline.cli build-snapshots --start "2024-11-01T00:00:00" --end "2024-11-30T00:00:00" --freq 1d
