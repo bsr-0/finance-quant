@@ -11,6 +11,16 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _fire_notify(severity_name: str, title: str, message: str, context: dict) -> None:
+    """Best-effort notify — never raises so circuit breaker logic is unaffected."""
+    try:
+        from pipeline.infrastructure.notifier import AlertSeverity, notify
+
+        notify(AlertSeverity[severity_name], title, message, context)
+    except Exception:
+        pass  # notification failure must never affect circuit breaker state
+
+
 class CircuitState(Enum):
     """Circuit breaker states."""
 
@@ -93,6 +103,12 @@ class CircuitBreaker:
                 self._state = CircuitState.CLOSED
                 self._failure_count = 0
                 logger.info(f"Circuit {self.name} CLOSED - service recovered")
+                _fire_notify(
+                    "INFO",
+                    f"Circuit breaker recovered: {self.name}",
+                    f"Service '{self.name}' is healthy again after 3 consecutive successes.",
+                    {"circuit": self.name, "state": "CLOSED"},
+                )
         else:
             self._failure_count = max(0, self._failure_count - 1)
 
@@ -102,8 +118,23 @@ class CircuitBreaker:
         self._last_failure_time = time.time()
 
         if self._failure_count >= self.failure_threshold:
+            prev_state = self._state
             self._state = CircuitState.OPEN
             logger.error(f"Circuit {self.name} OPENED after {self._failure_count} failures")
+            if prev_state != CircuitState.OPEN:
+                _fire_notify(
+                    "CRITICAL",
+                    f"Circuit breaker OPEN: {self.name}",
+                    (
+                        f"Service '{self.name}' tripped after {self._failure_count} failures. "
+                        f"All calls will be rejected for {self.recovery_timeout:.0f}s."
+                    ),
+                    {
+                        "circuit": self.name,
+                        "failures": self._failure_count,
+                        "recovery_timeout_s": self.recovery_timeout,
+                    },
+                )
 
     def __call__(self, func: Callable) -> Callable:
         """Decorator for circuit breaker."""

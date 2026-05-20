@@ -379,7 +379,7 @@ class DataQualityMonitor:
         return alerts
 
     def _store_alerts(self, alerts: list[DataQualityAlert]):
-        """Store alerts in database."""
+        """Store alerts in database and fire notifications for WARNING+."""
         from sqlalchemy import text
 
         with self.db.engine.connect() as conn:
@@ -399,6 +399,28 @@ class DataQualityMonitor:
                     },
                 )
             conn.commit()
+
+        # Fire notifications for WARNING and above
+        _severity_to_notifier = {
+            Severity.WARNING: "WARNING",
+            Severity.ERROR: "WARNING",
+            Severity.CRITICAL: "CRITICAL",
+        }
+        for alert in alerts:
+            notifier_level = _severity_to_notifier.get(alert.severity)
+            if notifier_level is None:
+                continue
+            try:
+                from pipeline.infrastructure.notifier import AlertSeverity, notify
+
+                notify(
+                    AlertSeverity[notifier_level],
+                    f"DQ Alert [{alert.severity.value.upper()}]: {alert.check_name}",
+                    alert.message,
+                    {"table": alert.table_name, **alert.details},
+                )
+            except Exception:
+                logger.exception("Failed to fire notification for DQ alert %s", alert.alert_id)
 
     def generate_quality_report(self, output_path: Path | None = None) -> dict:
         """Generate comprehensive quality report."""

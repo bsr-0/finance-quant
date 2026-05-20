@@ -81,9 +81,9 @@
 | 5.2 | Edge decay monitoring | **3** | 6 metrics, 3 alert levels (YELLOW/ORANGE/RED). Monthly breach tracking. |
 | 5.3 | Performance attribution | **2** | Equity curve, trade log, exit reason tracking. No real-time P&L streaming. |
 | 5.4 | Risk dashboard | **1** | `risk_dashboard.py` exists but needs web UI integration. |
-| 5.5 | Alert notifications | **0** | No email/Slack/PagerDuty integration for alerts. |
+| 5.5 | Alert notifications | **2** | Slack + email wired into circuit breaker trips, DQ monitor WARNING+, edge decay, risk breaches. `mdw test-notifications` CLI command. Needs live environment validation. |
 
-**Subtotal: 9 / 15**
+**Subtotal: 11 / 15**
 
 ---
 
@@ -136,11 +136,11 @@
 | Signal Generation | 12 | 15 | 80% |
 | Execution | 2 | 15 | 13% |
 | Risk Management | 13 | 15 | 87% |
-| Monitoring | 9 | 15 | 60% |
+| Monitoring | 11 | 15 | 73% |
 | Backtesting | 13 | 15 | 87% |
 | Testing | 9 | 12 | 75% |
 | Documentation | 15 | 15 | 100% |
-| **TOTAL** | **79** | **117** | **68%** |
+| **TOTAL** | **81** | **117** | **69%** |
 
 ---
 

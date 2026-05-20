@@ -1,10 +1,7 @@
 name: Daily Stock Predictions
 
 on:
-  schedule:
-    # Run weekdays at 22:30 UTC (5:30 PM EST / 6:30 PM EDT, after US market close year-round)
-    - cron: "30 22 * * 1-5"
-  workflow_dispatch: # Allow manual triggers
+  workflow_dispatch: # Manual triggers only — scheduled locally
 
 permissions:
   contents: write
