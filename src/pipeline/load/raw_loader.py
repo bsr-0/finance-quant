@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 import pandas as pd
+import pyarrow.parquet as pq
 from sqlalchemy import text
 
 from pipeline.db import get_db_manager
@@ -167,7 +168,12 @@ class RawLoader:
         with self.db.engine.connect() as conn:
             result = conn.execute(text(sql))
             conn.commit()
-            rows_loaded = result.rowcount if result.rowcount >= 0 else 0
+            # DuckDB returns -1 for INSERT...ON CONFLICT DO UPDATE; fall back to
+            # parquet metadata row count (O(1), no data loaded into Python).
+            if result.rowcount >= 0:
+                rows_loaded = result.rowcount
+            else:
+                rows_loaded = pq.read_metadata(file_path).num_rows
 
         return rows_loaded
 
