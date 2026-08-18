@@ -40,6 +40,28 @@ _DELISTING_GAP_DAYS = 30
 # ---------------------------------------------------------------------------
 
 
+def _split_already_applied(prev_close: float, split_close: float, ratio: float) -> bool:
+    """Decide whether the price series already reflects a split.
+
+    An unadjusted series drops by roughly ``1/ratio`` across the split bar; a
+    vendor-adjusted series shows no step at all.  Both hypotheses are compared
+    in log space and the closer one wins, which needs no tolerance constant and
+    degrades gracefully when the split coincides with a genuine price move.
+
+    This matters because the Yahoo chart endpoint returns ``quote.close``
+    already back-adjusted for splits while still listing the split under
+    ``events.splits``.  Adjusting again halves (or worse) the entire pre-split
+    history, injecting a discontinuity that no downstream indicator can survive:
+    a 200-day SMA spanning the break is meaningless.
+    """
+    if prev_close <= 0 or split_close <= 0 or ratio <= 0:
+        return False
+
+    observed = np.log(split_close / prev_close)
+    if_unadjusted = np.log(1.0 / ratio)
+    return abs(observed - if_unadjusted) > abs(observed)
+
+
 def adjust_for_corporate_actions(df: pd.DataFrame) -> pd.DataFrame:
     """Adjust OHLCV prices for stock splits and dividends.
 
@@ -50,6 +72,9 @@ def adjust_for_corporate_actions(df: pd.DataFrame) -> pd.DataFrame:
     Split ratios are expected in "new:old" format (e.g. "4:1" means a 4-for-1
     split).  Dividends reduce the adjustment factor by ``(close - div) / close``
     on ex-dates.
+
+    Splits the source has already applied are skipped -- see
+    ``_split_already_applied``.
     """
     if df.empty:
         return df
@@ -68,7 +93,20 @@ def adjust_for_corporate_actions(df: pd.DataFrame) -> pd.DataFrame:
         if split_raw is not None and pd.notna(split_raw):
             ratio = _parse_split_ratio(split_raw)
             if ratio != 1.0:
-                factor /= ratio
+                prev_close = df.iloc[i]["unadjusted_close"]
+                split_close = df.iloc[i + 1]["unadjusted_close"]
+                if _split_already_applied(prev_close, split_close, ratio):
+                    logger.warning(
+                        "%s: source already reflects the %s split on %s "
+                        "(close moved %.1f%%, a raw split would be %.1f%%); not re-adjusting",
+                        df.iloc[0].get("ticker", "<unknown>"),
+                        split_raw,
+                        df.iloc[i + 1].get("date", "?"),
+                        (split_close / prev_close - 1) * 100 if prev_close else float("nan"),
+                        (1.0 / ratio - 1) * 100,
+                    )
+                else:
+                    factor /= ratio
 
         # Dividend adjustment
         div_amt = df.iloc[i + 1].get("dividend", 0.0)

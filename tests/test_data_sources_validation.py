@@ -90,6 +90,63 @@ class TestCorporateActionsAdjustment:
         assert result["close"].iloc[3] == pytest.approx(50.0, abs=0.1)
         assert result["close"].iloc[4] == pytest.approx(50.0, abs=0.1)
 
+    def test_skips_split_the_source_already_applied(self):
+        """Yahoo's chart endpoint returns split-adjusted closes but still lists
+        the split, so adjusting again halves the whole pre-split history."""
+        from pipeline.extract.prices_daily import adjust_for_corporate_actions
+
+        # Continuous ~43 across a reported 2:1 split: already adjusted.
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2025-12-01", periods=5).date,
+                "ticker": ["XLU"] * 5,
+                "open": [43.8, 43.7, 43.3, 42.7, 42.8],
+                "high": [44.0, 44.0, 43.5, 43.0, 43.0],
+                "low": [43.0, 43.0, 43.0, 42.0, 42.0],
+                "close": [43.80, 43.71, 43.30, 42.72, 42.80],
+                "volume": [1000] * 5,
+                "split_ratio": [None, None, "2:1", None, None],
+                "dividend": [0.0] * 5,
+            }
+        )
+        result = adjust_for_corporate_actions(df)
+
+        np.testing.assert_array_almost_equal(result["close"].values, df["close"].values)
+        assert result["close"].pct_change().abs().max() < 0.10
+
+    def test_still_adjusts_a_genuinely_unadjusted_split(self):
+        """The guard must not disable adjustment for real raw data."""
+        from pipeline.extract.prices_daily import adjust_for_corporate_actions
+
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2025-12-01", periods=5).date,
+                "ticker": ["XLU"] * 5,
+                "open": [87.6, 87.4, 43.3, 42.7, 42.8],
+                "high": [88.0, 88.0, 43.5, 43.0, 43.0],
+                "low": [87.0, 87.0, 43.0, 42.0, 42.0],
+                "close": [87.60, 87.40, 43.30, 42.72, 42.80],
+                "volume": [1000] * 5,
+                "split_ratio": [None, None, "2:1", None, None],
+                "dividend": [0.0] * 5,
+            }
+        )
+        result = adjust_for_corporate_actions(df)
+
+        assert result["close"].iloc[0] == pytest.approx(43.8, abs=0.1)
+        assert result["close"].iloc[1] == pytest.approx(43.7, abs=0.1)
+        assert result["close"].pct_change().abs().max() < 0.10
+
+    def test_split_detection_helper(self):
+        from pipeline.extract.prices_daily import _split_already_applied
+
+        # No step across the split bar -> the source already applied it.
+        assert _split_already_applied(prev_close=43.71, split_close=43.30, ratio=2.0)
+        # Price halved -> genuinely unadjusted.
+        assert not _split_already_applied(prev_close=87.40, split_close=43.30, ratio=2.0)
+        # Degenerate inputs must not adjust.
+        assert not _split_already_applied(prev_close=0.0, split_close=43.30, ratio=2.0)
+
     def test_adjust_preserves_unadjusted_close(self):
         from pipeline.extract.prices_daily import adjust_for_corporate_actions
 

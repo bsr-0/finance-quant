@@ -2717,6 +2717,56 @@ def reresolve_history(
     console.print(f"  Same-bar ambiguous: {stats['n_ambiguous']}   Gap fills: {stats['n_gapped']}")
 
 
+@app.command()
+def repair_price_adjustments(
+    apply: bool = typer.Option(
+        False, "--apply", help="Write the repair. Without this the command only reports."
+    ),
+    min_log_ratio: float = typer.Option(
+        0.1, "--min-log-ratio", help="Ignore splits closer to 1.0 than this in log space"
+    ),
+    fit_margin: float = typer.Option(
+        0.5, "--fit-margin", help="How much better the split-ratio fit must be than no-step"
+    ),
+    show: int = typer.Option(15, "--show", help="How many affected splits to list"),
+):
+    """Undo split adjustments that were applied to already-adjusted vendor prices.
+
+    Repairs both raw_prices_ohlcv and cur_prices_ohlcv_daily. Re-run
+    `transform` afterwards to rebuild the derived adjusted table.
+    """
+    from pipeline.transform.price_repair import repair_double_adjusted_splits
+
+    console.print("[bold blue]Scanning for double-adjusted splits...[/bold blue]")
+
+    db = get_db_manager()
+    summary = repair_double_adjusted_splits(
+        db, min_log_ratio=min_log_ratio, fit_margin=fit_margin, dry_run=not apply
+    )
+
+    if not summary["splits"]:
+        console.print("[green]No double-adjusted splits found.[/green]")
+        return
+
+    console.print(
+        f"  {summary['splits']} double-adjusted split(s) across "
+        f"{summary['tickers']} ticker(s); {summary['bars']} bars need rescaling"
+    )
+    for brk in summary["breaks"][:show]:
+        console.print(f"    {brk}")
+    if len(summary["breaks"]) > show:
+        console.print(f"    ... and {len(summary['breaks']) - show} more")
+
+    if summary["dry_run"]:
+        console.print("\n[yellow]Dry run — nothing written. Re-run with --apply.[/yellow]")
+    else:
+        console.print(
+            f"\n[green]Repaired.[/green] curated rows updated: {summary['curated_rows']}, "
+            f"raw rows updated: {summary['raw_rows']}"
+        )
+        console.print("  Run `make transform` to rebuild cur_prices_adjusted_daily.")
+
+
 def main():
     """Entry point for CLI."""
     app()

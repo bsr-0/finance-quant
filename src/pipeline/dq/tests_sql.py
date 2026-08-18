@@ -22,6 +22,7 @@ class DataQualityTests:
         self.test_no_duplicate_pks()
         self.test_referential_integrity()
         self.test_coverage_sanity()
+        self.test_price_continuity()
         self.test_snapshot_anti_lookahead()
 
         return self.results
@@ -180,6 +181,59 @@ class DataQualityTests:
         message = "PASSED" if passed else f"Violations: {', '.join(violations)}"
         self.results["coverage_sanity"] = (passed, message)
         logger.info(f"Coverage sanity: {message}")
+        return passed
+
+    def test_price_continuity(self, max_split_matches: int = 0) -> bool:
+        """DQ6: No split adjustment applied on top of already-adjusted prices.
+
+        A correctly adjusted series shows no step across a split bar.  If the
+        step instead matches the split ratio, the adjustment was applied twice
+        -- which is what happened when the extractor re-adjusted Yahoo's
+        already-adjusted closes, injecting breaks of up to 2500% into otherwise
+        continuous series.  Indicators spanning such a break are meaningless,
+        and nothing else in the suite catches it: the prices stay positive and
+        internally OHLC-consistent.
+        """
+        logger.info("Testing price continuity...")
+
+        if not self.db.table_exists("cur_prices_ohlcv_daily") or not self.db.table_exists(
+            "cur_corporate_actions"
+        ):
+            self.results["price_continuity"] = (True, "PASSED (tables absent)")
+            return True
+
+        query = """
+            WITH px AS (
+                SELECT symbol_id, date, close,
+                       LAG(close) OVER (PARTITION BY symbol_id ORDER BY date) AS prev_close
+                FROM cur_prices_ohlcv_daily
+            )
+            SELECT COUNT(*) AS cnt
+            FROM px p
+            JOIN cur_corporate_actions ca
+              ON ca.symbol_id = p.symbol_id
+             AND ca.action_date = p.date
+             AND ca.action_type = 'split'
+            WHERE p.prev_close > 0 AND p.close > 0 AND ca.ratio > 0
+              AND abs(ln(ca.ratio)) >= 0.1
+              AND abs(ln(p.close / p.prev_close) - ln(ca.ratio))
+                  < 0.5 * abs(ln(p.close / p.prev_close))
+        """
+        result = self.db.run_query(query)
+        count = result[0]["cnt"] if result else 0
+
+        passed = count <= max_split_matches
+        message = (
+            "PASSED"
+            if passed
+            else (
+                f"{count} split(s) where the price step matches the split ratio, "
+                "indicating a double-applied adjustment; run "
+                "`mdw repair-price-adjustments --apply`"
+            )
+        )
+        self.results["price_continuity"] = (passed, message)
+        logger.info(f"Price continuity: {message}")
         return passed
 
     def test_snapshot_anti_lookahead(self, sample_size: int = 100) -> bool:
