@@ -2767,6 +2767,75 @@ def repair_price_adjustments(
         console.print("  Run `make transform` to rebuild cur_prices_adjusted_daily.")
 
 
+_PANEL_A_ETFS = [
+    "SPY", "QQQ", "IWM", "DIA", "XLF", "XLK", "XLE", "XLV", "XLI", "XLC",
+    "XLY", "XLP", "XLB", "XLU", "XLRE", "TLT", "GLD",
+]  # fmt: skip
+
+
+@app.command()
+def build_score_panel(
+    start: str = typer.Option("2010-01-01", "--start", help="Panel start date"),
+    end: str | None = typer.Option(None, "--end", help="Panel end date. Default: today"),
+    universe: str = typer.Option(
+        "etf",
+        "--universe",
+        help="'etf' (17-ETF Panel A, no survivorship bias) or 'all' (every raw-lake ticker, "
+        "survivorship-contaminated -- use only to bound the bias, never to gate on)",
+    ),
+    out_dir: str = typer.Option("data/cache", "--out", help="Output directory"),
+):
+    """Build a historical score panel for signal validation.
+
+    Writes wide DatetimeIndex x ticker parquet files (score, component points,
+    entry_eligible, close) consumable by `test-signal-alpha` and the eval/
+    IC/robustness tooling, none of which have ever been run against this
+    strategy's actual score.
+    """
+    from pipeline.strategy.price_panel import load_ticker_frames
+    from pipeline.strategy.signal_panel import build_score_panel as _build_panel
+    from pipeline.strategy.signals import SignalEngine
+
+    console.print(f"[bold blue]Building '{universe}' score panel...[/bold blue]")
+
+    if universe == "etf":
+        tickers = set(_PANEL_A_ETFS)
+    elif universe == "all":
+        raw_dir = Path("data/raw/prices")
+        tickers = {f.stem.split("_")[0].upper() for f in raw_dir.glob("*.parquet")}
+        console.print(
+            "[yellow]Survivorship-contaminated: today's raw-lake tickers backfilled "
+            "to the panel start. Use to bound bias, do not gate on this alone.[/yellow]"
+        )
+    else:
+        console.print(f"[red]Unknown --universe {universe!r}; use 'etf' or 'all'[/red]")
+        raise typer.Exit(1)
+
+    tickers.add("SPY")
+    end_ts = pd.Timestamp(end) if end else pd.Timestamp.now().normalize()
+
+    frames, breaks = load_ticker_frames(tickers, start=start, end=end_ts)
+    console.print(f"  Loaded {len(frames)}/{len(tickers)} tickers")
+    if breaks:
+        console.print(f"  Repaired {len(breaks)} price discontinuities")
+    if "SPY" not in frames:
+        console.print("[red]SPY failed to load; cannot classify regimes[/red]")
+        raise typer.Exit(1)
+
+    panel = _build_panel(frames, SignalEngine(), spy_prices=frames["SPY"]["close"])
+    if panel.score.empty:
+        console.print("[red]No scores produced[/red]")
+        raise typer.Exit(1)
+
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    tag = f"{universe}_{start}_{end_ts.date()}"
+    for field, df in panel.to_parquet_dict().items():
+        path = out / f"score_panel_{tag}_{field}.parquet"
+        df.to_parquet(path)
+        console.print(f"  Wrote {path}  ({df.shape[0]} dates x {df.shape[1]} tickers)")
+
+
 def main():
     """Entry point for CLI."""
     app()

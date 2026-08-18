@@ -168,6 +168,79 @@ class SignalEngine:
         total = trend + pullback + volume + volatility
         return total, trend, pullback, volume, volatility
 
+    def score_frame(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Vectorized equivalent of calling ``_score_row`` on every row.
+
+        Built for scoring a full historical panel (thousands of symbols x
+        thousands of dates) where the Python-level loop in ``_score_row`` is
+        too slow.  Must stay in exact agreement with ``_score_row`` --
+        verified by ``tests/test_signal_panel.py``'s parity test against random
+        indicator frames, including NaN-heavy warmup rows.
+
+        NaN handling relies on the fact that a NaN comparison (``NaN > x``)
+        evaluates to ``False`` in both numpy and pandas, which reproduces every
+        ``not np.isnan(...)`` guard in ``_score_row`` without restating it --
+        except one: the original code nests the ``close > sma_200`` bonus
+        inside the same ``if not isnan(sma_50) and not isnan(sma_200)`` block
+        as the ``close > sma_50 > sma_200`` bonus, so the +10 requires sma_50
+        to be present even though sma_50 doesn't appear in that comparison.
+        That's replicated explicitly below via ``both_ma_present``.
+        """
+
+        def col(name: str, default: float) -> pd.Series:
+            if name in df.columns:
+                return df[name]
+            return pd.Series(default, index=df.index)
+
+        close = df["close"]
+        sma_50 = col("sma_50", np.nan)
+        sma_200 = col("sma_200", np.nan)
+        slope_50 = col("sma_50_slope", 0)
+        rsi = col("rsi_14", 50)
+        bb_lower = col("bb_lower", np.nan)
+        stoch_k = col("stoch_k", 50)
+        volume_col = col("volume", 0)
+        volume_sma = col("volume_sma_20", 0)
+        obv_slope = col("obv_slope", 0)
+        atr_pct = col("atr_pct", 0)
+        macd_hist = col("macd_hist", 0)
+        macd_prev = col("macd_hist_prev", 0)
+        williams_r = col("williams_r", -50)
+
+        both_ma_present = sma_50.notna() & sma_200.notna()
+
+        trend = pd.Series(0, index=df.index, dtype=int)
+        trend += (both_ma_present & (close > sma_50) & (sma_50 > sma_200)).astype(int) * 25
+        trend += (both_ma_present & (close > sma_200)).astype(int) * 10
+        trend += (slope_50 > 0).astype(int) * 5
+
+        pullback = pd.Series(0, index=df.index, dtype=int)
+        pullback += (rsi < 35).astype(int) * 15
+        pullback += (close <= bb_lower).astype(int) * 10
+        pullback += (stoch_k < 20).astype(int) * 5
+
+        volume_pts = pd.Series(0, index=df.index, dtype=int)
+        volume_pts += ((volume_sma > 0) & (volume_col < volume_sma * 0.8)).astype(int) * 10
+        volume_pts += (obv_slope > 0).astype(int) * 5
+
+        volatility = pd.Series(0, index=df.index, dtype=int)
+        volatility += ((atr_pct > self.atr_pct_min) & (atr_pct < self.atr_pct_max)).astype(int) * 5
+        volatility += (macd_hist > macd_prev).astype(int) * 5
+        volatility += (williams_r < -80).astype(int) * 5
+
+        total = trend + pullback + volume_pts + volatility
+
+        return pd.DataFrame(
+            {
+                "score": total,
+                "trend_pts": trend,
+                "pullback_pts": pullback,
+                "volume_pts": volume_pts,
+                "volatility_pts": volatility,
+            },
+            index=df.index,
+        )
+
     def score_universe(
         self,
         indicator_data: dict[str, pd.DataFrame],
