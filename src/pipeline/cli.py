@@ -2631,40 +2631,6 @@ def backfill_predictions(
     console.print(f"  Avg P&L: {stats['avg_pnl_pct']}%")
 
 
-def _load_raw_price_files(tickers: set[str], raw_dir: Path) -> dict[str, pd.DataFrame]:
-    """Load OHLCV frames for *tickers* from the raw price parquet lake.
-
-    Filenames are ``{TICKER}_{start}_{end}.parquet`` and the same ticker has
-    many overlapping snapshots, so the newest snapshot per ticker wins and rows
-    are de-duplicated by date.
-    """
-    if not raw_dir.exists():
-        return {}
-
-    latest: dict[str, Path] = {}
-    for f in raw_dir.iterdir():
-        if f.suffix.lower() not in {".parquet", ".pq", ".csv"}:
-            continue
-        ticker = f.stem.split("_")[0].upper()
-        if ticker not in tickers:
-            continue
-        # Filenames sort lexicographically by end-date, so max() is newest.
-        if ticker not in latest or f.stem > latest[ticker].stem:
-            latest[ticker] = f
-
-    out: dict[str, pd.DataFrame] = {}
-    for ticker, path in latest.items():
-        df = pd.read_csv(path) if path.suffix.lower() == ".csv" else pd.read_parquet(path)
-        if "date" not in df.columns:
-            continue
-        df["date"] = pd.to_datetime(df["date"])
-        if "extracted_at" in df.columns:
-            df = df.sort_values("extracted_at").drop_duplicates("date", keep="last")
-        df = df.drop_duplicates("date", keep="last").set_index("date").sort_index()
-        out[ticker] = df
-    return out
-
-
 @app.command()
 def reresolve_history(
     as_of: str = typer.Option(..., "--as-of", help="Evaluation date (YYYY-MM-DD)"),
@@ -2689,6 +2655,7 @@ def reresolve_history(
     changing the resolution rules so historical outcomes are measured the same
     way as new ones.
     """
+    from pipeline.strategy.price_panel import load_ticker_frames
     from pipeline.web.outcome_resolution import ResolutionPolicy
     from pipeline.web.performance_tracker import PerformanceTracker
 
@@ -2723,8 +2690,14 @@ def reresolve_history(
         console.print(f"  Reset {len(tracker.history.predictions)} predictions to active")
 
     tickers = {p["ticker"] for p in tracker.history.predictions}
-    price_data = _load_raw_price_files(tickers, Path("data/raw/prices"))
+    price_data, breaks = load_ticker_frames(tickers, Path("data/raw/prices"))
     console.print(f"  Loaded prices for {len(price_data)}/{len(tickers)} tickers")
+    if breaks:
+        console.print(
+            f"  [yellow]Repaired {len(breaks)} spurious price discontinuit"
+            f"{'y' if len(breaks) == 1 else 'ies'} across "
+            f"{len({b.ticker for b in breaks})} ticker(s)[/yellow]"
+        )
 
     summary = tracker.resolve_outcomes(price_data, as_of=as_of)
     tracker.save()
