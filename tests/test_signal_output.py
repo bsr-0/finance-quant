@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from pipeline.strategy.engine import StrategyConfig, SwingStrategyEngine
 from pipeline.strategy.pre_trade_checks import (
@@ -117,25 +118,47 @@ class TestFormatSignals:
         if not result.empty:
             assert all(result["direction"] == "LONG")
 
-    def test_confidence_labels(self):
+    def _confidence_map(self, **kwargs):
         df = _make_price_df(200)
         indicator_df = compute_indicators(df)
         date = indicator_df.index[-1]
 
-        high = _make_signal_score("A", 85, True, date=date)
-        med = _make_signal_score("B", 72, True, date=date)
-        low = _make_signal_score("C", 62, True, date=date)
-
+        scores = [
+            _make_signal_score("A", 85, True, date=date),
+            _make_signal_score("B", 72, True, date=date),
+            _make_signal_score("C", 62, True, date=date),
+        ]
         result = format_signals(
-            [high, med, low],
+            scores,
             {"A": indicator_df, "B": indicator_df, "C": indicator_df},
             date=date,
+            **kwargs,
         )
-        if not result.empty:
-            conf_map = dict(zip(result["ticker"], result["confidence"], strict=False))
+        if result.empty:
+            return None
+        return dict(zip(result["ticker"], result["confidence"], strict=False))
+
+    def test_confidence_suppressed_by_default(self):
+        """The 80/70 cut points were never validated, so nothing is rated."""
+        conf_map = self._confidence_map()
+        if conf_map is not None:
+            assert set(conf_map.values()) == {"UNRATED"}
+
+    def test_confidence_legacy_mode_preserves_old_labels(self):
+        """Legacy mode must still reproduce the historical signal CSVs."""
+        conf_map = self._confidence_map(confidence_mode="legacy")
+        if conf_map is not None:
             assert conf_map.get("A") == "HIGH"
             assert conf_map.get("B") == "MEDIUM"
             assert conf_map.get("C") == "LOW"
+
+    def test_confidence_calibrated_mode_not_yet_available(self):
+        with pytest.raises(NotImplementedError):
+            self._confidence_map(confidence_mode="calibrated")
+
+    def test_confidence_rejects_unknown_mode(self):
+        with pytest.raises(ValueError):
+            self._confidence_map(confidence_mode="bogus")
 
     def test_sorted_by_score_descending(self):
         df = _make_price_df(200)

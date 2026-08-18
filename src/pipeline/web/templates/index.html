@@ -92,7 +92,7 @@
         <tr>
             <td><a href="ticker/{{ s.ticker }}.html"><strong>{{ s.ticker }}</strong></a></td>
             <td class="num {{ s.score | score_class }}">{{ s.score }}</td>
-            <td>{{ s.confidence }}</td>
+            <td class="{% if s.confidence == 'UNRATED' %}confidence-unrated{% endif %}">{{ s.confidence }}</td>
             <td class="num">${{ "%.2f" | format(s.entry_price) }}</td>
             <td class="num pnl-negative">${{ "%.2f" | format(s.stop_price) }}</td>
             <td class="num pnl-positive">${{ "%.2f" | format(s.target_1) }}</td>

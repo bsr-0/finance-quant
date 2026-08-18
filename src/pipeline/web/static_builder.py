@@ -41,8 +41,15 @@ def _outcome_class(outcome: str) -> str:
     }.get(outcome, "")
 
 
-def _score_class(score: int) -> str:
-    """Map signal score to CSS class for color coding."""
+def _score_class(score: int, mode: str = "unrated") -> str:
+    """Map signal score to a CSS class for colour coding.
+
+    Colour-coding by score makes the same unvalidated quality claim as the
+    confidence label, just in CSS.  Under ``unrated`` every score renders
+    neutral; ``legacy`` restores the original banding.
+    """
+    if mode != "legacy":
+        return "score-neutral"
     if score >= 80:
         return "score-high"
     if score >= 60:
@@ -584,11 +591,16 @@ def _compute_ticker_stats(predictions: list[dict]) -> dict:
     hit = sum(1 for p in predictions if p.get("outcome") == "hit_target")
     resolved = sum(1 for p in predictions if p.get("outcome") != "active")
     pnls = [p["pnl_pct"] for p in predictions if p.get("pnl_pct") is not None]
+    profitable = sum(1 for p in pnls if p > 0)
+    # Matches PerformanceTracker.get_stats: "win" means profitable, which
+    # includes profitable expiries. Previously this used hit/resolved while the
+    # site-wide stat used a different rule, so the two disagreed.
     return {
         "total": total,
         "resolved": resolved,
         "hit_target": hit,
-        "win_rate": round(hit / resolved * 100, 1) if resolved else 0.0,
+        "win_rate": round(profitable / len(pnls) * 100, 1) if pnls else 0.0,
+        "target_hit_rate": round(hit / resolved * 100, 1) if resolved else 0.0,
         "avg_pnl": round(sum(pnls) / len(pnls), 2) if pnls else 0.0,
         "avg_score": round(sum(p["score"] for p in predictions) / total, 1),
     }

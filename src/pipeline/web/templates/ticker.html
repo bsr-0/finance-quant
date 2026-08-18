@@ -50,7 +50,7 @@
         <tr>
             <td>{{ p.signal_date }}</td>
             <td class="num {{ p.score | score_class }}">{{ p.score }}</td>
-            <td>{{ p.confidence }}</td>
+            <td class="{% if p.confidence == 'UNRATED' %}confidence-unrated{% endif %}">{{ p.confidence }}</td>
             <td class="num">${{ "%.2f" | format(p.entry_price) }}</td>
             <td class="num">${{ "%.2f" | format(p.stop_price) }}</td>
             <td class="num">${{ "%.2f" | format(p.target_price) }}</td>

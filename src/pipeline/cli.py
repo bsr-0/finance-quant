@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import subprocess
 from datetime import date, datetime
 from pathlib import Path
@@ -1971,6 +1972,7 @@ def backtest_earnings_drift(
             console.print("[red]No price data in DB for the requested date range.[/red]")
             raise typer.Exit(1)
         import collections
+
         by_ticker: dict[str, list] = collections.defaultdict(list)
         for r in rows:
             by_ticker[r["ticker"]].append(r)
@@ -2194,8 +2196,8 @@ def validate_earnings_drift(
             returns.append(ret)
 
         ret_style = "green" if (ret or 0) > 0 else "red"
-        sharpe_style = "green" if (sharpe or 0) > 0.5 else (
-            "yellow" if (sharpe or 0) > 0 else "red"
+        sharpe_style = (
+            "green" if (sharpe or 0) > 0.5 else ("yellow" if (sharpe or 0) > 0 else "red")
         )
 
         table.add_row(
@@ -2286,7 +2288,7 @@ def test_notifications(
     console.print(f"Sending [{severity_upper}] test notification …")
     console.print(f"  Slack configured: {'yes' if notifier.slack else 'no'}")
     console.print(f"  Email configured: {'yes' if notifier.email else 'no'}")
-    console.print(f"  Console: always on")
+    console.print("  Console: always on")
 
     notifier.send(
         severity=sev,
@@ -2627,6 +2629,119 @@ def backfill_predictions(
     console.print(f"  Active: {stats['active']}")
     console.print(f"  Win rate: {stats['win_rate']}%")
     console.print(f"  Avg P&L: {stats['avg_pnl_pct']}%")
+
+
+def _load_raw_price_files(tickers: set[str], raw_dir: Path) -> dict[str, pd.DataFrame]:
+    """Load OHLCV frames for *tickers* from the raw price parquet lake.
+
+    Filenames are ``{TICKER}_{start}_{end}.parquet`` and the same ticker has
+    many overlapping snapshots, so the newest snapshot per ticker wins and rows
+    are de-duplicated by date.
+    """
+    if not raw_dir.exists():
+        return {}
+
+    latest: dict[str, Path] = {}
+    for f in raw_dir.iterdir():
+        if f.suffix.lower() not in {".parquet", ".pq", ".csv"}:
+            continue
+        ticker = f.stem.split("_")[0].upper()
+        if ticker not in tickers:
+            continue
+        # Filenames sort lexicographically by end-date, so max() is newest.
+        if ticker not in latest or f.stem > latest[ticker].stem:
+            latest[ticker] = f
+
+    out: dict[str, pd.DataFrame] = {}
+    for ticker, path in latest.items():
+        df = pd.read_csv(path) if path.suffix.lower() == ".csv" else pd.read_parquet(path)
+        if "date" not in df.columns:
+            continue
+        df["date"] = pd.to_datetime(df["date"])
+        if "extracted_at" in df.columns:
+            df = df.sort_values("extracted_at").drop_duplicates("date", keep="last")
+        df = df.drop_duplicates("date", keep="last").set_index("date").sort_index()
+        out[ticker] = df
+    return out
+
+
+@app.command()
+def reresolve_history(
+    as_of: str = typer.Option(..., "--as-of", help="Evaluation date (YYYY-MM-DD)"),
+    from_scratch: bool = typer.Option(
+        False, "--from-scratch", help="Reset every outcome to active and re-resolve"
+    ),
+    history_file: str = typer.Option(
+        "data/prediction_history.json", "--history", help="Source history JSON"
+    ),
+    out_file: str | None = typer.Option(
+        None, "--out", help="Destination JSON. Default: <history>.v2.json"
+    ),
+    max_holding_bars: int = typer.Option(15, "--max-holding-bars", help="Holding limit in bars"),
+    same_bar_policy: str = typer.Option(
+        "stop_first", "--same-bar-policy", help="stop_first | target_first"
+    ),
+    cost_bps: float = typer.Option(3.0, "--cost-bps", help="Round-trip cost in basis points"),
+):
+    """Re-resolve prediction outcomes under the current resolution policy.
+
+    Writes to a new file, leaving the source history untouched. Use this after
+    changing the resolution rules so historical outcomes are measured the same
+    way as new ones.
+    """
+    from pipeline.web.outcome_resolution import ResolutionPolicy
+    from pipeline.web.performance_tracker import PerformanceTracker
+
+    console.print("[bold blue]Re-resolving prediction history...[/bold blue]")
+
+    history_path = Path(history_file)
+    if not history_path.exists():
+        console.print(f"[red]No history file at {history_path}[/red]")
+        raise typer.Exit(1)
+
+    destination = Path(out_file) if out_file else history_path.with_suffix(".v2.json")
+    shutil.copyfile(history_path, destination)
+
+    policy = ResolutionPolicy(
+        max_holding_bars=max_holding_bars,
+        same_bar_policy=same_bar_policy,
+        cost_bps=cost_bps,
+    )
+    tracker = PerformanceTracker(destination, policy=policy)
+
+    if from_scratch:
+        for pred in tracker.history.predictions:
+            pred.update(
+                outcome="active",
+                resolved_date=None,
+                resolved_price=None,
+                pnl_pct=None,
+                days_held=None,
+            )
+            for key in ("bars_held", "same_bar_ambiguous", "gapped", "unresolvable_reason"):
+                pred.pop(key, None)
+        console.print(f"  Reset {len(tracker.history.predictions)} predictions to active")
+
+    tickers = {p["ticker"] for p in tracker.history.predictions}
+    price_data = _load_raw_price_files(tickers, Path("data/raw/prices"))
+    console.print(f"  Loaded prices for {len(price_data)}/{len(tickers)} tickers")
+
+    summary = tracker.resolve_outcomes(price_data, as_of=as_of)
+    tracker.save()
+
+    stats = tracker.get_stats()
+    console.print(f"\n[bold]Wrote {destination}[/bold]")
+    console.print(f"  Resolved: {stats['resolved']}  Active: {stats['active']}")
+    console.print(
+        f"  hit_target {summary['hit_target']}  stopped_out {summary['stopped_out']}  "
+        f"expired {summary['expired']}  unresolvable {summary['unresolvable']}"
+    )
+    console.print(
+        f"  Target-hit rate: {stats['target_hit_rate']}%   "
+        f"Profitable rate: {stats['profitable_rate']}%"
+    )
+    console.print(f"  Avg P&L: {stats['avg_pnl_pct']}%   Mean bars held: {stats['mean_bars_held']}")
+    console.print(f"  Same-bar ambiguous: {stats['n_ambiguous']}   Gap fills: {stats['n_gapped']}")
 
 
 def main():

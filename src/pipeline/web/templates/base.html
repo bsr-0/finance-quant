@@ -129,6 +129,21 @@
         .score-high { color: var(--green); font-weight: 700; }
         .score-medium { color: var(--yellow); font-weight: 600; }
         .score-low { color: var(--text-muted); }
+        .score-neutral { color: var(--text); }
+        .confidence-unrated { color: var(--text-muted); font-style: italic; }
+
+        /* Validation banner */
+        .validation-banner {
+            background: rgba(210, 153, 34, 0.12);
+            border: 1px solid var(--yellow);
+            border-left-width: 4px;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin: 20px 0;
+            font-size: 0.9rem;
+        }
+        .validation-banner strong { color: var(--yellow); }
+        .validation-banner p { margin-top: 4px; color: var(--text-muted); }
 
         /* Outcome badges */
         .outcome-win {
@@ -342,6 +357,20 @@
     </nav>
 
     <main class="container">
+        <div class="validation-banner">
+            <strong>&#9888; Experimental &mdash; not validated.</strong>
+            <p>
+                These signal scores have not been shown to predict returns. Confidence
+                ratings are suppressed pending walk-forward validation, and the score
+                colour-coding has been removed for the same reason.
+                {% if stats and stats.resolved %}
+                Tracked to date: {{ stats.total }} predictions, {{ stats.resolved }} resolved,
+                {{ stats.win_rate }}% profitable &mdash; a sample far too small to support
+                any performance claim.
+                {% endif %}
+                Do not trade these signals.
+            </p>
+        </div>
         {% block content %}{% endblock %}
     </main>
 

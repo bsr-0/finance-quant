@@ -43,12 +43,37 @@ class SignalRow:
     strategy_id: str
 
 
-def _confidence_label(score: int) -> str:
-    if score >= 80:
-        return "HIGH"
-    if score >= 70:
-        return "MEDIUM"
-    return "LOW"
+CONFIDENCE_MODES = ("unrated", "legacy", "calibrated")
+
+
+def _confidence_label(score: int, mode: str = "unrated") -> str:
+    """Map a raw signal score to a confidence label.
+
+    The legacy 80/70 cut points were never validated: nothing has established
+    that the composite score is monotone in forward return, so an ordinal
+    confidence claim derived from it is unsupported.  ``unrated`` is the default
+    until a calibrated score-to-probability mapping clears walk-forward
+    validation; ``legacy`` is retained so historical signal CSVs can be
+    reproduced exactly.
+
+    Args:
+        score: Composite signal score (0-100).
+        mode: One of ``unrated``, ``legacy``, ``calibrated``.
+    """
+    if mode == "unrated":
+        return "UNRATED"
+    if mode == "legacy":
+        if score >= 80:
+            return "HIGH"
+        if score >= 70:
+            return "MEDIUM"
+        return "LOW"
+    if mode == "calibrated":
+        raise NotImplementedError(
+            "Calibrated confidence requires a validated score-to-probability "
+            "mapping; see the signal-validation harness."
+        )
+    raise ValueError(f"mode must be one of {CONFIDENCE_MODES}, got {mode!r}")
 
 
 def format_signals(
@@ -59,6 +84,7 @@ def format_signals(
     target_1_atr_multiple: float = 2.0,
     target_2_atr_multiple: float = 3.0,
     strategy_id: str = "QSG-MICRO-SWING-001",
+    confidence_mode: str = "unrated",
 ) -> pd.DataFrame:
     """Convert signal scores into a trader-consumable DataFrame.
 
@@ -72,6 +98,8 @@ def format_signals(
         target_1_atr_multiple: ATR multiplier for first profit target.
         target_2_atr_multiple: ATR multiplier for second profit target.
         strategy_id: Identifier for the originating strategy.
+        confidence_mode: Confidence labelling mode; see ``_confidence_label``.
+            Defaults to ``unrated`` pending score validation.
 
     Returns:
         DataFrame with one row per eligible signal, sorted by score descending.
@@ -118,7 +146,7 @@ def format_signals(
                 "atr": round(atr, 4),
                 "atr_pct": round(atr_pct, 2),
                 "regime": sig.regime,
-                "confidence": _confidence_label(sig.score),
+                "confidence": _confidence_label(sig.score, confidence_mode),
                 "strategy_id": strategy_id,
             }
         )
