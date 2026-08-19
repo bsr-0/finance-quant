@@ -498,6 +498,42 @@ def run_model_ladder(
     return ModelLadderReport(dev_trials=dev_trials, registry=registry, pbo=pbo, best_trial=best)
 
 
+def run_lightgbm_exploration(
+    dataset: pd.DataFrame,
+    price_panel: pd.DataFrame,
+    horizons: list[int] = (5, 15),
+    feature_sets: dict[str, list[str]] | None = None,
+    train_size: int = 504,
+    test_size: int = 63,
+    embargo_size: int = 15,
+) -> list[ModelTrialResult]:
+    """Run LightGBM directly, bypassing the complexity ladder's "no skipping"
+    rule that would normally block it since no logistic config beat baseline.
+
+    This is a deliberate, explicit deviation from the disciplined ladder,
+    done only because it was asked for after seeing the ladder's result.
+    Every trial run here still gets registered and BH-screened alongside
+    everything else -- more trials raises the bar for anything to survive
+    correction, so this makes false discovery *harder* to produce here, not
+    easier. It does not retroactively loosen Gate G5: G5's "no skipping"
+    criterion (implicit in the plan's ladder design) is about the DEV
+    development process, and this exploration is logged as exactly what it is
+    -- an unblinded look after the ladder already said no -- not folded back
+    into the disciplined run's verdict.
+    """
+    feature_sets = feature_sets or FEATURE_SETS
+    trials = []
+    for horizon in horizons:
+        for fset_name, feature_cols in feature_sets.items():
+            trial = run_model_trial(
+                dataset, "lightgbm", feature_cols, f"lightgbm_explore_{fset_name}_{horizon}d",
+                train_size, test_size, embargo_size, horizon,
+            )  # fmt: skip
+            trial.feature_set = fset_name
+            trials.append(trial)
+    return trials
+
+
 def _register_ic_trial(
     registry: SignalTrialRegistry,
     dataset: pd.DataFrame,
@@ -740,6 +776,12 @@ class Phase5Report:
     holdout_result: dict | None
     same_bar_stable: bool
     g5: G5Result
+    lightgbm_exploration: list[ModelTrialResult] = field(default_factory=list)
+    """Populated only if run_phase5(explore_lightgbm=True). These trials are
+    included in the combined BH screen (so they raise, not lower, the bar for
+    everything else) but never feed into the disciplined ladder's best_trial
+    or G5's holdout/D5 checks -- an unblinded look after the ladder already
+    said no does not retroactively unlock the gate."""
 
 
 def run_phase5(
@@ -754,6 +796,7 @@ def run_phase5(
     embargo_size: int = 15,
     max_trials: int = 12,
     alpha: float = 0.05,
+    explore_lightgbm: bool = False,
 ) -> Phase5Report:
     """End-to-end Phase 5: DEV/HOLDOUT split, complexity ladder on DEV only,
     D5 same-bar bracket on the winning config, one-shot HOLDOUT evaluation,
@@ -765,6 +808,9 @@ def run_phase5(
             BH screen (G5 criterion C3). Pass ``[]`` to screen Phase 5 alone,
             but that understates the true trial count and is not what the
             plan's discipline calls for.
+        explore_lightgbm: Also run LightGBM for every config, bypassing the
+            ladder's rule that blocks it when logistic never beat baseline.
+            See ``Phase5Report.lightgbm_exploration``.
     """
     dataset = build_dataset(
         price_frames, ResolutionPolicy(max_holding_bars=DEFAULT_MAX_HOLDING_BARS)
@@ -776,6 +822,16 @@ def run_phase5(
         train_size=train_size, test_size=test_size, embargo_size=embargo_size,
         max_trials=max_trials,
     )  # fmt: skip
+
+    lightgbm_exploration: list[ModelTrialResult] = []
+    if explore_lightgbm:
+        lightgbm_exploration = run_lightgbm_exploration(
+            dev, price_panel, horizons=list(horizons), feature_sets=feature_sets,
+            train_size=train_size, test_size=test_size, embargo_size=embargo_size,
+        )  # fmt: skip
+        for t in lightgbm_exploration:
+            h = int(t.trial_name.rsplit("_", 1)[-1].rstrip("d"))
+            _register_ic_trial(ladder.registry, dev, t, price_panel, h)
 
     holdout_result: dict | None = None
     same_bar_stable = False
@@ -808,5 +864,9 @@ def run_phase5(
     )  # fmt: skip
 
     return Phase5Report(
-        ladder=ladder, holdout_result=holdout_result, same_bar_stable=same_bar_stable, g5=g5
+        ladder=ladder,
+        holdout_result=holdout_result,
+        same_bar_stable=same_bar_stable,
+        g5=g5,
+        lightgbm_exploration=lightgbm_exploration,
     )

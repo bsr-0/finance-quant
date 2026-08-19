@@ -2984,6 +2984,19 @@ def train_signal_model(
             "combined with Phase 5's for the full-registry BH screen (G5 criterion C3)"
         ),
     ),
+    explore_lightgbm: bool = typer.Option(
+        False,
+        "--explore-lightgbm",
+        help=(
+            "Also run LightGBM directly for every feature-set/horizon combo, "
+            "bypassing the complexity ladder's rule that blocks it when no "
+            "logistic config beat baseline. Explicitly exploratory: these "
+            "trials are registered and BH-screened alongside everything else "
+            "(raising, not lowering, the bar to survive correction), but do "
+            "not retroactively unlock Gate G5 if the disciplined ladder "
+            "already said no."
+        ),
+    ),
     report_path: str | None = typer.Option(
         None, "--report", help="Write the full report as JSON to this path"
     ),
@@ -3053,7 +3066,7 @@ def train_signal_model(
     report = run_phase5(
         frames, price_panel, phase3_trials=phase3_trials, holdout_start=holdout_start,
         train_size=train_size, test_size=test_size, embargo_size=embargo_size,
-        max_trials=max_trials, alpha=alpha,
+        max_trials=max_trials, alpha=alpha, explore_lightgbm=explore_lightgbm,
     )  # fmt: skip
 
     ladder_table = Table(title="Complexity Ladder (DEV only)")
@@ -3083,6 +3096,28 @@ def train_signal_model(
     else:
         console.print("  [yellow]No candidate beat the baseline on DEV.[/yellow]")
 
+    if report.lightgbm_exploration:
+        explore_table = Table(
+            title="LightGBM Exploration (bypasses the ladder gate -- see help text)"
+        )
+        explore_table.add_column("Trial", justify="left")
+        explore_table.add_column("OOS Log-Loss", justify="right")
+        explore_table.add_column("Baseline LL", justify="right")
+        explore_table.add_column("Beats Baseline", justify="center")
+        for t in report.lightgbm_exploration:
+            explore_table.add_row(
+                t.trial_name,
+                f"{t.oos_log_loss:.4f}" if pd.notna(t.oos_log_loss) else "N/A",
+                f"{t.baseline_log_loss:.4f}" if pd.notna(t.baseline_log_loss) else "N/A",
+                "[green]yes[/green]" if t.beats_baseline else "no",
+            )
+        console.print(explore_table)
+        console.print(
+            "  [dim]These trials are included in the BH screen below but do not "
+            "unlock Gate G5 on their own -- an unblinded look after the disciplined "
+            "ladder already said no.[/dim]"
+        )
+
     g5_table = Table(title="Gate G5 Criteria")
     g5_table.add_column("Criterion")
     g5_table.add_column("Met", justify="center")
@@ -3095,6 +3130,17 @@ def train_signal_model(
     console.print(f"\n[bold {verdict_color}]G5 VERDICT: {verdict}[/bold {verdict_color}]")
     for reason in report.g5.reasoning:
         console.print(f"  - {reason}")
+
+    if report.lightgbm_exploration:
+        from pipeline.eval.signal_alpha import signal_fdr_screen
+
+        combined = list(phase3_trials) + report.ladder.registry.trials
+        screened = signal_fdr_screen(combined, alpha=alpha)
+        n_survived = sum(1 for _, sig in screened if sig)
+        console.print(
+            f"\n  Combined BH screen across all {len(combined)} trials "
+            f"(Phase 3 + ladder + exploration): {n_survived} survive at alpha={alpha}"
+        )
 
     if report_path:
         import json

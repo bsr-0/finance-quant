@@ -21,6 +21,7 @@ from pipeline.strategy.signal_model import (
     evaluate_g5,
     evaluate_on_holdout,
     label_ticker,
+    run_lightgbm_exploration,
     run_model_ladder,
     run_model_trial,
     split_dev_holdout,
@@ -387,3 +388,26 @@ def test_evaluate_g5_high_pbo_fails_the_gate():
     )  # fmt: skip
     assert result.criteria["pbo_below_half"] is False
     assert result.passed is False
+
+
+# --- run_lightgbm_exploration -------------------------------------------------
+
+
+def test_lightgbm_exploration_runs_every_combo_regardless_of_ladder_gate():
+    """Unlike run_model_ladder, this must not skip LightGBM even when no
+    logistic config would have unlocked it."""
+    dataset = _null_dataset(n_dates=300, n_tickers=5, seed=6)
+    price_panel = _price_panel_for(dataset)
+    feature_sets = {"full": FULL_FEATURE_SET, "trend_only": ["rsi_14"]}
+
+    trials = run_lightgbm_exploration(
+        dataset, price_panel, horizons=[5, 10], feature_sets=feature_sets,
+        train_size=120, test_size=30, embargo_size=5,
+    )  # fmt: skip
+
+    assert len(trials) == 4  # 2 feature sets x 2 horizons
+    assert all(t.model_class == "lightgbm" for t in trials)
+    assert {t.trial_name for t in trials} == {
+        "lightgbm_explore_full_5d", "lightgbm_explore_trend_only_5d",
+        "lightgbm_explore_full_10d", "lightgbm_explore_trend_only_10d",
+    }  # fmt: skip
