@@ -2963,6 +2963,159 @@ def validate_signal_score(
         console.print(f"\nWrote full report to {report_path}")
 
 
+@app.command()
+def train_signal_model(
+    start: str = typer.Option("2010-01-01", "--start", help="Development window start"),
+    holdout_start: str = typer.Option(
+        "2024-01-01", "--holdout-start", help="Untouched final block start"
+    ),
+    end: str | None = typer.Option(None, "--end", help="Panel end date. Default: today"),
+    universe: str = typer.Option("etf", "--universe", help="'etf' (Panel A) or 'all'"),
+    train_size: int = typer.Option(504, "--train-size", help="Walk-forward training window"),
+    test_size: int = typer.Option(63, "--test-size", help="Walk-forward test window"),
+    embargo_size: int = typer.Option(15, "--embargo", help="Embargo days"),
+    max_trials: int = typer.Option(12, "--max-trials", help="Trial budget for the ladder"),
+    alpha: float = typer.Option(0.05, "--alpha", help="FDR target"),
+    phase3_report: str | None = typer.Option(
+        None,
+        "--phase3-report",
+        help=(
+            "Path to a validate-signal-score JSON report, whose trials are "
+            "combined with Phase 5's for the full-registry BH screen (G5 criterion C3)"
+        ),
+    ),
+    report_path: str | None = typer.Option(
+        None, "--report", help="Write the full report as JSON to this path"
+    ),
+):
+    """Phase 5: fit a model on continuous features and evaluate against Gate G5.
+
+    Entered only because validate-signal-score returned INCONCLUSIVE. Runs the
+    complexity ladder (baseline -> logistic -> LightGBM, budget-capped and
+    BH-screened) on a DEV set, then evaluates the winning config exactly once
+    on an untouched holdout block. Missing any one of the eight G5 criteria
+    means shipping nothing -- the site stays UNRATED regardless.
+    """
+    from pipeline.eval.signal_alpha import SignalAlphaResult
+    from pipeline.strategy.price_panel import load_ticker_frames
+    from pipeline.strategy.signal_model import run_phase5
+
+    console.print(
+        f"[bold blue]Phase 5: training signal model on '{universe}' universe...[/bold blue]"
+    )
+
+    if universe == "etf":
+        tickers = set(_PANEL_A_ETFS)
+    elif universe == "all":
+        raw_dir = Path("data/raw/prices")
+        tickers = {f.stem.split("_")[0].upper() for f in raw_dir.glob("*.parquet")}
+        console.print("[yellow]Survivorship-contaminated universe.[/yellow]")
+    else:
+        console.print(f"[red]Unknown --universe {universe!r}; use 'etf' or 'all'[/red]")
+        raise typer.Exit(1)
+    tickers.add("SPY")
+
+    end_ts = pd.Timestamp(end) if end else pd.Timestamp.now().normalize()
+    frames, breaks = load_ticker_frames(tickers, start=start, end=end_ts)
+    console.print(f"  Loaded {len(frames)}/{len(tickers)} tickers, {len(breaks)} price repairs")
+
+    price_panel = pd.DataFrame({t: df["close"] for t, df in frames.items()})
+
+    phase3_trials: list[SignalAlphaResult] = []
+    if phase3_report:
+        import json as _json
+
+        raw = _json.loads(Path(phase3_report).read_text())
+        for r in raw.get("decomposition", {}).get("trials", []):
+            phase3_trials.append(
+                SignalAlphaResult(
+                    **{k: r[k] for k in SignalAlphaResult.__dataclass_fields__ if k in r}
+                )
+            )
+        score_r = raw.get("score_result")
+        if score_r:
+            phase3_trials.append(
+                SignalAlphaResult(
+                    **{
+                        k: score_r[k]
+                        for k in SignalAlphaResult.__dataclass_fields__
+                        if k in score_r
+                    }
+                )
+            )
+        console.print(f"  Loaded {len(phase3_trials)} Phase 3 trials for the combined BH screen")
+    else:
+        console.print(
+            "[yellow]No --phase3-report given; BH screen covers only Phase 5's trials, "
+            "understating the true trial count.[/yellow]"
+        )
+
+    report = run_phase5(
+        frames, price_panel, phase3_trials=phase3_trials, holdout_start=holdout_start,
+        train_size=train_size, test_size=test_size, embargo_size=embargo_size,
+        max_trials=max_trials, alpha=alpha,
+    )  # fmt: skip
+
+    ladder_table = Table(title="Complexity Ladder (DEV only)")
+    ladder_table.add_column("Trial", justify="left")
+    ladder_table.add_column("OOS Log-Loss", justify="right")
+    ladder_table.add_column("Baseline LL", justify="right")
+    ladder_table.add_column("Beats Baseline", justify="center")
+    for t in report.ladder.dev_trials:
+        ladder_table.add_row(
+            t.trial_name,
+            f"{t.oos_log_loss:.4f}" if pd.notna(t.oos_log_loss) else "N/A",
+            f"{t.baseline_log_loss:.4f}" if pd.notna(t.baseline_log_loss) else "N/A",
+            "[green]yes[/green]" if t.beats_baseline else "no",
+        )
+    console.print(ladder_table)
+    console.print(f"  PBO: {report.ladder.pbo:.3f}")
+
+    if report.ladder.best_trial:
+        console.print(f"  Best DEV candidate: [bold]{report.ladder.best_trial.trial_name}[/bold]")
+        console.print(f"  Same-bar policy stable: {report.same_bar_stable}")
+        if report.holdout_result:
+            hr = report.holdout_result
+            console.print(
+                f"  Holdout (2024+): log-loss={hr['holdout_log_loss']:.4f} "
+                f"vs baseline={hr['baseline_log_loss']:.4f}, beats={hr['beats_baseline']}"
+            )
+    else:
+        console.print("  [yellow]No candidate beat the baseline on DEV.[/yellow]")
+
+    g5_table = Table(title="Gate G5 Criteria")
+    g5_table.add_column("Criterion")
+    g5_table.add_column("Met", justify="center")
+    for name, met in report.g5.criteria.items():
+        g5_table.add_row(name, "[green]yes[/green]" if met else "[red]no[/red]")
+    console.print(g5_table)
+
+    verdict_color = "green" if report.g5.passed else "red"
+    verdict = "SHIP" if report.g5.passed else "SHIP NOTHING"
+    console.print(f"\n[bold {verdict_color}]G5 VERDICT: {verdict}[/bold {verdict_color}]")
+    for reason in report.g5.reasoning:
+        console.print(f"  - {reason}")
+
+    if report_path:
+        import json
+
+        def _default(o):
+            if isinstance(o, pd.DataFrame | pd.Series):
+                return o.to_dict()
+            if hasattr(o, "__dict__"):
+                return {
+                    k: v
+                    for k, v in o.__dict__.items()
+                    if k not in ("oos_predictions", "oos_labels")
+                }
+            return str(o)
+
+        out_path = Path(report_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(report.__dict__, default=_default, indent=2))
+        console.print(f"\nWrote full report to {report_path}")
+
+
 def main():
     """Entry point for CLI."""
     app()
