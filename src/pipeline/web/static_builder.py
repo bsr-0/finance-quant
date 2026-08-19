@@ -25,6 +25,60 @@ def _load_config() -> dict:
     return {}
 
 
+def _load_validation_summary(reports_dir: str | Path = "reports") -> dict | None:
+    """Load the score (G3) and model (G5) validation reports, if present.
+
+    Both are produced by ``validate-signal-score`` and ``train-signal-model``
+    and are not checked in (``reports/`` is gitignored, since they're
+    regenerable and tied to whatever data the pipeline held at run time).
+    Returns ``None`` if neither report exists, so the site can say plainly
+    that validation hasn't been run rather than fabricate a status.
+    """
+    reports_dir = Path(reports_dir)
+    g3_path = reports_dir / "signal_validation.json"
+    g5_candidates = sorted(reports_dir.glob("phase5_validation*.json"), reverse=True)
+
+    g3 = None
+    if g3_path.exists():
+        try:
+            raw = json.loads(g3_path.read_text())
+            decomp = raw.get("decomposition", {})
+            g3 = {
+                "verdict": raw.get("verdict"),
+                "reasoning": raw.get("reasoning", []),
+                "ic_mean": raw.get("score_result", {}).get("ic_mean"),
+                "dsr_prob": raw.get("score_result", {}).get("deflated_sharpe_prob"),
+                "n_folds": raw.get("score_result", {}).get("n_folds"),
+                "daily_ic_ci": raw.get("monotonicity", {}).get("daily_ic_ci"),
+                "n_trials": len(decomp.get("trials", [])),
+                "n_bh_survivors": sum(1 for _, sig in decomp.get("screened", []) if sig),
+                "first_pc_variance_ratio": decomp.get("first_pc_variance_ratio"),
+            }
+        except (json.JSONDecodeError, KeyError, TypeError):
+            logger.warning("Could not parse %s", g3_path)
+
+    g5 = None
+    if g5_candidates:
+        try:
+            raw = json.loads(g5_candidates[0].read_text())
+            g5_block = raw.get("g5", {})
+            n_lgbm = len(raw.get("lightgbm_exploration", []))
+            g5 = {
+                "passed": g5_block.get("passed"),
+                "criteria": g5_block.get("criteria", {}),
+                "reasoning": g5_block.get("reasoning", []),
+                "n_dev_trials": len(raw.get("ladder", {}).get("dev_trials", [])),
+                "n_lightgbm_explored": n_lgbm,
+                "pbo": raw.get("ladder", {}).get("pbo"),
+            }
+        except (json.JSONDecodeError, KeyError, TypeError):
+            logger.warning("Could not parse %s", g5_candidates[0])
+
+    if g3 is None and g5 is None:
+        return None
+    return {"g3": g3, "g5": g5}
+
+
 def _find_latest_signal_csv(signals_dir: Path) -> Path | None:
     """Find the most recent signal CSV file."""
     csvs = sorted(signals_dir.glob("signals_*.csv"), reverse=True)
@@ -484,6 +538,8 @@ def build_static_site(
     signals_list = signals_df.to_dict("records") if not signals_df.empty else []
     indicator_count = sum(len(f["indicators"]) for f in _FEATURE_FAMILIES)
 
+    validation = _load_validation_summary()
+
     base_ctx = {
         "signal_date": signal_date,
         "universe": universe,
@@ -500,6 +556,7 @@ def build_static_site(
         "curated_tables": _CURATED_TABLES,
         "feature_families": _FEATURE_FAMILIES,
         "dq_checks": _DQ_CHECKS,
+        "validation": validation,
     }
 
     # --- Render index.html (dashboard) ---
@@ -531,7 +588,9 @@ def build_static_site(
         if month not in monthly:
             monthly[month] = {"total": 0, "wins": 0, "pnl_sum": 0.0}
         monthly[month]["total"] += 1
-        if p.get("outcome") == "hit_target":
+        # "Win" means profitable, matching PerformanceTracker.get_stats --
+        # a profitable expiry counts even though it never touched the target.
+        if p.get("pnl_pct") is not None and p["pnl_pct"] > 0:
             monthly[month]["wins"] += 1
         if p.get("pnl_pct") is not None:
             monthly[month]["pnl_sum"] += p["pnl_pct"]

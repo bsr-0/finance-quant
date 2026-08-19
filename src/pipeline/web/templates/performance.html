@@ -9,6 +9,70 @@
     <div class="subtitle">Aggregate and monthly signal performance</div>
 </div>
 
+<div class="validation-summary">
+    <h2 style="margin-bottom: 8px; font-size: 1.1rem;">Signal Validation</h2>
+    {% if validation %}
+        {% if validation.g3 %}
+        <div class="validation-block">
+            <div class="validation-verdict verdict-{{ validation.g3.verdict | lower }}">
+                Score validation (2010-present, walk-forward): {{ validation.g3.verdict }}
+            </div>
+            <p>
+                The composite signal score was tested for a monotone relationship with
+                forward returns on 16 years of history, not just the {{ stats.resolved }}
+                live-tracked predictions above. Walk-forward IC mean
+                {{ "%+.4f" | format(validation.g3.ic_mean) }} over {{ validation.g3.n_folds }}
+                out-of-sample folds; deflated Sharpe probability
+                {{ "%.3f" | format(validation.g3.dsr_prob) }} (needs &gt; 0.95 to pass).
+                Daily-IC 95% bootstrap CI: [{{ "%.4f" | format(validation.g3.daily_ic_ci[0]) }},
+                {{ "%.4f" | format(validation.g3.daily_ic_ci[1]) }}]{% if validation.g3.daily_ic_ci[0] <= 0 <= validation.g3.daily_ic_ci[1] %} &mdash; does not exclude zero{% endif %}.
+                Of {{ validation.g3.n_trials }} registered trials (the score, its 4 component
+                buckets, and its 10 underlying conditions), <strong>{{ validation.g3.n_bh_survivors }}</strong>
+                survived Benjamini-Hochberg correction.
+                {% if validation.g3.first_pc_variance_ratio %}
+                The four "oversold" conditions (RSI, Bollinger, stochastic, Williams %R) share
+                {{ "%.0f" | format(validation.g3.first_pc_variance_ratio * 100) }}% of their
+                variance in one principal component &mdash; largely one signal counted four times,
+                not four independent confirmations.
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+        {% if validation.g5 %}
+        <div class="validation-block">
+            <div class="validation-verdict verdict-{{ 'pass' if validation.g5.passed else 'shipnothing' }}">
+                Model validation (fitted models on continuous features): {{ 'SHIP' if validation.g5.passed else 'SHIP NOTHING' }}
+            </div>
+            <p>
+                Because the score itself showed no significant relationship, a logistic
+                model and LightGBM were tried on continuous versions of the same underlying
+                indicators (RSI, Bollinger position, ATR%, moving-average deviation, volume,
+                MACD), trained on the actual barrier payoff (hit target before stop) rather
+                than raw return, walk-forward validated through 2023 with 2024-present held
+                out untouched. {{ validation.g5.n_dev_trials }} development trials{% if validation.g5.n_lightgbm_explored %} plus {{ validation.g5.n_lightgbm_explored }} exploratory LightGBM runs{% endif %}
+                were tried; none beat a constant base-rate baseline on out-of-sample
+                log-loss, so none reached the holdout block at all.
+            </p>
+        </div>
+        {% endif %}
+        <p class="validation-conclusion">
+            <strong>Bottom line:</strong> across both the hand-built score and fitted models,
+            nothing has demonstrated a relationship with forward returns, in either direction.
+            The confidence labels above are suppressed and colour-coding removed because of
+            this, not merely as a precaution. This strategy is not recommended for live or
+            paper trading in its current form.
+        </p>
+    {% else %}
+        <p>
+            Score and model validation reports were not found. Run <code>mdw
+            validate-signal-score</code> and <code>mdw train-signal-model</code> to generate
+            them; until then, the win-rate numbers below reflect only the
+            {{ stats.resolved }} live-tracked predictions, which is too small a sample to
+            draw a conclusion from on its own.
+        </p>
+    {% endif %}
+</div>
+
 <div class="stats-row">
     <div class="stat-card">
         <div class="stat-value">{{ stats.total }}</div>

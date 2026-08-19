@@ -14,7 +14,12 @@ import pytest
 
 pytest.importorskip("jinja2")
 
-from pipeline.web.static_builder import _compute_ticker_stats, _score_class, build_static_site
+from pipeline.web.static_builder import (
+    _compute_ticker_stats,
+    _load_validation_summary,
+    _score_class,
+    build_static_site,
+)
 
 PAGES = [
     "index.html",
@@ -26,8 +31,15 @@ PAGES = [
 
 
 @pytest.fixture
-def site(tmp_path):
-    """Build a site from one signal CSV and one resolved prediction."""
+def site(tmp_path, monkeypatch):
+    """Build a site from one signal CSV and one resolved prediction.
+
+    Chdir's into tmp_path so _load_validation_summary's default relative
+    "reports" path can't pick up this repo's real reports/ directory --
+    without that isolation this fixture's output would depend on whatever
+    validation reports happen to exist on disk when the suite runs.
+    """
+    monkeypatch.chdir(tmp_path)
     signals_dir = tmp_path / "signals"
     signals_dir.mkdir()
     pd.DataFrame(
@@ -123,3 +135,149 @@ def test_ticker_win_rate_counts_profitable_not_just_target_hits():
 
     assert stats["win_rate"] == 50.0
     assert stats["target_hit_rate"] == 0.0
+
+
+# --- validation summary loading ----------------------------------------------
+
+
+def _write_g3_report(reports_dir, verdict="INCONCLUSIVE", n_survivors=0):
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    (reports_dir / "signal_validation.json").write_text(
+        json.dumps(
+            {
+                "score_result": {
+                    "ic_mean": 0.0236,
+                    "deflated_sharpe_prob": 0.865,
+                    "n_folds": 56,
+                },
+                "monotonicity": {"daily_ic_ci": [-0.0151, 0.0713]},
+                "decomposition": {
+                    "trials": list(range(16)),
+                    "screened": [(i, i < n_survivors) for i in range(16)],
+                    "first_pc_variance_ratio": 0.763,
+                },
+                "verdict": verdict,
+                "reasoning": ["some reason"],
+            }
+        )
+    )
+
+
+def _write_g5_report(reports_dir, passed=False):
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    (reports_dir / "phase5_validation.json").write_text(
+        json.dumps(
+            {
+                "ladder": {"dev_trials": list(range(8)), "pbo": 0.5},
+                "g5": {
+                    "passed": passed,
+                    "criteria": {"oos_beats_baseline": passed},
+                    "reasoning": ["some reason"],
+                },
+                "lightgbm_exploration": list(range(4)),
+            }
+        )
+    )
+
+
+def test_load_validation_summary_returns_none_when_absent(tmp_path):
+    assert _load_validation_summary(tmp_path / "nonexistent") is None
+
+
+def test_load_validation_summary_parses_g3_and_g5(tmp_path):
+    reports_dir = tmp_path / "reports"
+    _write_g3_report(reports_dir, verdict="INCONCLUSIVE", n_survivors=0)
+    _write_g5_report(reports_dir, passed=False)
+
+    summary = _load_validation_summary(reports_dir)
+
+    assert summary["g3"]["verdict"] == "INCONCLUSIVE"
+    assert summary["g3"]["n_trials"] == 16
+    assert summary["g3"]["n_bh_survivors"] == 0
+    assert summary["g5"]["passed"] is False
+    assert summary["g5"]["n_dev_trials"] == 8
+    assert summary["g5"]["n_lightgbm_explored"] == 4
+
+
+def test_load_validation_summary_handles_only_g3(tmp_path):
+    reports_dir = tmp_path / "reports"
+    _write_g3_report(reports_dir)
+
+    summary = _load_validation_summary(reports_dir)
+    assert summary["g3"] is not None
+    assert summary["g5"] is None
+
+
+def test_load_validation_summary_tolerates_corrupt_json(tmp_path):
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir(parents=True)
+    (reports_dir / "signal_validation.json").write_text("{not valid json")
+
+    assert _load_validation_summary(reports_dir) is None
+
+
+def test_load_validation_summary_picks_newest_phase5_report(tmp_path):
+    import time
+
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir(parents=True)
+    (reports_dir / "phase5_validation_a.json").write_text(
+        json.dumps(
+            {
+                "ladder": {"dev_trials": [1], "pbo": 0.1},
+                "g5": {"passed": False, "criteria": {}, "reasoning": []},
+                "lightgbm_exploration": [],
+            }
+        )
+    )
+    time.sleep(0.01)
+    (reports_dir / "phase5_validation_b.json").write_text(
+        json.dumps(
+            {
+                "ladder": {"dev_trials": [1, 2, 3], "pbo": 0.2},
+                "g5": {"passed": False, "criteria": {}, "reasoning": []},
+                "lightgbm_exploration": [],
+            }
+        )
+    )
+
+    summary = _load_validation_summary(reports_dir)
+    assert summary["g5"]["n_dev_trials"] == 3
+
+
+def test_performance_page_renders_validation_section(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _write_g3_report(tmp_path / "reports")
+    _write_g5_report(tmp_path / "reports")
+
+    signals_dir = tmp_path / "signals"
+    signals_dir.mkdir()
+    history = tmp_path / "history.json"
+    history.write_text(json.dumps({"predictions": [], "last_updated": ""}))
+
+    out = build_static_site(
+        output_dir=tmp_path / "site", signals_dir=signals_dir, history_path=history
+    )
+    html = (out / "performance.html").read_text()
+
+    assert "verdict-inconclusive" in html
+    assert "verdict-shipnothing" in html
+    assert "INCONCLUSIVE" in html
+    assert "SHIP NOTHING" in html
+    assert "not recommended for live or" in html
+
+
+def test_performance_page_without_reports_says_so(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # no reports/ dir here
+
+    signals_dir = tmp_path / "signals"
+    signals_dir.mkdir()
+    history = tmp_path / "history.json"
+    history.write_text(json.dumps({"predictions": [], "last_updated": ""}))
+
+    out = build_static_site(
+        output_dir=tmp_path / "site", signals_dir=signals_dir, history_path=history
+    )
+    html = (out / "performance.html").read_text()
+
+    assert "were not found" in html

@@ -145,6 +145,42 @@
         .validation-banner strong { color: var(--yellow); }
         .validation-banner p { margin-top: 4px; color: var(--text-muted); }
 
+        /* Signal validation summary (performance.html) */
+        .validation-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 24px 0;
+        }
+        .validation-block { margin-bottom: 16px; }
+        .validation-block p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; }
+        .validation-verdict {
+            display: inline-block;
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 0.02em;
+            padding: 4px 10px;
+            border-radius: 5px;
+            margin-bottom: 8px;
+        }
+        .verdict-pass { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+        .verdict-inverted { background: rgba(219, 109, 40, 0.15); color: var(--orange); }
+        .verdict-inconclusive { background: rgba(210, 153, 34, 0.15); color: var(--yellow); }
+        .verdict-shipnothing { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+        .validation-conclusion {
+            font-size: 0.9rem;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+            color: var(--text);
+        }
+        .validation-summary code {
+            background: var(--bg);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 0.85em;
+        }
+
         /* Outcome badges */
         .outcome-win {
             background: rgba(63, 185, 80, 0.15);
@@ -358,15 +394,26 @@
 
     <main class="container">
         <div class="validation-banner">
+            {% if validation and validation.g3 %}
+            <strong>&#9888; Validated and found to have no demonstrated edge.</strong>
+            <p>
+                Walk-forward testing on 16 years of data found no significant relationship
+                between the signal score{% if validation.g5 %} (or fitted models on the same
+                underlying indicators){% endif %} and forward returns, in either direction.
+                Confidence ratings are suppressed and score colour-coding removed as a
+                result &mdash; see the <a href="performance.html">Performance page</a> for
+                the full validation summary.
+            {% else %}
             <strong>&#9888; Experimental &mdash; not validated.</strong>
             <p>
                 These signal scores have not been shown to predict returns. Confidence
                 ratings are suppressed pending walk-forward validation, and the score
                 colour-coding has been removed for the same reason.
+            {% endif %}
                 {% if stats and stats.resolved %}
                 Tracked to date: {{ stats.total }} predictions, {{ stats.resolved }} resolved,
                 {{ stats.win_rate }}% profitable &mdash; a sample far too small to support
-                any performance claim.
+                any performance claim on its own.
                 {% endif %}
                 Do not trade these signals.
             </p>

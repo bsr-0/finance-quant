@@ -129,6 +129,57 @@
         .score-high { color: var(--green); font-weight: 700; }
         .score-medium { color: var(--yellow); font-weight: 600; }
         .score-low { color: var(--text-muted); }
+        .score-neutral { color: var(--text); }
+        .confidence-unrated { color: var(--text-muted); font-style: italic; }
+
+        /* Validation banner */
+        .validation-banner {
+            background: rgba(210, 153, 34, 0.12);
+            border: 1px solid var(--yellow);
+            border-left-width: 4px;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin: 20px 0;
+            font-size: 0.9rem;
+        }
+        .validation-banner strong { color: var(--yellow); }
+        .validation-banner p { margin-top: 4px; color: var(--text-muted); }
+
+        /* Signal validation summary (performance.html) */
+        .validation-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 24px 0;
+        }
+        .validation-block { margin-bottom: 16px; }
+        .validation-block p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; }
+        .validation-verdict {
+            display: inline-block;
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 0.02em;
+            padding: 4px 10px;
+            border-radius: 5px;
+            margin-bottom: 8px;
+        }
+        .verdict-pass { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+        .verdict-inverted { background: rgba(219, 109, 40, 0.15); color: var(--orange); }
+        .verdict-inconclusive { background: rgba(210, 153, 34, 0.15); color: var(--yellow); }
+        .verdict-shipnothing { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+        .validation-conclusion {
+            font-size: 0.9rem;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+            color: var(--text);
+        }
+        .validation-summary code {
+            background: var(--bg);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 0.85em;
+        }
 
         /* Outcome badges */
         .outcome-win {
@@ -342,6 +393,25 @@
     </nav>
 
     <main class="container">
+        <div class="validation-banner">
+            
+            <strong>&#9888; Validated and found to have no demonstrated edge.</strong>
+            <p>
+                Walk-forward testing on 16 years of data found no significant relationship
+                between the signal score (or fitted models on the same
+                underlying indicators) and forward returns, in either direction.
+                Confidence ratings are suppressed and score colour-coding removed as a
+                result &mdash; see the <a href="performance.html">Performance page</a> for
+                the full validation summary.
+            
+                
+                Tracked to date: 101 predictions, 58 resolved,
+                41.4% profitable &mdash; a sample far too small to support
+                any performance claim on its own.
+                
+                Do not trade these signals.
+            </p>
+        </div>
         
 <div class="page-header">
     <h1>PVH</h1>
@@ -354,12 +424,12 @@
         <div class="stat-label">Total Signals</div>
     </div>
     <div class="stat-card">
-        <div class="stat-value">0.0%</div>
+        <div class="stat-value">100.0%</div>
         <div class="stat-label">Win Rate</div>
     </div>
     <div class="stat-card">
         <div class="stat-value pnl-positive">
-            +0.00%
+            +8.79%
         </div>
         <div class="stat-label">Avg P&L</div>
     </div>
@@ -389,16 +459,16 @@
         
         <tr>
             <td>2026-05-18</td>
-            <td class="num score-high">80</td>
-            <td>HIGH</td>
+            <td class="num score-neutral">80</td>
+            <td class="">HIGH</td>
             <td class="num">$80.33</td>
             <td class="num">$75.02</td>
             <td class="num">$87.41</td>
-            <td><span class="outcome-active">Active</span></td>
-            <td class="num ">
-                -
+            <td><span class="outcome-win">Hit Target</span></td>
+            <td class="num pnl-positive">
+                +8.79%
             </td>
-            <td class="num">-</td>
+            <td class="num">4</td>
             <td class="hide-mobile">
                 <span class="regime regime-bull">
                     BULL
@@ -416,7 +486,7 @@
 
     <footer>
         <div class="container">
-            <p>Generated 2026-05-19 23:58 UTC &mdash; Not financial advice. Signals are algorithmic and for informational purposes only.</p>
+            <p>Generated 2026-08-19 04:52 UTC &mdash; Not financial advice. Signals are algorithmic and for informational purposes only.</p>
         </div>
     </footer>
 </body>

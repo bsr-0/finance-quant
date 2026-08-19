@@ -13,8 +13,11 @@
       "outcome": "hit_target",
       "resolved_date": "2025-12-15",
       "resolved_price": 154.8061,
-      "pnl_pct": 2.66,
-      "days_held": 7
+      "pnl_pct": 2.63,
+      "days_held": 7,
+      "bars_held": 5,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2025-12-09",
@@ -27,10 +30,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "hit_target",
-      "resolved_date": "2025-12-11",
+      "resolved_date": "2025-12-15",
       "resolved_price": 153.4641,
-      "pnl_pct": 2.77,
-      "days_held": 2
+      "pnl_pct": 2.74,
+      "days_held": 6,
+      "bars_held": 4,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2025-12-30",
@@ -45,8 +51,11 @@
       "outcome": "hit_target",
       "resolved_date": "2026-01-06",
       "resolved_price": 254.6107,
-      "pnl_pct": 2.83,
-      "days_held": 7
+      "pnl_pct": 2.8,
+      "days_held": 7,
+      "bars_held": 4,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2025-12-31",
@@ -58,11 +67,14 @@
       "target_price": 121.9666,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "hit_target",
-      "resolved_date": "2026-01-07",
-      "resolved_price": 121.9666,
-      "pnl_pct": 2.14,
-      "days_held": 7
+      "outcome": "stopped_out",
+      "resolved_date": "2026-01-02",
+      "resolved_price": 117.4926,
+      "pnl_pct": -1.64,
+      "days_held": 2,
+      "bars_held": 1,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-01-07",
@@ -77,8 +89,11 @@
       "outcome": "hit_target",
       "resolved_date": "2026-01-14",
       "resolved_price": 43.0079,
-      "pnl_pct": 2.72,
-      "days_held": 7
+      "pnl_pct": 2.69,
+      "days_held": 7,
+      "bars_held": 5,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-01-08",
@@ -91,10 +106,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "hit_target",
-      "resolved_date": "2026-01-14",
+      "resolved_date": "2026-01-15",
       "resolved_price": 43.1113,
-      "pnl_pct": 2.67,
-      "days_held": 6
+      "pnl_pct": 2.64,
+      "days_held": 7,
+      "bars_held": 5,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-01-15",
@@ -108,9 +126,12 @@
       "direction": "LONG",
       "outcome": "stopped_out",
       "resolved_date": "2026-01-20",
-      "resolved_price": 114.6871,
-      "pnl_pct": -1.31,
-      "days_held": 5
+      "resolved_price": 113.4296,
+      "pnl_pct": -2.42,
+      "days_held": 5,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": true
     },
     {
       "signal_date": "2026-01-16",
@@ -124,9 +145,12 @@
       "direction": "LONG",
       "outcome": "stopped_out",
       "resolved_date": "2026-01-20",
-      "resolved_price": 113.5533,
-      "pnl_pct": -1.4,
-      "days_held": 4
+      "resolved_price": 113.4296,
+      "pnl_pct": -1.54,
+      "days_held": 4,
+      "bars_held": 1,
+      "same_bar_ambiguous": false,
+      "gapped": true
     },
     {
       "signal_date": "2026-01-20",
@@ -139,10 +163,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "hit_target",
-      "resolved_date": "2026-01-26",
-      "resolved_price": 146.5514,
-      "pnl_pct": 3.32,
-      "days_held": 6
+      "resolved_date": "2026-01-27",
+      "resolved_price": 147.2392,
+      "pnl_pct": 3.78,
+      "days_held": 7,
+      "bars_held": 5,
+      "same_bar_ambiguous": false,
+      "gapped": true
     },
     {
       "signal_date": "2026-02-02",
@@ -156,9 +183,12 @@
       "direction": "LONG",
       "outcome": "hit_target",
       "resolved_date": "2026-02-04",
-      "resolved_price": 461.2157,
-      "pnl_pct": 7.98,
-      "days_held": 2
+      "resolved_price": 462.47,
+      "pnl_pct": 8.24,
+      "days_held": 2,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": true
     },
     {
       "signal_date": "2026-02-04",
@@ -171,10 +201,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "expired",
-      "resolved_date": "2026-02-19",
-      "resolved_price": 140.21,
-      "pnl_pct": 1.51,
-      "days_held": 15
+      "resolved_date": "2026-02-26",
+      "resolved_price": 140.837,
+      "pnl_pct": 1.94,
+      "days_held": 22,
+      "bars_held": 15,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-02-05",
@@ -189,8 +222,11 @@
       "outcome": "hit_target",
       "resolved_date": "2026-02-09",
       "resolved_price": 142.3571,
-      "pnl_pct": 4.96,
-      "days_held": 4
+      "pnl_pct": 4.93,
+      "days_held": 4,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-02-05",
@@ -205,8 +241,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-02-17",
       "resolved_price": 114.4479,
-      "pnl_pct": -2.61,
-      "days_held": 12
+      "pnl_pct": -2.64,
+      "days_held": 12,
+      "bars_held": 7,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-02-05",
@@ -221,8 +260,11 @@
       "outcome": "hit_target",
       "resolved_date": "2026-02-06",
       "resolved_price": 265.2134,
-      "pnl_pct": 3.85,
-      "days_held": 1
+      "pnl_pct": 3.82,
+      "days_held": 1,
+      "bars_held": 1,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-02-11",
@@ -237,8 +279,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-02-17",
       "resolved_price": 114.8254,
-      "pnl_pct": -2.49,
-      "days_held": 6
+      "pnl_pct": -2.52,
+      "days_held": 6,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-04",
@@ -251,10 +296,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "stopped_out",
-      "resolved_date": "2026-03-06",
+      "resolved_date": "2026-03-05",
       "resolved_price": 50.3879,
-      "pnl_pct": -2.95,
-      "days_held": 2
+      "pnl_pct": -2.98,
+      "days_held": 1,
+      "bars_held": 1,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-05",
@@ -267,10 +315,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "stopped_out",
-      "resolved_date": "2026-03-18",
+      "resolved_date": "2026-03-12",
       "resolved_price": 83.3689,
-      "pnl_pct": -2.39,
-      "days_held": 13
+      "pnl_pct": -2.42,
+      "days_held": 7,
+      "bars_held": 5,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-05",
@@ -283,10 +334,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "stopped_out",
-      "resolved_date": "2026-03-09",
+      "resolved_date": "2026-03-06",
       "resolved_price": 49.2968,
-      "pnl_pct": -3.02,
-      "days_held": 4
+      "pnl_pct": -3.05,
+      "days_held": 1,
+      "bars_held": 1,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-06",
@@ -299,10 +353,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "stopped_out",
-      "resolved_date": "2026-03-13",
+      "resolved_date": "2026-03-12",
       "resolved_price": 165.1207,
-      "pnl_pct": -2.84,
-      "days_held": 7
+      "pnl_pct": -2.87,
+      "days_held": 6,
+      "bars_held": 4,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-06",
@@ -315,10 +372,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "stopped_out",
-      "resolved_date": "2026-03-12",
+      "resolved_date": "2026-03-11",
       "resolved_price": 83.755,
-      "pnl_pct": -2.36,
-      "days_held": 6
+      "pnl_pct": -2.39,
+      "days_held": 5,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-11",
@@ -333,8 +393,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-03-18",
       "resolved_price": 82.6207,
-      "pnl_pct": -2.33,
-      "days_held": 7
+      "pnl_pct": -2.36,
+      "days_held": 7,
+      "bars_held": 5,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-11",
@@ -346,11 +409,14 @@
       "target_price": 47.62,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "hit_target",
-      "resolved_date": "2026-03-17",
-      "resolved_price": 47.62,
-      "pnl_pct": 3.14,
-      "days_held": 6
+      "outcome": "stopped_out",
+      "resolved_date": "2026-03-20",
+      "resolved_price": 45.0825,
+      "pnl_pct": -2.39,
+      "days_held": 9,
+      "bars_held": 7,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-11",
@@ -363,10 +429,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "stopped_out",
-      "resolved_date": "2026-03-20",
+      "resolved_date": "2026-03-19",
       "resolved_price": 41.4789,
-      "pnl_pct": -2.2,
-      "days_held": 9
+      "pnl_pct": -2.23,
+      "days_held": 8,
+      "bars_held": 6,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-11",
@@ -381,8 +450,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-03-13",
       "resolved_price": 164.3107,
-      "pnl_pct": -3.06,
-      "days_held": 2
+      "pnl_pct": -3.09,
+      "days_held": 2,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-12",
@@ -397,8 +469,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-03-20",
       "resolved_price": 41.2041,
-      "pnl_pct": -2.22,
-      "days_held": 8
+      "pnl_pct": -2.25,
+      "days_held": 8,
+      "bars_held": 6,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-13",
@@ -413,8 +488,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-03-18",
       "resolved_price": 82.7836,
-      "pnl_pct": -2.31,
-      "days_held": 5
+      "pnl_pct": -2.34,
+      "days_held": 5,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-13",
@@ -429,8 +507,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-03-20",
       "resolved_price": 41.3077,
-      "pnl_pct": -2.23,
-      "days_held": 7
+      "pnl_pct": -2.26,
+      "days_held": 7,
+      "bars_held": 5,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-16",
@@ -445,8 +526,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-03-18",
       "resolved_price": 83.0557,
-      "pnl_pct": -2.26,
-      "days_held": 2
+      "pnl_pct": -2.29,
+      "days_held": 2,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-03-16",
@@ -459,10 +543,13 @@
       "regime": "BULL",
       "direction": "LONG",
       "outcome": "stopped_out",
-      "resolved_date": "2026-03-20",
+      "resolved_date": "2026-03-19",
       "resolved_price": 41.6105,
-      "pnl_pct": -2.28,
-      "days_held": 4
+      "pnl_pct": -2.31,
+      "days_held": 3,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-04-10",
@@ -477,8 +564,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-04-17",
       "resolved_price": 54.1709,
-      "pnl_pct": -4.86,
-      "days_held": 7
+      "pnl_pct": -4.89,
+      "days_held": 7,
+      "bars_held": 5,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-04-13",
@@ -492,9 +582,12 @@
       "direction": "LONG",
       "outcome": "stopped_out",
       "resolved_date": "2026-04-17",
-      "resolved_price": 54.4588,
-      "pnl_pct": -4.64,
-      "days_held": 4
+      "resolved_price": 54.41,
+      "pnl_pct": -4.76,
+      "days_held": 4,
+      "bars_held": 4,
+      "same_bar_ambiguous": false,
+      "gapped": true
     },
     {
       "signal_date": "2026-04-29",
@@ -509,8 +602,11 @@
       "outcome": "hit_target",
       "resolved_date": "2026-05-06",
       "resolved_price": 52.3814,
-      "pnl_pct": 2.79,
-      "days_held": 7
+      "pnl_pct": 2.76,
+      "days_held": 7,
+      "bars_held": 5,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-08",
@@ -525,8 +621,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-05-13",
       "resolved_price": 155.7311,
-      "pnl_pct": -6.15,
-      "days_held": 5
+      "pnl_pct": -6.18,
+      "days_held": 5,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-08",
@@ -541,8 +640,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-05-19",
       "resolved_price": 120.6761,
-      "pnl_pct": -3.88,
-      "days_held": 11
+      "pnl_pct": -3.91,
+      "days_held": 11,
+      "bars_held": 7,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-11",
@@ -557,8 +659,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-05-19",
       "resolved_price": 121.0426,
-      "pnl_pct": -3.82,
-      "days_held": 8
+      "pnl_pct": -3.85,
+      "days_held": 8,
+      "bars_held": 6,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-11",
@@ -573,8 +678,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-05-13",
       "resolved_price": 52.8995,
-      "pnl_pct": -2.92,
-      "days_held": 2
+      "pnl_pct": -2.95,
+      "days_held": 2,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-11",
@@ -605,8 +713,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-05-19",
       "resolved_price": 41.0746,
-      "pnl_pct": -3.9,
-      "days_held": 8
+      "pnl_pct": -3.93,
+      "days_held": 8,
+      "bars_held": 6,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-11",
@@ -618,11 +729,14 @@
       "target_price": 146.5537,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "stopped_out",
+      "resolved_date": "2026-05-20",
+      "resolved_price": 129.9222,
+      "pnl_pct": -5.23,
+      "days_held": 9,
+      "bars_held": 7,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -650,11 +764,14 @@
       "target_price": 436.5857,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "stopped_out",
+      "resolved_date": "2026-05-21",
+      "resolved_price": 378.0732,
+      "pnl_pct": -6.25,
+      "days_held": 6,
+      "bars_held": 4,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -666,11 +783,14 @@
       "target_price": 102.3514,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-20",
+      "resolved_price": 102.3514,
+      "pnl_pct": 7.78,
+      "days_held": 5,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -748,9 +868,12 @@
       "direction": "LONG",
       "outcome": "hit_target",
       "resolved_date": "2026-05-19",
-      "resolved_price": 589.357,
-      "pnl_pct": 4.92,
-      "days_held": 4
+      "resolved_price": 591.99,
+      "pnl_pct": 5.36,
+      "days_held": 4,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": true
     },
     {
       "signal_date": "2026-05-15",
@@ -762,11 +885,14 @@
       "target_price": 150.2057,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-22",
+      "resolved_price": 150.2057,
+      "pnl_pct": 4.25,
+      "days_held": 7,
+      "bars_held": 5,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -778,11 +904,14 @@
       "target_price": 494.3529,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "stopped_out",
+      "resolved_date": "2026-05-21",
+      "resolved_price": 445.7854,
+      "pnl_pct": -4.49,
+      "days_held": 6,
+      "bars_held": 4,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -794,11 +923,14 @@
       "target_price": 43.0379,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-20",
+      "resolved_price": 43.0379,
+      "pnl_pct": 4.89,
+      "days_held": 5,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -858,11 +990,14 @@
       "target_price": 94.9467,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "stopped_out",
+      "resolved_date": "2026-05-21",
+      "resolved_price": 83.9275,
+      "pnl_pct": -5.36,
+      "days_held": 6,
+      "bars_held": 4,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -890,11 +1025,14 @@
       "target_price": 67.5316,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-21",
+      "resolved_price": 67.5316,
+      "pnl_pct": 5.29,
+      "days_held": 6,
+      "bars_held": 4,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -925,8 +1063,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-05-19",
       "resolved_price": 22.9362,
-      "pnl_pct": -6.0,
-      "days_held": 4
+      "pnl_pct": -6.03,
+      "days_held": 4,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -941,8 +1082,11 @@
       "outcome": "stopped_out",
       "resolved_date": "2026-05-18",
       "resolved_price": 89.9646,
-      "pnl_pct": -3.64,
-      "days_held": 3
+      "pnl_pct": -3.67,
+      "days_held": 3,
+      "bars_held": 1,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -954,11 +1098,14 @@
       "target_price": 286.3914,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-21",
+      "resolved_price": 286.3914,
+      "pnl_pct": 4.16,
+      "days_held": 6,
+      "bars_held": 4,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-15",
@@ -1002,11 +1149,14 @@
       "target_price": 87.4129,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-22",
+      "resolved_price": 87.4129,
+      "pnl_pct": 8.79,
+      "days_held": 4,
+      "bars_held": 4,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-18",
@@ -1162,11 +1312,14 @@
       "target_price": 95.5373,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "stopped_out",
+      "resolved_date": "2026-05-21",
+      "resolved_price": 84.587,
+      "pnl_pct": -5.29,
+      "days_held": 3,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-18",
@@ -1258,11 +1411,14 @@
       "target_price": 104.4379,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-21",
+      "resolved_price": 104.4379,
+      "pnl_pct": 7.64,
+      "days_held": 3,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-18",
@@ -1370,11 +1526,14 @@
       "target_price": 156.3007,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-21",
+      "resolved_price": 156.3007,
+      "pnl_pct": 4.26,
+      "days_held": 2,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-19",
@@ -1386,11 +1545,14 @@
       "target_price": 243.4727,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-22",
+      "resolved_price": 243.4727,
+      "pnl_pct": 6.66,
+      "days_held": 3,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-19",
@@ -1402,11 +1564,14 @@
       "target_price": 62.9286,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-22",
+      "resolved_price": 62.9286,
+      "pnl_pct": 7.39,
+      "days_held": 3,
+      "bars_held": 3,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-19",
@@ -1418,11 +1583,14 @@
       "target_price": 94.257,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "stopped_out",
+      "resolved_date": "2026-05-21",
+      "resolved_price": 83.8323,
+      "pnl_pct": -5.09,
+      "days_held": 2,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-19",
@@ -1466,11 +1634,14 @@
       "target_price": 118.8307,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-21",
+      "resolved_price": 118.8307,
+      "pnl_pct": 3.27,
+      "days_held": 2,
+      "bars_held": 2,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-19",
@@ -1514,11 +1685,14 @@
       "target_price": 72.3496,
       "regime": "BULL",
       "direction": "LONG",
-      "outcome": "active",
-      "resolved_date": null,
-      "resolved_price": null,
-      "pnl_pct": null,
-      "days_held": null
+      "outcome": "hit_target",
+      "resolved_date": "2026-05-20",
+      "resolved_price": 72.3496,
+      "pnl_pct": 6.74,
+      "days_held": 1,
+      "bars_held": 1,
+      "same_bar_ambiguous": false,
+      "gapped": false
     },
     {
       "signal_date": "2026-05-19",
@@ -1617,5 +1791,5 @@
       "days_held": null
     }
   ],
-  "last_updated": "2026-05-19T23:58:09.063707+00:00"
+  "last_updated": "2026-08-19T04:47:57.592378+00:00"
 }
