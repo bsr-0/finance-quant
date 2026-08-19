@@ -38,6 +38,9 @@ htmlcov/
 .pytest_cache/
 .mypy_cache/
 
+# Generated validation reports (regenerate with validate-signal-score)
+reports/
+
 # OS
 .DS_Store
 Thumbs.db

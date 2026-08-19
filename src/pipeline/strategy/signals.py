@@ -168,23 +168,24 @@ class SignalEngine:
         total = trend + pullback + volume + volatility
         return total, trend, pullback, volume, volatility
 
-    def score_frame(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Vectorized equivalent of calling ``_score_row`` on every row.
+    def component_conditions(self, df: pd.DataFrame) -> dict[str, tuple[pd.Series, int, str]]:
+        """The ten boolean conditions ``_score_row`` sums into a score.
 
-        Built for scoring a full historical panel (thousands of symbols x
-        thousands of dates) where the Python-level loop in ``_score_row`` is
-        too slow.  Must stay in exact agreement with ``_score_row`` --
-        verified by ``tests/test_signal_panel.py``'s parity test against random
-        indicator frames, including NaN-heavy warmup rows.
+        Returns ``{name: (mask, points, bucket)}``. Exposed separately from
+        ``score_frame`` so each condition can be tested independently for
+        predictive power -- e.g. whether the four "oversold" conditions
+        (``rsi_oversold``, ``below_bb_lower``, ``stoch_oversold``,
+        ``williams_oversold``) are actually four independent confirmations or
+        one construct counted four times.
 
-        NaN handling relies on the fact that a NaN comparison (``NaN > x``)
-        evaluates to ``False`` in both numpy and pandas, which reproduces every
+        NaN handling relies on a NaN comparison (``NaN > x``) evaluating to
+        ``False`` in both numpy and pandas, which reproduces every
         ``not np.isnan(...)`` guard in ``_score_row`` without restating it --
-        except one: the original code nests the ``close > sma_200`` bonus
-        inside the same ``if not isnan(sma_50) and not isnan(sma_200)`` block
-        as the ``close > sma_50 > sma_200`` bonus, so the +10 requires sma_50
-        to be present even though sma_50 doesn't appear in that comparison.
-        That's replicated explicitly below via ``both_ma_present``.
+        except one: the original nests the ``close > sma_200`` bonus inside the
+        same ``if not isnan(sma_50) and not isnan(sma_200)`` block as the
+        ``close > sma_50 > sma_200`` bonus, so it requires sma_50 to be present
+        even though sma_50 doesn't appear in that comparison. Replicated
+        explicitly via ``both_ma_present``.
         """
 
         def col(name: str, default: float) -> pd.Series:
@@ -209,34 +210,57 @@ class SignalEngine:
 
         both_ma_present = sma_50.notna() & sma_200.notna()
 
-        trend = pd.Series(0, index=df.index, dtype=int)
-        trend += (both_ma_present & (close > sma_50) & (sma_50 > sma_200)).astype(int) * 25
-        trend += (both_ma_present & (close > sma_200)).astype(int) * 10
-        trend += (slope_50 > 0).astype(int) * 5
+        return {
+            "trend_stacked": (
+                both_ma_present & (close > sma_50) & (sma_50 > sma_200),
+                25,
+                "trend",
+            ),
+            "above_sma_200": (both_ma_present & (close > sma_200), 10, "trend"),
+            "sma_50_rising": (slope_50 > 0, 5, "trend"),
+            "rsi_oversold": (rsi < 35, 15, "pullback"),
+            "below_bb_lower": (close <= bb_lower, 10, "pullback"),
+            "stoch_oversold": (stoch_k < 20, 5, "pullback"),
+            "volume_below_sma": (
+                (volume_sma > 0) & (volume_col < volume_sma * 0.8),
+                10,
+                "volume",
+            ),
+            "obv_rising": (obv_slope > 0, 5, "volume"),
+            "atr_pct_in_range": (
+                (atr_pct > self.atr_pct_min) & (atr_pct < self.atr_pct_max),
+                5,
+                "volatility",
+            ),
+            "macd_rising": (macd_hist > macd_prev, 5, "volatility"),
+            "williams_oversold": (williams_r < -80, 5, "volatility"),
+        }
 
-        pullback = pd.Series(0, index=df.index, dtype=int)
-        pullback += (rsi < 35).astype(int) * 15
-        pullback += (close <= bb_lower).astype(int) * 10
-        pullback += (stoch_k < 20).astype(int) * 5
+    def score_frame(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Vectorized equivalent of calling ``_score_row`` on every row.
 
-        volume_pts = pd.Series(0, index=df.index, dtype=int)
-        volume_pts += ((volume_sma > 0) & (volume_col < volume_sma * 0.8)).astype(int) * 10
-        volume_pts += (obv_slope > 0).astype(int) * 5
+        Built for scoring a full historical panel (thousands of symbols x
+        thousands of dates) where the Python-level loop in ``_score_row`` is
+        too slow.  Must stay in exact agreement with ``_score_row`` --
+        verified by ``tests/test_signal_panel.py``'s parity test against random
+        indicator frames, including NaN-heavy warmup rows.
+        """
+        conditions = self.component_conditions(df)
+        buckets = {"trend": pd.Series(0, index=df.index, dtype=int)}
+        for bucket in ("pullback", "volume", "volatility"):
+            buckets[bucket] = pd.Series(0, index=df.index, dtype=int)
+        for mask, points, bucket in conditions.values():
+            buckets[bucket] = buckets[bucket] + mask.astype(int) * points
 
-        volatility = pd.Series(0, index=df.index, dtype=int)
-        volatility += ((atr_pct > self.atr_pct_min) & (atr_pct < self.atr_pct_max)).astype(int) * 5
-        volatility += (macd_hist > macd_prev).astype(int) * 5
-        volatility += (williams_r < -80).astype(int) * 5
-
-        total = trend + pullback + volume_pts + volatility
+        total = buckets["trend"] + buckets["pullback"] + buckets["volume"] + buckets["volatility"]
 
         return pd.DataFrame(
             {
                 "score": total,
-                "trend_pts": trend,
-                "pullback_pts": pullback,
-                "volume_pts": volume_pts,
-                "volatility_pts": volatility,
+                "trend_pts": buckets["trend"],
+                "pullback_pts": buckets["pullback"],
+                "volume_pts": buckets["volume"],
+                "volatility_pts": buckets["volatility"],
             },
             index=df.index,
         )

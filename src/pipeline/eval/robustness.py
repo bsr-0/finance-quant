@@ -64,8 +64,12 @@ def bootstrap_ci(
     for _ in range(n_boot):
         sample = rng.choice(values, size=len(values), replace=True)
         stats.append(metric_fn(pd.Series(sample)))
-    lo = np.percentile(stats, alpha * 100)
-    hi = np.percentile(stats, (1 - alpha) * 100)
+    # Two-sided (1-alpha) interval: alpha/2 in each tail. Using alpha and
+    # (1-alpha) directly -- the previous behavior -- puts alpha in each tail,
+    # so alpha=0.05 produced a 90% interval while callers, per the docstring,
+    # expect 95%.
+    lo = np.percentile(stats, alpha / 2 * 100)
+    hi = np.percentile(stats, (1 - alpha / 2) * 100)
     return float(lo), float(hi)
 
 
@@ -109,8 +113,9 @@ def block_bootstrap_ci(
             blocks.append(values[start : start + block_size])
         sample = np.concatenate(blocks)[:n]
         stats.append(metric_fn(pd.Series(sample)))
-    lo = np.percentile(stats, alpha * 100)
-    hi = np.percentile(stats, (1 - alpha) * 100)
+    # See bootstrap_ci: alpha/2 per tail for a true (1-alpha) two-sided interval.
+    lo = np.percentile(stats, alpha / 2 * 100)
+    hi = np.percentile(stats, (1 - alpha / 2) * 100)
     return float(lo), float(hi)
 
 

@@ -2836,6 +2836,133 @@ def build_score_panel(
         console.print(f"  Wrote {path}  ({df.shape[0]} dates x {df.shape[1]} tickers)")
 
 
+@app.command()
+def validate_signal_score(
+    start: str = typer.Option("2010-01-01", "--start", help="Validation window start"),
+    end: str | None = typer.Option(None, "--end", help="Validation window end. Default: today"),
+    universe: str = typer.Option(
+        "etf", "--universe", help="'etf' (Panel A, no survivorship) or 'all'"
+    ),
+    train_size: int = typer.Option(504, "--train-size", help="Walk-forward training window"),
+    test_size: int = typer.Option(63, "--test-size", help="Walk-forward test window"),
+    embargo_size: int = typer.Option(15, "--embargo", help="Embargo days between train/test"),
+    alpha: float = typer.Option(0.05, "--alpha", help="FDR target for the trial registry"),
+    report_path: str | None = typer.Option(
+        None, "--report", help="Write the full report as JSON to this path"
+    ),
+):
+    """Run the full signal-validation harness and render the G3 verdict.
+
+    Tests whether the QSG-MICRO-SWING-001 score has any monotone relationship
+    with forward returns on real 2010-present history -- something that has
+    never been checked. Every variant (the score, its 4 component buckets, and
+    its 10 underlying boolean conditions) is registered as a trial and
+    screened together via Benjamini-Hochberg, so nothing here is cherry-picked
+    after the fact.
+    """
+    from pipeline.eval.signal_diagnostics import run_validation
+    from pipeline.strategy.price_panel import load_ticker_frames
+    from pipeline.strategy.signal_panel import build_score_panel
+    from pipeline.strategy.signals import SignalEngine
+
+    console.print(f"[bold blue]Validating signal score on '{universe}' universe...[/bold blue]")
+
+    if universe == "etf":
+        tickers = set(_PANEL_A_ETFS)
+    elif universe == "all":
+        raw_dir = Path("data/raw/prices")
+        tickers = {f.stem.split("_")[0].upper() for f in raw_dir.glob("*.parquet")}
+        console.print(
+            "[yellow]Survivorship-contaminated universe; results are a bias bound.[/yellow]"
+        )
+    else:
+        console.print(f"[red]Unknown --universe {universe!r}; use 'etf' or 'all'[/red]")
+        raise typer.Exit(1)
+    tickers.add("SPY")
+
+    end_ts = pd.Timestamp(end) if end else pd.Timestamp.now().normalize()
+    frames, breaks = load_ticker_frames(tickers, start=start, end=end_ts)
+    console.print(f"  Loaded {len(frames)}/{len(tickers)} tickers, {len(breaks)} price repairs")
+    if "SPY" not in frames:
+        console.print("[red]SPY failed to load; cannot classify regimes[/red]")
+        raise typer.Exit(1)
+
+    engine = SignalEngine()
+    panel = build_score_panel(frames, engine, spy_prices=frames["SPY"]["close"])
+    if panel.score.empty:
+        console.print("[red]No scores produced[/red]")
+        raise typer.Exit(1)
+
+    report = run_validation(
+        panel,
+        frames,
+        engine,
+        train_size=train_size,
+        test_size=test_size,
+        embargo_size=embargo_size,
+        alpha=alpha,
+    )
+
+    decay_table = Table(title="D1: IC Decay by Horizon")
+    decay_table.add_column("Horizon (d)", justify="right")
+    decay_table.add_column("Mean IC", justify="right")
+    decay_table.add_column("IC IR", justify="right")
+    for h in report.monotonicity.decay.horizons:
+        marker = " *" if h == report.monotonicity.decay.best_horizon else ""
+        decay_table.add_row(
+            f"{h}{marker}",
+            f"{report.monotonicity.decay.ic_by_horizon.get(h, float('nan')):.4f}",
+            f"{report.monotonicity.decay.ic_ir_by_horizon.get(h, float('nan')):.4f}",
+        )
+    console.print(decay_table)
+    lo, hi = report.monotonicity.daily_ic_ci
+    console.print(f"  Daily-IC block-bootstrap 95% CI: [{lo:.4f}, {hi:.4f}]\n")
+
+    trial_table = Table(title="D2: Component Trial Registry (BH-screened)")
+    trial_table.add_column("Trial", justify="left")
+    trial_table.add_column("IC Mean", justify="right")
+    trial_table.add_column("DSR Prob", justify="right")
+    trial_table.add_column("Significant", justify="center")
+    for result, significant in report.decomposition.screened:
+        trial_table.add_row(
+            result.signal_name,
+            f"{result.ic_mean:.4f}" if pd.notna(result.ic_mean) else "N/A",
+            (
+                f"{result.deflated_sharpe_prob:.3f}"
+                if pd.notna(result.deflated_sharpe_prob)
+                else "N/A"
+            ),
+            "[green]yes[/green]" if significant else "no",
+        )
+    console.print(trial_table)
+    if pd.notna(report.decomposition.first_pc_variance_ratio):
+        console.print(
+            "  First PC of the 4 oversold conditions explains "
+            f"{report.decomposition.first_pc_variance_ratio:.1%} of their variance"
+        )
+    console.print(f"  Probability of backtest overfitting (PBO): {report.pbo:.3f}\n")
+
+    verdict_color = {"PASS": "green", "INVERTED": "yellow", "INCONCLUSIVE": "red"}[report.verdict]
+    console.print(f"[bold {verdict_color}]G3 VERDICT: {report.verdict}[/bold {verdict_color}]")
+    for reason in report.reasoning:
+        console.print(f"  - {reason}")
+
+    if report_path:
+        import json
+
+        def _default(o):
+            if isinstance(o, pd.DataFrame):
+                return o.to_dict()
+            if hasattr(o, "__dict__"):
+                return o.__dict__
+            return str(o)
+
+        out_path = Path(report_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(report.__dict__, default=_default, indent=2))
+        console.print(f"\nWrote full report to {report_path}")
+
+
 def main():
     """Entry point for CLI."""
     app()
