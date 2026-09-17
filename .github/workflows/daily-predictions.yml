@@ -5,7 +5,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
   id-token: write
 
 jobs:
@@ -99,7 +98,3 @@ jobs:
             git commit -m "chore: daily predictions $(date +%Y-%m-%d) [skip ci]"
             git push
           fi
-
-  deploy:
-    needs: daily-predictions
-    uses: ./.github/workflows/deploy-pages.yml
