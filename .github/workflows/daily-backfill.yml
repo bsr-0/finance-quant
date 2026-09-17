@@ -1,9 +1,6 @@
 name: Daily Data Backfill
 
 on:
-  schedule:
-    # 10:00 UTC = ~6am ET, after overnight data settlement, weekdays only
-    - cron: "0 10 * * 1-5"
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 permissions:
